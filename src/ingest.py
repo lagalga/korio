@@ -39,6 +39,7 @@ def ingest_document(
     tenant_id: str,
     space_id: str,
     document_id: Optional[str] = None,
+    source_type: str = "manual",
     anonymize: bool = True
 ) -> dict:
     """
@@ -122,7 +123,7 @@ def ingest_document(
             "tenant_id": tenant_id,
             "space_id": space_id,
             "filename": path.name,
-            "source_type": "manual",
+            "source_type": source_type,
             "content_hash": content_hash,
             "status": "active"
         }).execute()
@@ -163,7 +164,7 @@ def ingest_document(
         "status": "success",
         "chunks_created": len(chunk_records),
         "embeddings_generated": len(embeddings),
-        "pii_anonymized": prep_meta['pii_found'],
+        "pii_found": prep_meta['pii_found'],
         "char_count": prep_meta['char_count']
     }
 
