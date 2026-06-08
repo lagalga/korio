@@ -163,9 +163,9 @@ CREATE POLICY "audit_log_select_own" ON audit_log
 -- SEED DATA (for testing)
 -- ============================================================================
 
--- Tenant 1: Hospital San Juan
+-- Tenant 1: Clínica Delos
 INSERT INTO tenants (id, name) VALUES
-  ('a0000000-0000-0000-0000-000000000001'::UUID, 'Hospital San Juan');
+  ('a0000000-0000-0000-0000-000000000001'::UUID, 'Clínica Delos');
 
 -- Tenant 2: Despacho Legal García
 INSERT INTO tenants (id, name) VALUES
@@ -173,9 +173,9 @@ INSERT INTO tenants (id, name) VALUES
 
 -- Users for Tenant 1
 INSERT INTO users (id, tenant_id, email, role) VALUES
-  ('a1000000-0000-0000-0000-000000000001'::UUID, 'a0000000-0000-0000-0000-000000000001', 'admin@hospital.es', 'admin'),
-  ('a2000000-0000-0000-0000-000000000001'::UUID, 'a0000000-0000-0000-0000-000000000001', 'doctor@hospital.es', 'user'),
-  ('a3000000-0000-0000-0000-000000000001'::UUID, 'a0000000-0000-0000-0000-000000000001', 'staff@hospital.es', 'viewer');
+  ('a1000000-0000-0000-0000-000000000001'::UUID, 'a0000000-0000-0000-0000-000000000001', 'admin@clinicadelos.es', 'admin'),
+  ('a2000000-0000-0000-0000-000000000001'::UUID, 'a0000000-0000-0000-0000-000000000001', 'doctor@clinicadelos.es', 'user'),
+  ('a3000000-0000-0000-0000-000000000001'::UUID, 'a0000000-0000-0000-0000-000000000001', 'staff@clinicadelos.es', 'viewer');
 
 -- Users for Tenant 2
 INSERT INTO users (id, tenant_id, email, role) VALUES
@@ -224,7 +224,7 @@ INSERT INTO document_acl (document_id, space_id, permission)
 -- ============================================================================
 /*
 RLS FLOW:
-1. User 'doctor@hospital.es' (a2000000...) queries via auth.uid() = a2000000...
+1. User 'doctor@clinicadelos.es' (a2000000...) queries via auth.uid() = a2000000...
 2. Query hits embeddings table → RLS policy checks:
    - SELECT document_id FROM documents d
      WHERE d.space_id IN (

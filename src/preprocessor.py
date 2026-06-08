@@ -264,7 +264,7 @@ if __name__ == "__main__":
     # Crear documento de prueba
     test_file = "/tmp/test_document.md"
     test_content = """
-    # Hospital San Juan
+    # Clínica Delos
 
     ## Paciente: Juan García
     Email: juan.garcia@email.com

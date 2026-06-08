@@ -177,7 +177,7 @@ if __name__ == "__main__":
 
     # Documento de prueba
     sample_text = """
-    Hospital San Juan
+    Clínica Delos
 
     Protocolo de Admisión de Pacientes
 
@@ -209,7 +209,7 @@ if __name__ == "__main__":
     chunks_meta = chunker.chunk_with_metadata(
         sample_text,
         source_id="doc-001",
-        document_title="Protocolo Hospital San Juan"
+        document_title="Protocolo Clínica Delos"
     )
     print(f"\n\nChunks con metadata: {len(chunks_meta)}")
     for chunk, meta in chunks_meta[:2]:
