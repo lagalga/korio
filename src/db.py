@@ -89,6 +89,13 @@ class SupabaseClient:
         except Exception as e:
             raise ConnectionError(f"Error conectando a Supabase: {e}") from e
 
+    def table(self, table_name: str):
+        """
+        Delegación directa al cliente Supabase (service_role).
+        Permite usar supabase.table(...) en lugar de supabase.client.table(...)
+        """
+        return self.client.table(table_name)
+
     def insert_documents(self, documents: List[Dict]) -> dict:
         """
         Inserta documentos (bypass RLS, admin only).

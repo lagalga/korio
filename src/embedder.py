@@ -4,7 +4,7 @@ Embedder module — Wrapper para Ollama + nomic-embed-text.
 Este módulo proporciona una interfaz simple para generar embeddings
 usando nomic-embed-text a través de Ollama (local).
 
-El modelo es FIJO: nomic-embed-text (384 dims)
+El modelo es FIJO: nomic-embed-text (768 dims)
 Nunca cambiar el modelo sin re-ingestar todo.
 """
 
@@ -19,7 +19,7 @@ load_dotenv()
 # Configuration
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
 EMBED_MODEL = "nomic-embed-text"
-EMBED_DIMS = 384
+EMBED_DIMS = 768
 
 
 class Embedder:
@@ -29,7 +29,7 @@ class Embedder:
     Attributes:
         base_url (str): URL base de Ollama
         model (str): Nombre del modelo (fijo: nomic-embed-text)
-        dims (int): Dimensionalidad del embedding (384)
+        dims (int): Dimensionalidad del embedding (768)
     """
 
     def __init__(self, base_url: str = OLLAMA_BASE_URL, model: str = EMBED_MODEL):
@@ -82,7 +82,7 @@ class Embedder:
             text: Texto a embedear
 
         Returns:
-            np.ndarray: Vector de embedding (384 dims)
+            np.ndarray: Vector de embedding (768 dims)
 
         Raises:
             RuntimeError: Si Ollama falla
@@ -114,7 +114,7 @@ class Embedder:
             texts: Lista de textos a embedear
 
         Returns:
-            List[np.ndarray]: Lista de vectores (384 dims cada uno)
+            List[np.ndarray]: Lista de vectores (768 dims cada uno)
 
         Raises:
             RuntimeError: Si Ollama falla
@@ -144,7 +144,7 @@ class Embedder:
             embedding: Vector a validar
 
         Returns:
-            bool: True si la dimensión es correcta (384)
+            bool: True si la dimensión es correcta (768)
         """
         return len(embedding) == self.dims
 
