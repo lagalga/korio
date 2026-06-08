@@ -13,7 +13,7 @@ from typing import Tuple, List, Dict
 from pathlib import Path
 
 try:
-    from markitdown import markitdown
+    from markitdown import MarkItDown
     MARKITDOWN_AVAILABLE = True
 except ImportError:
     MARKITDOWN_AVAILABLE = False
@@ -45,7 +45,7 @@ class Preprocessor:
         self.anonymizer = None
 
         if MARKITDOWN_AVAILABLE:
-            self.markdown_converter = markitdown.MarkItDown()
+            self.markdown_converter = MarkItDown()
 
         if PRESIDIO_AVAILABLE:
             self.analyzer = AnalyzerEngine()

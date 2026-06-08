@@ -9,7 +9,7 @@ Configuración:
 - chunk_overlap: 50 tokens (para contexto)
 """
 
-from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 from typing import List, Tuple
 import re
 
