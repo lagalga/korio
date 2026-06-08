@@ -171,7 +171,7 @@ TFM — Máster IA Business & Innovation (Nuclio Digital School)
 
 ## 👨‍💼 Contacto
 
-- **Autor:** Berto (@lagalga)
+- **Autor:** Heriberto Noguera (@lagalga)
 - **Email:** contacto@lagalga.es
 - **GitHub:** https://github.com/lagalga/korio
 
