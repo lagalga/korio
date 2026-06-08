@@ -180,7 +180,7 @@ def main():
     parser.add_argument(
         "--tenant-id",
         default="a0000000-0000-0000-0000-000000000001",
-        help="ID del tenant (default: Hospital San Juan)"
+        help="ID del tenant (default: Clínica Delos)"
     )
     parser.add_argument(
         "--space-id",

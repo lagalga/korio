@@ -196,7 +196,7 @@ if __name__ == "__main__":
 
     # Batch embeddings
     texts = [
-        "Hospital San Juan",
+        "Clínica Delos",
         "Documentación clínica",
         "Protocolo de admisión"
     ]

@@ -6,16 +6,16 @@ Documentos de prueba para testing del RAG sin datos reales.
 
 Elige **UNA** vertical para el MVP (después agregar más):
 
-### Opción A: Clínica Privada (Hospital San Juan)
+### Opción A: Clínica Privada (Clínica Delos)
 Documentos de ejemplo:
 - `clinica_protocolo_admision.md` — Protocolo de admisión
 - `clinica_acta_junta_directiva.md` — Acta de reunión junta directiva
 - `clinica_contrato_proveedor.md` — Contrato con proveedor
 
 **Usuarios de prueba:**
-- admin@hospital.es (admin, acceso a RRHH + Médico + Legal)
-- doctor@hospital.es (user, acceso a RRHH + Médico)
-- staff@hospital.es (viewer, acceso solo a RRHH)
+- admin@clinicadelos.es (admin, acceso a RRHH + Médico + Legal)
+- doctor@clinicadelos.es (user, acceso a RRHH + Médico)
+- staff@clinicadelos.es (viewer, acceso solo a RRHH)
 
 ### Opción B: Despacho de Abogados (Despacho García)
 Documentos de ejemplo:
@@ -32,7 +32,7 @@ Documentos de ejemplo:
 ### 1. Crear documento Markdown
 
 ```markdown
-# Hospital San Juan
+# Clínica Delos
 
 ## Protocolo de Admisión
 
