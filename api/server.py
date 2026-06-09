@@ -341,7 +341,8 @@ async def upload_and_ingest(
             file_path=tmp_path,
             tenant_id=tenant_id,
             space_id=space_id,
-            anonymize=anonymize
+            anonymize=anonymize,
+            display_filename=file.filename,  # nombre real del fichero subido
         )
         latency_ms = int((time.time() - start_time) * 1000)
         cr = result.get("conflict_report") or {}
