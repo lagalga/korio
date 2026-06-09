@@ -14,6 +14,7 @@ Uso:
     python src/ingest.py path/to/document.pdf --document-id abc123 --space-id xyz789
 """
 
+import os
 import sys
 import argparse
 import uuid
@@ -26,6 +27,9 @@ from chunker import get_chunker
 from preprocessor import get_preprocessor
 from db import get_supabase_client
 from conflict_detector import detect_conflicts, ConflictReport
+
+# Grafo de conocimiento (opt-in vía KORIO_GRAPH_ENABLED=1)
+GRAPH_ENABLED = os.getenv("KORIO_GRAPH_ENABLED", "0") == "1"
 
 # Configure logging
 import logging
@@ -138,7 +142,7 @@ def ingest_document(
         raise
 
     # Step 4: Guardar en Supabase
-    logger.info("Step 4/5: Guardando en Supabase...")
+    logger.info("Step 4/7: Guardando en Supabase...")
     supabase = get_supabase_client()
     chunk_ids = []
     try:
@@ -208,8 +212,68 @@ def ingest_document(
         logger.error(f"Error guardando en Supabase: {e}")
         raise
 
-    # Step 5: Detección de conflictos (gobernanza activa)
-    logger.info("Step 5/5: Detectando conflictos...")
+    # Step 6: Extracción a grafo de conocimiento (opt-in)
+    graph_stats = {"entities": 0, "claims": 0, "chunks_processed": 0}
+    if GRAPH_ENABLED and chunk_ids:
+        logger.info("Step 6/7: Extrayendo entidades y claims al grafo...")
+        try:
+            from graph_client import get_graph_client
+            from entity_extractor import extract_from_chunk
+
+            gc = get_graph_client()
+            gc.upsert_document(
+                document_id=document_id,
+                tenant_id=tenant_id,
+                space_id=space_id,
+                filename=filename,
+                version_ts=version_ts.isoformat(),
+                status="active",
+            )
+
+            for chunk_id, (chunk_text, _) in zip(chunk_ids, chunks_with_meta):
+                # Insertar el chunk en el grafo
+                gc.upsert_chunk(
+                    chunk_id=chunk_id,
+                    document_id=document_id,
+                    tenant_id=tenant_id,
+                    space_id=space_id,
+                    chunk_index=chunks_with_meta.index((chunk_text, _)),
+                    chunk_status="active",
+                )
+
+                # Extraer entidades + claims con Mistral
+                extraction = extract_from_chunk(chunk_text, filename=filename)
+
+                for ent in extraction.entities:
+                    gc.upsert_entity(tenant_id=tenant_id, name=ent.name, kind=ent.kind)
+                    gc.link_chunk_to_entity(chunk_id=chunk_id, tenant_id=tenant_id, entity_name=ent.name)
+                    graph_stats["entities"] += 1
+
+                for cl in extraction.claims:
+                    gc.upsert_claim(
+                        claim_id=cl.claim_id,
+                        tenant_id=tenant_id,
+                        chunk_id=chunk_id,
+                        subject=cl.subject,
+                        predicate=cl.predicate,
+                        value=cl.value,
+                        chunk_status="active",
+                    )
+                    graph_stats["claims"] += 1
+
+                graph_stats["chunks_processed"] += 1
+
+            logger.info(
+                f"  ✓ Grafo: {graph_stats['chunks_processed']} chunks → "
+                f"{graph_stats['entities']} entidades, {graph_stats['claims']} claims"
+            )
+        except Exception as e:
+            logger.warning(f"Error en extracción a grafo (ingesta continúa): {e}")
+    elif not GRAPH_ENABLED:
+        logger.info("Step 6/7: Grafo desactivado (KORIO_GRAPH_ENABLED=0)")
+
+    # Step 7: Detección de conflictos (gobernanza activa)
+    logger.info("Step 7/7: Detectando conflictos...")
     conflict_report = ConflictReport()
     if chunk_ids:
         try:
@@ -249,6 +313,7 @@ def ingest_document(
         "pii_found":            prep_meta['pii_found'],
         "char_count":           prep_meta['char_count'],
         "conflict_report":      conflict_report.to_dict(),
+        "graph_stats":          graph_stats,
     }
 
     logger.info(f"\n✅ Ingesta completada: {result}")
