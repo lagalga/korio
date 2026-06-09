@@ -126,8 +126,16 @@ def search(
         chunk["document_id"] for chunk in raw_chunks
     )) if raw_chunks else []
 
+    # Enriquecer chunks con filename para las citas
+    filename_map = {}
+    if raw_chunks:
+        for doc_id in set(c["document_id"] for c in raw_chunks):
+            doc = db.get_document_by_id(doc_id)
+            if doc:
+                filename_map[doc_id] = doc.get("filename", "")
+
     # Formatear fuentes para la respuesta
-    sources = _format_sources(raw_chunks)
+    sources = _format_sources(raw_chunks, filename_map)
 
     # Step 6: Audit log
     if tenant_id:
@@ -158,18 +166,21 @@ def search(
     return result
 
 
-def _format_sources(chunks: list) -> list:
+def _format_sources(chunks: list, filename_map: dict = None) -> list:
     """
     Formatea los chunks recuperados como fuentes citables.
 
     Args:
         chunks: Lista de chunks de la búsqueda vectorial
+        filename_map: Mapa doc_id → filename para enriquecer las citas
 
     Returns:
-        list: Fuentes formateadas con document_id, índice y similitud
+        list: Fuentes formateadas con document_id, filename, índice y similitud
     """
     if not chunks:
         return []
+
+    filename_map = filename_map or {}
 
     # Agrupar por documento y tomar la similitud máxima
     docs_seen = {}
@@ -180,6 +191,7 @@ def _format_sources(chunks: list) -> list:
         if doc_id not in docs_seen or similarity > docs_seen[doc_id]["similarity"]:
             docs_seen[doc_id] = {
                 "document_id": doc_id,
+                "filename": filename_map.get(doc_id, ""),
                 "similarity": round(similarity, 3),
                 "chunk_index": chunk.get("chunk_index", 0)
             }

@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Korio — Company Brain</title>
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+  <aside class="sidebar">
+    <header class="sidebar__header">
+      <div class="sidebar__logo">
+        <span class="sidebar__logo-mark">K</span>
+        <div>
+          <h1 class="sidebar__title">Korio</h1>
+          <p class="sidebar__subtitle">Company Brain</p>
+        </div>
+      </div>
+    </header>
+
+    <section class="sidebar__context">
+      <div class="selector">
+        <label class="selector__label" for="tenant-select">Empresa</label>
+        <select class="selector__input" id="tenant-select">
+          <option value="delos">Clínica Delos</option>
+          <option value="garcia">Despacho García</option>
+        </select>
+      </div>
+      <div class="selector">
+        <label class="selector__label" for="user-select">Usuario</label>
+        <select class="selector__input" id="user-select"></select>
+      </div>
+      <div class="user-badge" id="user-badge"></div>
+    </section>
+
+    <section class="sidebar__history">
+      <div class="sidebar__section-header">
+        <span>Historial</span>
+        <span class="history-count" id="history-count">0 queries</span>
+      </div>
+      <ul class="history-list" id="history-list"></ul>
+    </section>
+
+    <footer class="sidebar__footer">
+      <button class="btn btn--ghost btn--sm" id="clear-btn">Nueva sesión</button>
+      <button class="btn btn--ghost btn--sm" id="ingest-btn">+ Ingestar doc</button>
+    </footer>
+  </aside>
+
+  <main class="main">
+    <div class="chat" id="chat">
+      <div class="chat__empty" id="chat-empty">
+        <div class="chat__empty-icon">🧠</div>
+        <p class="chat__empty-title">Pregunta a tu empresa</p>
+        <p class="chat__empty-hint">Haz una pregunta sobre los documentos internos de la empresa seleccionada.</p>
+        <div class="chat__suggestions" id="suggestions"></div>
+      </div>
+    </div>
+
+    <footer class="input-area">
+      <div class="input-area__inner">
+        <textarea
+          class="input-area__textarea"
+          id="query-input"
+          placeholder="¿En qué puedo ayudarte?"
+          rows="1"
+        ></textarea>
+        <button class="btn btn--primary" id="send-btn" disabled>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <line x1="22" y1="2" x2="11" y2="13"></line>
+            <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+          </svg>
+        </button>
+      </div>
+      <p class="input-area__hint">
+        <span id="api-status" class="status-dot status-dot--checking"></span>
+        <span id="api-status-text">Conectando a la API...</span>
+      </p>
+    </footer>
+  </main>
+
+  <!-- Modal de ingesta -->
+  <div class="modal-overlay" id="modal-overlay" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+      <header class="modal__header">
+        <h2 class="modal__title" id="modal-title">Ingestar documento</h2>
+        <button class="modal__close" id="modal-close" aria-label="Cerrar">&times;</button>
+      </header>
+      <div class="modal__body">
+        <div class="drop-zone" id="drop-zone">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+            <polyline points="17 8 12 3 7 8"></polyline>
+            <line x1="12" y1="3" x2="12" y2="15"></line>
+          </svg>
+          <p>Arrastra un fichero o <label class="drop-zone__link" for="file-input">selecciona uno</label></p>
+          <p class="drop-zone__hint">PDF, DOCX, XLSX, MD, TXT</p>
+          <input type="file" id="file-input" accept=".pdf,.docx,.xlsx,.md,.txt" hidden>
+        </div>
+        <div class="ingest-file-info" id="ingest-file-info" hidden>
+          <span class="ingest-file-info__name" id="ingest-filename"></span>
+          <button class="btn btn--ghost btn--sm" id="ingest-file-clear">✕</button>
+        </div>
+        <div class="selector selector--inline">
+          <label class="selector__label" for="ingest-space">Espacio de destino</label>
+          <select class="selector__input" id="ingest-space"></select>
+        </div>
+      </div>
+      <footer class="modal__footer">
+        <button class="btn btn--ghost" id="modal-cancel">Cancelar</button>
+        <button class="btn btn--primary" id="ingest-submit" disabled>Ingestar</button>
+      </footer>
+      <div class="modal__progress" id="modal-progress" hidden>
+        <div class="progress-bar">
+          <div class="progress-bar__fill progress-bar__fill--animated"></div>
+        </div>
+        <p class="modal__progress-text" id="modal-progress-text">Procesando...</p>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/main.js"></script>
+</body>
+</html>

@@ -13,13 +13,18 @@ import sys
 import os
 import time
 import logging
+import shutil
+import tempfile
+from pathlib import Path
 from typing import Optional
 
 # Añadir src/ al path para importar los módulos del pipeline
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
-from fastapi import FastAPI, HTTPException, BackgroundTasks
+from fastapi import FastAPI, HTTPException, UploadFile, Form
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, Field
 
 from search import search as run_search
@@ -261,6 +266,63 @@ async def ingest(request: IngestRequest):
     except Exception as e:
         logger.exception("Error inesperado en /ingest")
         raise HTTPException(status_code=500, detail=f"Error interno: {str(e)}")
+
+
+@app.post("/upload", response_model=IngestResponse, tags=["Ingesta"])
+async def upload_and_ingest(
+    file: UploadFile,
+    tenant_id: str = Form(...),
+    space_id: str = Form(...),
+    anonymize: bool = Form(True)
+):
+    """
+    Sube un fichero y lo ingesta directamente en el knowledge base.
+
+    Acepta multipart/form-data con el fichero + tenant_id + space_id.
+    El fichero se guarda en un directorio temporal y se elimina tras la ingesta.
+    """
+    logger.info(f"POST /upload — tenant: {tenant_id[:8]}... file: {file.filename}")
+
+    start_time = time.time()
+    suffix = Path(file.filename).suffix if file.filename else ".tmp"
+
+    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+        shutil.copyfileobj(file.file, tmp)
+        tmp_path = tmp.name
+
+    try:
+        result = ingest_document(
+            file_path=tmp_path,
+            tenant_id=tenant_id,
+            space_id=space_id,
+            anonymize=anonymize
+        )
+        latency_ms = int((time.time() - start_time) * 1000)
+        return {
+            "success": True,
+            "document_id": result.get("document_id"),
+            "filename": file.filename or "documento",
+            "chunks_created": result.get("chunks_created", 0),
+            "pii_found": result.get("pii_found", 0),
+            "latency_ms": latency_ms,
+            "message": f"Documento ingestado ({result.get('chunks_created', 0)} chunks)"
+        }
+    except Exception as e:
+        logger.exception("Error en /upload")
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        os.unlink(tmp_path)
+
+
+# ─── Static files (UI) ───────────────────────────────────────────────────────
+
+_ui_dir = os.path.join(os.path.dirname(__file__), '..', 'ui')
+if os.path.isdir(_ui_dir):
+    app.mount("/ui", StaticFiles(directory=_ui_dir, html=True), name="ui")
+
+    @app.get("/", include_in_schema=False)
+    async def root():
+        return RedirectResponse(url="/ui")
 
 
 # ─── Main ────────────────────────────────────────────────────────────────────
