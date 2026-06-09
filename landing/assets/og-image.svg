@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" width="1200" height="630">
+  <!-- Fondo blanco -->
+  <rect width="1200" height="630" fill="#ffffff"/>
+
+  <!-- Banda decorativa esquina superior derecha -->
+  <path d="M 1200 0 L 1200 280 L 900 0 Z" fill="#ff0066" opacity="0.08"/>
+  <path d="M 1200 0 L 1200 180 L 1020 0 Z" fill="#5B6AF5" opacity="0.10"/>
+
+  <!-- Logo + nombre arriba a la izquierda -->
+  <g transform="translate(80, 80)">
+    <!-- Hexágono del logo (simplificado) -->
+    <polygon points="32,0 60,16 60,48 32,64 4,48 4,16"
+             fill="#161632" stroke="#161632" stroke-linejoin="round" stroke-width="2"/>
+    <text x="78" y="46" font-family="Optima, 'Palatino', Georgia, serif"
+          font-size="36" font-weight="500" fill="#161632">Korio</text>
+  </g>
+
+  <!-- Headline -->
+  <text x="80" y="290" font-family="Optima, 'Palatino', Georgia, serif"
+        font-size="64" font-weight="400" fill="#161632">
+    El conocimiento de tu empresa,
+  </text>
+  <text x="80" y="370" font-family="Optima, 'Palatino', Georgia, serif"
+        font-size="64" font-weight="400" fill="#161632">
+    unificado en un solo
+  </text>
+  <text x="80" y="450" font-family="Optima, 'Palatino', Georgia, serif"
+        font-size="64" font-style="italic" font-weight="400" fill="#ff0066">
+    cerebro corporativo.
+  </text>
+
+  <!-- Tagline inferior -->
+  <text x="80" y="540" font-family="-apple-system, 'Segoe UI', sans-serif"
+        font-size="22" font-weight="400" fill="#475569">
+    Multi-tenant · RAG seguro · Gobernanza activa · MCP nativo
+  </text>
+
+  <!-- URL -->
+  <text x="80" y="585" font-family="-apple-system, 'Segoe UI', sans-serif"
+        font-size="18" font-weight="600" fill="#5B6AF5">
+    korio.es
+  </text>
+</svg>
