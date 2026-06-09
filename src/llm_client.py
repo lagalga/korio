@@ -179,21 +179,26 @@ class LLMClient:
             "Si la respuesta no está en el contexto, di exactamente: "
             "'No encuentro información sobre esto en los documentos disponibles.' "
             "NUNCA inventes datos, fechas, nombres o cifras. "
-            "Siempre cita la fuente entre corchetes al final de cada afirmación relevante. "
+            "Cita la fuente al final de cada afirmación relevante usando el nombre del documento "
+            "entre corchetes tal como aparece en el contexto (por ejemplo: [politica_vacaciones.pdf]). "
             f"Responde en {'español' if language == 'es' else 'inglés'}."
         )
 
-        # Formatear contexto
+        # Formatear contexto — preferir filename real para que las citas sean legibles
         if not context_chunks:
             context_text = "No hay documentos disponibles para responder esta pregunta."
         else:
             context_parts = []
             for i, chunk in enumerate(context_chunks, 1):
-                doc_id = chunk.get("document_id", "desconocido")
+                doc_id     = chunk.get("document_id", "desconocido")
+                filename   = chunk.get("filename") or f"Documento {i}"
                 similarity = chunk.get("similarity", 0)
-                text = chunk.get("chunk_text", "")
+                text       = chunk.get("chunk_text", "")
+                status     = chunk.get("chunk_status", "active")
+                # Marcar visualmente los chunks en disputa para que el LLM sepa tratarlos así
+                status_tag = " · ⚠️ EN DISPUTA" if status == "disputed" else ""
                 context_parts.append(
-                    f"[Documento {i} | ID: {doc_id[:8]}... | Relevancia: {similarity:.2f}]\n{text}"
+                    f"[{filename}{status_tag} · relevancia {similarity:.2f}]\n{text}"
                 )
             context_text = "\n\n---\n\n".join(context_parts)
 
