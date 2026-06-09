@@ -1,57 +1,148 @@
 # Korio — Roadmap
 
-> Estado actual: Phase 2 completada (junio 2026) · Demo TFM: 2 julio 2026
+> Estado actual: **Phase 5 completada · korio.es en producción** · Demo TFM: 2 julio 2026
 
 ---
 
-## Estado actual (Phase 2)
+## Estado actual (Phases 1–5 completadas)
+
+### Phase 1–2 · Núcleo RAG y multi-tenancy ✅
 
 | Feature | Estado |
 |---|---|
 | Pipeline ingesta (MarkItDown → Presidio → Chunking → pgvector) | ✅ |
 | Pipeline RAG (Query → Embed → RLS → pgvector → Mistral) | ✅ |
 | FastAPI server (`/search`, `/ingest`, `/health`) | ✅ |
-| Multi-tenancy real (RLS + early binding) | ✅ |
+| Multi-tenancy real (RLS Supabase + early binding en aplicación) | ✅ |
 | 2 tenants con datos sintéticos (Delos + García) | ✅ |
 | Test suite 20/20 | ✅ |
-| PII detection con Presidio | ✅ |
+| PII detection con Presidio + spaCy español | ✅ |
 | Mistral API + Ollama fallback | ✅ |
 
----
+### Phase 3 · Documentación técnica ✅
 
-## Phase 3 — TFM (antes 2 julio 2026)
-
-Objetivo: demo funcional para la presentación del TFM.
-
-| Tarea | Prioridad |
+| Feature | Estado |
 |---|---|
 | `docs/ARCHITECTURE.md` | ✅ |
 | `docs/DEPLOYMENT.md` | ✅ |
 | `docs/ROADMAP.md` (este fichero) | ✅ |
-| README final con quickstart actualizado | ✅ |
-| QA end-to-end: 10+ queries en ambos tenants | 🔲 |
-| Medición formal de latencias (p50, p95) | 🔲 |
-| Presentation deck (10–15 slides) | 🔲 |
+| README con quickstart + métricas reales | ✅ |
+
+### Phase 4 · Interfaz web ✅
+
+| Feature | Estado |
+|---|---|
+| Chat UI web (`ui/`) — HTML/CSS/JS vanilla | ✅ |
+| `POST /upload` — ingesta de ficheros desde el navegador | ✅ |
+| Logo Korio integrado | ✅ |
+| `scripts/benchmark.py` — medición de latencias | ✅ |
+| API_BASE dinámico (localhost vs same-origin producción) | ✅ |
+
+### Phase 5 · Producción + Gobernanza activa + HITL email ✅
+
+#### Infraestructura
+| Feature | Estado |
+|---|---|
+| VPS Hetzner (CX32, Frankfurt) | ✅ |
+| nginx + Let's Encrypt SSL (renovación automática) | ✅ |
+| FastAPI como systemd service (`korio-api`) | ✅ |
+| n8n en Docker (`korio-n8n`) | ✅ |
+| Dominio `korio.es` apuntando al VPS | ✅ |
+| `n8n.korio.es` con editor accesible | ✅ |
+
+#### Gobernanza activa (core value proposition)
+| Feature | Estado |
+|---|---|
+| `conflict_reviews` table + `find_conflicting_chunks` RPC | ✅ |
+| Detección de conflictos por similitud coseno (umbral 0.78) | ✅ |
+| Auto-resolución por fecha (>30 días) | ✅ |
+| Auto-resolución por autoridad (delta ≥3) | ✅ |
+| Chunks en estado `active` / `superseded` / `disputed` | ✅ |
+| Search incluye chunks `disputed` con flag de aviso | ✅ |
+| LLM prompt inyecta instrucción especial en caso de disputa | ✅ |
+| UI muestra banner ⚠️ + badge "EN DISPUTA" en source chips | ✅ |
+
+#### HITL via email
+| Feature | Estado |
+|---|---|
+| Tabla `conflict_reviews` con `review_token` firmado | ✅ |
+| Endpoint `GET /review/{id}?action=&token=` | ✅ |
+| Workflow n8n: Webhook → Code → Send Email (SMTP Gmail) | ✅ |
+| Email HTML bulletproof (Gmail + Outlook + Airmail) | ✅ |
+| Cuerpo del email incluye **textos reales de los 2 chunks en conflicto** | ✅ |
+| 3 botones de acción: approved_new / approved_existing / kept_both | ✅ |
+| Página HTML de confirmación tras clic | ✅ |
+| `tenants.admin_email` (configurable por tenant) | ✅ |
+
+#### Landing teaser
+| Feature | Estado |
+|---|---|
+| `landing/` con HTML estático en `/` | ✅ |
+| OG image 1200×630 generada (SVG + PNG) | ✅ |
+| Form de waitlist con `POST /waitlist` | ✅ |
+| Tabla `waitlist` en Supabase | ✅ |
+| Script `deploy/refresh-landing.sh` para edits en producción | ✅ |
 
 ---
 
-## Fase 4 — Post-TFM: Integración n8n + Interfaz web
+## Pendiente antes del 2 julio 2026
 
-Conectar Korio con el ecosistema de automatización y construir una UI básica.
+| Tarea | Prioridad | Notas |
+|---|---|---|
+| QA end-to-end: 10+ queries en ambos tenants | 🔲 | Manual o test automatizado |
+| Benchmark formal de latencias (p50, p95) | 🔲 | `scripts/benchmark.py` listo |
+| Presentation deck (10–15 slides) | 🔲 | Para defensa del TFM |
+| Vídeo demo de gobernanza activa | 🔲 | Mostrar email HITL en acción |
 
-### 4.1 n8n workflows
+---
 
-| Feature | Descripción |
+## Fase 6 — Cron de escalada + UX admin
+
+Pendientes del diseño de gobernanza activa que aún no están en código.
+
+### 6.1 Cron de escalada para conflictos sin resolver
+
+Diseño Notion: *"Los conflictos sin resolver reciben recordatorios periódicos por cron (cada 3 días, cada semana). Si transcurre el tiempo máximo, ambos chunks permanecen activos con estado `en_disputa`."*
+
+Implementación:
+- Workflow n8n con Schedule Trigger (cron diario)
+- Lee `conflict_reviews WHERE resolution='pending' AND created_at < now() - interval`
+- Reenvía emails con prefijo "Recordatorio" + contador de días
+- Si supera el máximo configurado (ej. 14 días) → marca como `kept_both` automáticamente
+
+### 6.2 Matriz de autoridad configurable en onboarding
+
+Actualmente `authority_weight` está fijo en 5 por defecto. Falta UI para:
+- Configurar `authority_weight` por space (RRHH=7, Dirección=9, etc.)
+- Configurar `authority_weight` por `source_type` (manual=8, slack=3, etc.)
+- Wizard de onboarding cuando se crea un tenant
+
+### 6.3 Panel admin de revisión de conflictos
+
+Alternativa visual al email HITL:
+- Vista en `/ui/admin/conflicts` con todos los `pending`
+- Filtros por space, fecha, similitud
+- Botones de resolución 1-clic (mismo backend que el email)
+- Estadísticas: % auto-resueltos vs % HITL, tiempo medio de respuesta
+
+---
+
+## Fase 7 — Integración nativa + MCP
+
+### 7.1 n8n workflows adicionales
+
+Ya tenemos el workflow HITL. Pendientes:
+
+| Workflow | Descripción |
 |---|---|
-| **Webhook trigger de ingesta** | n8n recibe un fichero (desde Drive, email, Slack) y llama a `POST /ingest` |
-| **Query desde Slack/email** | Workflow n8n que acepta preguntas y devuelve respuestas RAG |
-| **Ingesta automática desde Gmail** | Extiende el workflow "Email a Notion" para ingestar adjuntos |
-| **Notificación de ingesta** | n8n notifica en Slack/Notion cuando se ingesta un nuevo documento |
-| **Reporte semanal** | Workflow cron que genera un resumen de queries del audit_log |
+| Webhook ingesta automática | Drive/Slack/email → `POST /upload` |
+| Query desde Slack | `/korio ¿pregunta?` → `POST /search` → respuesta en thread |
+| Ingesta automática desde Gmail | Extender "Email a Notion" para ingestar adjuntos |
+| Reporte semanal | Cron que genera resumen del `audit_log` |
 
-### 4.2 MCP Server
+### 7.2 MCP Server
 
-Exponer Korio como servidor MCP para que herramientas AI (Claude, n8n) puedan usar el knowledge base directamente.
+Exponer Korio como servidor MCP para que herramientas AI (Claude Desktop, n8n, ChatGPT) puedan usarlo directamente.
 
 ```
 Tools a exponer:
@@ -59,89 +150,27 @@ Tools a exponer:
   - ingest_document(file_url, tenant_id, space_id)
   - list_spaces(user_id)
   - get_audit_summary(tenant_id, days)
+  - list_pending_conflicts(tenant_id)
 ```
 
-Implementación: FastAPI MCP endpoint o servidor MCP independiente (TypeScript/Python).
-
-### 4.3 Interfaz web básica
-
-Chat UI mínima para demo y uso interno.
-
-```
-Features mínimas:
-  - Input de pregunta + selector de tenant/user
-  - Respuesta con citas de fuente (filename + chunk)
-  - Historial de queries de la sesión
-  - Upload de documento para ingestar
-
-Stack: HTML + CSS + JavaScript vanilla (sin frameworks)
-       o Next.js si se quiere más funcionalidad
-```
+Implementación: FastAPI MCP endpoint o servidor MCP independiente.
 
 ---
 
-## Fase 5 — Agentes y HITL
-
-Añadir inteligencia sobre el RAG básico.
-
-### 5.1 HITL (Human-in-the-Loop) básico
-
-Cuando el sistema detecta baja confianza o conflicto entre fuentes:
-
-```
-Flujo HITL:
-  query → RAG → similarity < threshold → marcar como "pending review"
-       → notificar por email/Slack al admin del tenant
-       → admin revisa y responde
-       → respuesta se guarda para futuras queries similares
-```
-
-Implementación:
-- Campo `review_status` en `audit_log`
-- Endpoint `POST /review` para que el admin confirme/corrija
-- Workflow n8n para notificaciones
-
-### 5.2 Detección de conflictos
-
-Cuando dos documentos dan respuestas contradictorias:
-
-```python
-# Pseudocódigo
-if has_conflicting_sources(chunks):
-    flag_for_review(query, conflicting_doc_ids)
-    return answer_with_conflict_warning()
-```
-
-### 5.3 Agente de ingesta
-
-Agente que monitorea fuentes y decide si hay documentos nuevos para ingestar:
-
-```
-Fuentes monitoreadas:
-  - Google Drive (cambios en carpetas)
-  - Gmail (adjuntos de remitentes conocidos)
-  - Slack (mensajes con ficheros en canales)
-  - Notion (páginas actualizadas)
-```
-
----
-
-## Fase 6 — Escala y GPU
-
-Para reducir latencias y soportar más usuarios concurrentes.
+## Fase 8 — Escala y GPU
 
 | Mejora | Impacto | Coste |
 |---|---|---|
 | GPU en Hetzner (GEX44) | Embed ~0.1s, LLM ~1s | ~€65/mes |
 | Caché de embeddings (Redis) | Queries repetidas ~0s | ~€5/mes |
-| Postgres dedicado vs Supabase | Más control, menor coste a escala | Variable |
 | Reranking (cross-encoder) | +20-30% calidad RAG | CPU overhead |
+| Postgres dedicado vs Supabase | Más control, menor coste a escala | Variable |
 
 **Objetivo latencia p50 con GPU:** <1s end-to-end.
 
 ---
 
-## Fase 7 — Producto SaaS
+## Fase 9 — Producto SaaS
 
 Convertir el prototipo TFM en un producto real.
 
@@ -153,6 +182,7 @@ Convertir el prototipo TFM en un producto real.
 | Conectores nativos | Google Drive, Slack, Notion, Gmail (sin n8n) |
 | API keys por tenant | Para integrar Korio desde otras apps |
 | Límites de plan | Chunks máximos, queries/mes, usuarios |
+| FalkorDB (grafo) | Representación de conflictos como aristas activas |
 
 ---
 
@@ -161,11 +191,10 @@ Convertir el prototipo TFM en un producto real.
 | Decisión | Opciones | Estado |
 |---|---|---|
 | LLM primario post-TFM | Mistral API vs OpenAI vs Ollama GPU | Abierto |
-| Interfaz web | HTML vanilla vs Next.js vs Streamlit | Abierto |
-| MCP Server idioma | Python (FastAPI) vs TypeScript | Abierto |
+| MCP Server lenguaje | Python (FastAPI) vs TypeScript | Abierto |
 | Graph store | FalkorDB (en docker-compose) vs Neo4j | Abierto |
 | Reranking | cross-encoder vs sin reranking | Abierto |
 
 ---
 
-*Actualizado: junio 2026*
+*Actualizado: 9 junio 2026 — Phase 5 completada, korio.es en producción*
