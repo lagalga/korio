@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 
 # ─── Umbrales ────────────────────────────────────────────────────────────────
 
-CONFLICT_THRESHOLD     = 0.85  # Similitud mínima para considerar conflicto
+CONFLICT_THRESHOLD     = 0.78  # Similitud mínima para considerar conflicto (nomic-embed-text)
 AUTO_DATE_DAYS         = 30    # Días de diferencia para auto-resolución por fecha
 AUTO_AUTHORITY_DELTA   = 3     # Puntos de diferencia para auto-resolución por autoridad
 

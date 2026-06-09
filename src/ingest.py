@@ -61,7 +61,8 @@ def ingest_document(
     document_id: Optional[str] = None,
     source_type: str = "manual",
     authority_weight: int = 5,
-    anonymize: bool = True
+    anonymize: bool = True,
+    display_filename: Optional[str] = None,
 ) -> dict:
     """
     Pipeline completo de ingesta de un documento.
@@ -91,7 +92,10 @@ def ingest_document(
     document_id  = document_id or str(uuid.uuid4())
     version_ts   = datetime.now(timezone.utc)
 
-    logger.info(f"Iniciando ingesta: {path.name}")
+    # Nombre real del fichero (puede llegar como tempfile.tmp* desde /upload)
+    filename = display_filename or path.name
+
+    logger.info(f"Iniciando ingesta: {filename}")
 
     # Step 1: Preprocesar (MarkItDown + Presidio)
     logger.info("Step 1/4: Preprocesando documento...")
@@ -112,7 +116,7 @@ def ingest_document(
         chunks_with_meta = chunker.chunk_with_metadata(
             content,
             source_id=document_id,
-            document_title=path.stem
+            document_title=Path(filename).stem
         )
         stats = chunker.validate_chunks([c[0] for c in chunks_with_meta])
         logger.info(f"  ✓ {stats['total_chunks']} chunks generados")
@@ -163,7 +167,7 @@ def ingest_document(
             "id":               document_id,
             "tenant_id":        tenant_id,
             "space_id":         space_id,
-            "filename":         path.name,
+            "filename":         filename,
             "source_type":      source_type,
             "content_hash":     content_hash,
             "authority_weight": authority_weight,
@@ -236,7 +240,7 @@ def ingest_document(
     # Resultado
     result = {
         "document_id":          document_id,
-        "filename":             path.name,
+        "filename":             filename,
         "status":               "success",
         "chunks_created":       len(chunk_records),
         "embeddings_generated": len(embeddings),
