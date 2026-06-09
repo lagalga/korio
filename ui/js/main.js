@@ -190,7 +190,7 @@ const renderMessage = (query, result) => {
     </div>` : ''
 
   const answerHtml = result.has_context
-    ? `<p class="message-response__answer">${escapeHtml(result.answer)}</p>`
+    ? `<p class="message-response__answer">${renderMarkdown(result.answer)}</p>`
     : `<p class="message-response__answer message-response__no-context">No encontré documentos relevantes para esta pregunta.</p>`
 
   const pair = document.createElement('div')
@@ -231,6 +231,12 @@ const escapeHtml = str => str
   .replace(/</g, '&lt;')
   .replace(/>/g, '&gt;')
   .replace(/"/g, '&quot;')
+
+const renderMarkdown = str => escapeHtml(str)
+  .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+  .replace(/(?<!\*)\*([^*\n]+?)\*(?!\*)/g, '<em>$1</em>')
+  .replace(/`([^`]+?)`/g, '<code>$1</code>')
+  .replace(/\n/g, '<br>')
 
 // ─── API calls ────────────────────────────────────────────────────────────────
 
