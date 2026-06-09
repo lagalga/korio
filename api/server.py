@@ -21,10 +21,10 @@ from typing import Optional
 # Añadir src/ al path para importar los módulos del pipeline
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
-from fastapi import FastAPI, HTTPException, UploadFile, Form
+from fastapi import FastAPI, HTTPException, UploadFile, Form, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import RedirectResponse
+from fastapi.responses import RedirectResponse, HTMLResponse
 from pydantic import BaseModel, Field
 
 from search import search as run_search
@@ -107,15 +107,48 @@ class IngestRequest(BaseModel):
     }
 
 
+class ConflictItemOut(BaseModel):
+    """Un conflicto individual en la respuesta de ingesta."""
+    new_chunk_id:           int
+    existing_chunk_id:      int
+    existing_document_id:   str
+    existing_filename:      str
+    similarity:             float
+    new_authority:          int
+    existing_authority:     int
+    resolution:             str
+    resolution_reason:      str
+    review_id:              Optional[str] = None
+
+
+class ConflictReportOut(BaseModel):
+    """Resumen de gobernanza activa devuelto tras la ingesta."""
+    total_conflicts:  int
+    auto_resolved:    int
+    pending_review:   int
+    has_conflicts:    bool
+    has_pending:      bool
+    conflicts:        list[ConflictItemOut]
+
+
 class IngestResponse(BaseModel):
     """Respuesta de ingesta."""
-    success: bool
-    document_id: Optional[str]
-    filename: str
-    chunks_created: int
-    pii_found: int
-    latency_ms: int
-    message: str
+    success:         bool
+    document_id:     Optional[str]
+    filename:        str
+    chunks_created:  int
+    pii_found:       int
+    latency_ms:      int
+    message:         str
+    conflict_report: Optional[ConflictReportOut] = None
+
+
+class ReviewResponse(BaseModel):
+    """Respuesta de resolución de conflicto HITL."""
+    success:    bool
+    review_id:  str
+    resolution: str
+    message:    str
 
 
 class HealthResponse(BaseModel):
@@ -246,15 +279,21 @@ async def ingest(request: IngestRequest):
         )
 
         latency_ms = int((time.time() - start_time) * 1000)
+        cr = result.get("conflict_report") or {}
+
+        msg = f"Documento ingestado correctamente ({result.get('chunks_created', 0)} chunks)"
+        if cr.get("total_conflicts", 0) > 0:
+            msg += f" — {cr['total_conflicts']} conflictos ({cr['auto_resolved']} auto-resueltos, {cr['pending_review']} pendientes)"
 
         return {
-            "success": True,
-            "document_id": result.get("document_id"),
-            "filename": os.path.basename(request.file_path),
-            "chunks_created": result.get("chunks_created", 0),
-            "pii_found": result.get("pii_found", 0),
-            "latency_ms": latency_ms,
-            "message": f"Documento ingestado correctamente ({result.get('chunks_created', 0)} chunks)"
+            "success":         True,
+            "document_id":     result.get("document_id"),
+            "filename":        os.path.basename(request.file_path),
+            "chunks_created":  result.get("chunks_created", 0),
+            "pii_found":       result.get("pii_found", 0),
+            "latency_ms":      latency_ms,
+            "message":         msg,
+            "conflict_report": cr if cr.get("has_conflicts") else None,
         }
 
     except FileNotFoundError as e:
@@ -298,20 +337,137 @@ async def upload_and_ingest(
             anonymize=anonymize
         )
         latency_ms = int((time.time() - start_time) * 1000)
+        cr = result.get("conflict_report") or {}
+
+        msg = f"Documento ingestado ({result.get('chunks_created', 0)} chunks)"
+        if cr.get("total_conflicts", 0) > 0:
+            msg += f" — {cr['total_conflicts']} conflictos ({cr['auto_resolved']} auto-resueltos, {cr['pending_review']} pendientes)"
+
         return {
-            "success": True,
-            "document_id": result.get("document_id"),
-            "filename": file.filename or "documento",
-            "chunks_created": result.get("chunks_created", 0),
-            "pii_found": result.get("pii_found", 0),
-            "latency_ms": latency_ms,
-            "message": f"Documento ingestado ({result.get('chunks_created', 0)} chunks)"
+            "success":         True,
+            "document_id":     result.get("document_id"),
+            "filename":        file.filename or "documento",
+            "chunks_created":  result.get("chunks_created", 0),
+            "pii_found":       result.get("pii_found", 0),
+            "latency_ms":      latency_ms,
+            "message":         msg,
+            "conflict_report": cr if cr.get("has_conflicts") else None,
         }
     except Exception as e:
         logger.exception("Error en /upload")
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         os.unlink(tmp_path)
+
+
+# ─── Endpoint HITL: resolución de conflictos ─────────────────────────────────
+
+VALID_REVIEW_ACTIONS = {"approved_new", "approved_existing", "kept_both"}
+
+
+@app.get("/review/{review_id}", tags=["Gobernanza"])
+async def review_conflict(
+    review_id: str,
+    action: str = Query(..., description="Acción: approved_new | approved_existing | kept_both"),
+    token: str = Query(..., description="Token de autorización del email HITL"),
+):
+    """
+    Resuelve un conflicto de gobernanza tras clic en email HITL.
+
+    Llamado desde los links del email de revisión (generados por n8n).
+    Verifica el token firmado, aplica la resolución y devuelve una página HTML
+    de confirmación (para el revisor que abre el link en el navegador).
+
+    Acciones válidas:
+    - **approved_new**: El documento nuevo prevalece (el existente queda superseded)
+    - **approved_existing**: El documento existente prevalece (el nuevo queda superseded)
+    - **kept_both**: Se mantienen ambos documentos activos
+    """
+    if action not in VALID_REVIEW_ACTIONS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Acción inválida. Opciones: {', '.join(VALID_REVIEW_ACTIONS)}"
+        )
+
+    try:
+        from db import get_supabase_client
+        db = get_supabase_client()
+
+        # Obtener el conflict_review y verificar token
+        review = db.resolve_conflict_review(
+            review_id=review_id,
+            resolution=action,
+            review_token=token,
+        )
+
+        if review is None:
+            raise HTTPException(
+                status_code=404,
+                detail="Revisión no encontrada o token inválido"
+            )
+
+        # Aplicar efecto en base de datos según la acción
+        review_data = review[0] if isinstance(review, list) else review
+
+        if action == "approved_new":
+            # El documento existente queda superseded
+            existing_chunk_id = review_data.get("existing_chunk_id")
+            if existing_chunk_id:
+                db.update_chunk_status(int(existing_chunk_id), "superseded")
+            msg_es = "✅ Documento nuevo aprobado. El contenido anterior ha sido archivado."
+
+        elif action == "approved_existing":
+            # El chunk nuevo queda superseded
+            new_chunk_id = review_data.get("new_chunk_id")
+            if new_chunk_id:
+                db.update_chunk_status(int(new_chunk_id), "superseded")
+            msg_es = "✅ Documento existente conservado. El contenido nuevo ha sido descartado."
+
+        else:  # kept_both
+            # Restaurar el chunk existente a active (estaba en disputed)
+            existing_chunk_id = review_data.get("existing_chunk_id")
+            if existing_chunk_id:
+                db.update_chunk_status(int(existing_chunk_id), "active")
+            msg_es = "✅ Ambos documentos se han conservado. El sistema mostrará los dos contenidos."
+
+        logger.info(f"HITL resuelto: review_id={review_id} action={action}")
+
+        # Respuesta HTML amigable para el revisor
+        html = f"""<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Korio — Conflicto resuelto</title>
+  <style>
+    body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            display: flex; align-items: center; justify-content: center;
+            min-height: 100vh; margin: 0; background: #f5f5f5; }}
+    .card {{ background: white; border-radius: 12px; padding: 40px;
+             max-width: 480px; text-align: center; box-shadow: 0 4px 20px rgba(0,0,0,.1); }}
+    .icon {{ font-size: 48px; margin-bottom: 16px; }}
+    h1 {{ font-size: 22px; color: #161632; margin: 0 0 12px; }}
+    p {{ color: #666; line-height: 1.6; margin: 0 0 24px; }}
+    a {{ color: #5B6AF5; text-decoration: none; font-size: 14px; }}
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="icon">✅</div>
+    <h1>Conflicto resuelto</h1>
+    <p>{msg_es}</p>
+    <p style="font-size:13px;color:#999;">ID de revisión: {review_id[:8]}…</p>
+    <a href="/">Volver a Korio</a>
+  </div>
+</body>
+</html>"""
+        return HTMLResponse(content=html, status_code=200)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("Error en /review")
+        raise HTTPException(status_code=500, detail=f"Error interno: {str(e)}")
 
 
 # ─── Static files (UI) ───────────────────────────────────────────────────────

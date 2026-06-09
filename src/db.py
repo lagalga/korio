@@ -240,6 +240,133 @@ class SupabaseClient:
             print(f"⚠️ Error en audit log: {e}")
             return {}
 
+    def find_conflicting_chunks(
+        self,
+        query_embedding: List[float],
+        space_id: str,
+        exclude_document_id: str,
+        threshold: float = 0.85,
+        max_results: int = 10,
+    ) -> List[Dict]:
+        """
+        Busca chunks existentes en el espacio con similitud coseno alta.
+
+        Llama a la función SQL find_conflicting_chunks() definida en
+        migrations/004_conflict_reviews.sql.
+
+        Args:
+            query_embedding:      Vector del nuevo chunk (768 dims)
+            space_id:             UUID del espacio donde buscar
+            exclude_document_id:  UUID del documento nuevo (excluir)
+            threshold:            Similitud mínima (default 0.85)
+            max_results:          Máximo de resultados por chunk (default 10)
+
+        Returns:
+            Lista de dicts con chunk_id, document_id, chunk_text, similarity,
+            authority_weight, version_ts, filename
+        """
+        try:
+            response = self.client.rpc(
+                "find_conflicting_chunks",
+                {
+                    "query_embedding":      query_embedding,
+                    "space_uuid":           space_id,
+                    "exclude_doc_id":       exclude_document_id,
+                    "similarity_threshold": threshold,
+                    "max_results":          max_results,
+                }
+            ).execute()
+            return response.data or []
+        except Exception as e:
+            raise RuntimeError(f"Error buscando conflictos: {e}") from e
+
+    def create_conflict_review(self, review_data: Dict) -> Optional[Dict]:
+        """
+        Crea un registro de revisión de conflicto (HITL).
+
+        Args:
+            review_data: Dict con los campos de conflict_reviews
+
+        Returns:
+            Registro creado o None si falla
+        """
+        try:
+            response = self.client.table("conflict_reviews").insert(review_data).execute()
+            return response.data
+        except Exception as e:
+            raise RuntimeError(f"Error creando conflict_review: {e}") from e
+
+    def update_chunk_status(self, chunk_id: int, status: str) -> None:
+        """
+        Actualiza el chunk_status de un embedding.
+
+        Args:
+            chunk_id: ID del chunk (bigint)
+            status:   Nuevo estado: 'active' | 'superseded' | 'disputed'
+        """
+        try:
+            self.client.table("embeddings").update(
+                {"chunk_status": status}
+            ).eq("id", chunk_id).execute()
+        except Exception as e:
+            raise RuntimeError(f"Error actualizando chunk_status {chunk_id}: {e}") from e
+
+    def update_document_status(self, document_id: str, status: str) -> None:
+        """
+        Actualiza el status de un documento.
+
+        Args:
+            document_id: UUID del documento
+            status:      Nuevo estado: 'active' | 'archived' | 'superseded'
+        """
+        try:
+            self.client.table("documents").update(
+                {"status": status}
+            ).eq("id", document_id).execute()
+        except Exception as e:
+            raise RuntimeError(f"Error actualizando status del documento {document_id}: {e}") from e
+
+    def resolve_conflict_review(
+        self,
+        review_id: str,
+        resolution: str,
+        review_token: str,
+    ) -> Optional[Dict]:
+        """
+        Resuelve un conflict_review HITL verificando el token.
+
+        Args:
+            review_id:    UUID del conflict_review
+            resolution:   'approved_new' | 'approved_existing' | 'kept_both'
+            review_token: Token firmado que autoriza la acción
+
+        Returns:
+            Registro actualizado o None si no existe / token inválido
+        """
+        try:
+            # Verificar que el review existe y el token coincide
+            check = self.client.table("conflict_reviews").select("*").eq(
+                "id", review_id
+            ).eq("review_token", review_token).single().execute()
+
+            if not check.data:
+                return None  # No existe o token inválido
+
+            if check.data.get("resolution") != "pending":
+                return check.data  # Ya resuelto — idempotente
+
+            # Actualizar resolución
+            from datetime import datetime, timezone
+            now = datetime.now(timezone.utc).isoformat()
+            response = self.client.table("conflict_reviews").update({
+                "resolution":  resolution,
+                "reviewed_at": now,
+            }).eq("id", review_id).execute()
+
+            return response.data
+        except Exception as e:
+            raise RuntimeError(f"Error resolviendo conflict_review {review_id}: {e}") from e
+
     def get_document_by_id(self, document_id: str) -> Optional[Dict]:
         """
         Obtiene un documento por ID (admin).

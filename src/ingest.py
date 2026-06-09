@@ -17,6 +17,7 @@ Uso:
 import sys
 import argparse
 import uuid
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
@@ -24,6 +25,7 @@ from embedder import get_embedder
 from chunker import get_chunker
 from preprocessor import get_preprocessor
 from db import get_supabase_client
+from conflict_detector import detect_conflicts, ConflictReport
 
 # Configure logging
 import logging
@@ -40,20 +42,23 @@ def ingest_document(
     space_id: str,
     document_id: Optional[str] = None,
     source_type: str = "manual",
+    authority_weight: int = 5,
     anonymize: bool = True
 ) -> dict:
     """
     Pipeline completo de ingesta de un documento.
 
     Args:
-        file_path: Ruta del archivo a ingestar
-        tenant_id: ID del tenant (UUID)
-        space_id: ID del espacio (UUID)
-        document_id: ID del documento (UUID). Si no se proporciona, se genera uno.
-        anonymize: Si debe anonimizar PII (default: True)
+        file_path:        Ruta del archivo a ingestar
+        tenant_id:        ID del tenant (UUID)
+        space_id:         ID del espacio (UUID)
+        document_id:      ID del documento (UUID). Si no se proporciona, se genera uno.
+        source_type:      Origen del documento (manual, drive, slack, email, notion)
+        authority_weight: Peso de autoridad del documento (1-10, default 5)
+        anonymize:        Si debe anonimizar PII (default: True)
 
     Returns:
-        dict: Resultado con estadísticas de ingesta
+        dict: Resultado con estadísticas de ingesta (incluye conflict_report si hay conflictos)
 
     Raises:
         FileNotFoundError: Si el archivo no existe
@@ -65,7 +70,8 @@ def ingest_document(
         raise FileNotFoundError(f"Archivo no encontrado: {file_path}")
 
     # Generar IDs si no se proporcionan
-    document_id = document_id or str(uuid.uuid4())
+    document_id  = document_id or str(uuid.uuid4())
+    version_ts   = datetime.now(timezone.utc)
 
     logger.info(f"Iniciando ingesta: {path.name}")
 
@@ -110,62 +116,99 @@ def ingest_document(
         raise
 
     # Step 4: Guardar en Supabase
-    logger.info("Step 4/4: Guardando en Supabase...")
+    logger.info("Step 4/5: Guardando en Supabase...")
     supabase = get_supabase_client()
+    chunk_ids = []
     try:
         # Calcular hash del contenido para deduplicación
         import hashlib
         content_hash = hashlib.sha256(content.encode()).hexdigest()
 
-        # Crear documento
+        # Crear documento (incluye authority_weight y version_ts para gobernanza)
         doc_response = supabase.table("documents").insert({
-            "id": document_id,
-            "tenant_id": tenant_id,
-            "space_id": space_id,
-            "filename": path.name,
-            "source_type": source_type,
-            "content_hash": content_hash,
-            "status": "active"
+            "id":               document_id,
+            "tenant_id":        tenant_id,
+            "space_id":         space_id,
+            "filename":         path.name,
+            "source_type":      source_type,
+            "content_hash":     content_hash,
+            "authority_weight": authority_weight,
+            "version_ts":       version_ts.isoformat(),
+            "status":           "active"
         }).execute()
 
         if not doc_response.data:
             raise ValueError("Error creando documento en Supabase")
 
-        logger.info(f"  ✓ Documento creado (ID: {document_id})")
+        logger.info(f"  ✓ Documento creado (ID: {document_id}, autoridad: {authority_weight}/10)")
 
         # Insertar chunks con embeddings
         chunk_records = []
         for i, (chunk_text, meta) in enumerate(chunks_with_meta):
             chunk_records.append({
-                "document_id": document_id,
-                "chunk_index": i,
-                "chunk_text": chunk_text,
-                "vector": embeddings[i].tolist(),  # pgvector acepta arrays Python
+                "document_id":  document_id,
+                "chunk_index":  i,
+                "chunk_text":   chunk_text,
+                "vector":       embeddings[i].tolist(),  # pgvector acepta arrays Python
                 "chunk_status": "active"
             })
 
         # Batch insert (Supabase permite hasta 1000 por request)
+        all_inserted_ids = []
         batch_size = 100
         for batch_start in range(0, len(chunk_records), batch_size):
             batch = chunk_records[batch_start:batch_start + batch_size]
             chunk_response = supabase.table("embeddings").insert(batch).execute()
+            if chunk_response.data:
+                all_inserted_ids.extend([r["id"] for r in chunk_response.data])
             logger.info(f"  ✓ Insertados chunks {batch_start + 1}-{min(batch_start + batch_size, len(chunk_records))}")
 
+        chunk_ids = all_inserted_ids
         logger.info(f"  ✓ Total de chunks almacenados: {len(chunk_records)}")
 
     except Exception as e:
         logger.error(f"Error guardando en Supabase: {e}")
         raise
 
+    # Step 5: Detección de conflictos (gobernanza activa)
+    logger.info("Step 5/5: Detectando conflictos...")
+    conflict_report = ConflictReport()
+    if chunk_ids:
+        try:
+            embeddings_list = [emb.tolist() for emb in embeddings]
+            conflict_report = detect_conflicts(
+                new_document_id=document_id,
+                new_chunk_ids=chunk_ids,
+                new_embeddings=embeddings_list,
+                space_id=space_id,
+                tenant_id=tenant_id,
+                new_doc_authority=authority_weight,
+                new_doc_version_ts=version_ts,
+                db=supabase,
+            )
+            if conflict_report.has_conflicts:
+                logger.info(
+                    f"  ⚠️  {conflict_report.total_conflicts} conflictos detectados: "
+                    f"{conflict_report.auto_resolved} auto-resueltos, "
+                    f"{conflict_report.pending_review} pendientes HITL"
+                )
+            else:
+                logger.info("  ✓ Sin conflictos detectados")
+        except Exception as e:
+            logger.warning(f"Error en detección de conflictos (ingesta continúa): {e}")
+    else:
+        logger.info("  ⚠️  Sin chunk IDs devueltos por Supabase — omitiendo detección de conflictos")
+
     # Resultado
     result = {
-        "document_id": document_id,
-        "filename": path.name,
-        "status": "success",
-        "chunks_created": len(chunk_records),
+        "document_id":          document_id,
+        "filename":             path.name,
+        "status":               "success",
+        "chunks_created":       len(chunk_records),
         "embeddings_generated": len(embeddings),
-        "pii_found": prep_meta['pii_found'],
-        "char_count": prep_meta['char_count']
+        "pii_found":            prep_meta['pii_found'],
+        "char_count":           prep_meta['char_count'],
+        "conflict_report":      conflict_report.to_dict(),
     }
 
     logger.info(f"\n✅ Ingesta completada: {result}")
