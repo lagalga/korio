@@ -2,7 +2,8 @@
 
 // ─── Configuración ───────────────────────────────────────────────────────────
 
-const API_BASE = 'http://localhost:8000'
+// En desarrollo (localhost) apunta al puerto 8000; en producción usa la misma origin
+const API_BASE = window.location.hostname === 'localhost' ? 'http://localhost:8000' : ''
 
 const TENANTS = {
   delos: {

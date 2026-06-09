@@ -1,0 +1,27 @@
+# Systemd service para la FastAPI de Korio
+# Instalar: cp deploy/korio-api.service /etc/systemd/system/
+#           systemctl daemon-reload
+#           systemctl enable korio-api
+#           systemctl start korio-api
+
+[Unit]
+Description=Korio FastAPI Server
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root/korio
+EnvironmentFile=/root/korio/.env
+ExecStart=/root/korio/.venv/bin/python -m uvicorn api.server:app \
+    --host 127.0.0.1 \
+    --port 8000 \
+    --workers 2
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=korio-api
+
+[Install]
+WantedBy=multi-user.target
