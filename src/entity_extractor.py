@@ -115,15 +115,20 @@ JSON:"""
 # ─── Funciones ──────────────────────────────────────────────────────────────
 
 def _safe_parse_json(raw: str) -> Optional[dict]:
-    """Intenta parsear JSON con fallback a regex si el LLM añadió texto."""
+    """Intenta parsear JSON con fallbacks defensivos para respuestas LLM."""
     if not raw:
         return None
+    # Limpiar wrappers markdown comunes: ```json ... ``` o ``` ... ```
+    cleaned = raw.strip()
+    if cleaned.startswith("```"):
+        cleaned = re.sub(r"^```(?:json)?\s*\n?", "", cleaned)
+        cleaned = re.sub(r"\n?```\s*$", "", cleaned)
     try:
-        return json.loads(raw)
+        return json.loads(cleaned)
     except json.JSONDecodeError:
         pass
-    # Buscar el primer { ... } más externo
-    m = re.search(r"\{[\s\S]+\}", raw)
+    # Último recurso: buscar el primer { ... } más externo
+    m = re.search(r"\{[\s\S]+\}", cleaned)
     if m:
         try:
             return json.loads(m.group(0))
