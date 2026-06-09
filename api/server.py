@@ -29,6 +29,7 @@ from pydantic import BaseModel, Field, EmailStr
 
 from search import search as run_search
 from ingest import ingest_document, DuplicateDocumentError
+from escalation import run_escalation
 
 # Configurar logging
 logging.basicConfig(
@@ -492,6 +493,45 @@ async def review_conflict(
     except Exception as e:
         logger.exception("Error en /review")
         raise HTTPException(status_code=500, detail=f"Error interno: {str(e)}")
+
+
+# ─── Endpoint escalada de HITL (cron) ────────────────────────────────────────
+
+KORIO_ADMIN_API_KEY = os.getenv("KORIO_ADMIN_API_KEY", "")
+
+
+@app.post("/escalate-reviews", tags=["Gobernanza"])
+async def escalate_reviews(request: Request):
+    """
+    Ejecuta un ciclo de escalada sobre las revisiones HITL pendientes.
+
+    Lógica:
+    - Reviews pending desde >= 3 días → enviar email recordatorio (hasta 3 recordatorios)
+    - Reviews pending desde >= 21 días → auto-resolución 'timeout_kept_both' + email final
+
+    Auth: header `X-Korio-Admin-Key` debe coincidir con KORIO_ADMIN_API_KEY en .env.
+
+    Diseñado para ser llamado por un workflow n8n Schedule Trigger (cron diario).
+    """
+    # Auth simple por header
+    if not KORIO_ADMIN_API_KEY:
+        raise HTTPException(
+            status_code=500,
+            detail="KORIO_ADMIN_API_KEY no configurada en el servidor"
+        )
+    provided = request.headers.get("X-Korio-Admin-Key", "")
+    if provided != KORIO_ADMIN_API_KEY:
+        raise HTTPException(status_code=401, detail="Admin key inválida")
+
+    try:
+        from db import get_supabase_client
+        db = get_supabase_client()
+        result = run_escalation(db)
+        logger.info(f"Escalada ejecutada: {result.to_dict()}")
+        return result.to_dict()
+    except Exception as e:
+        logger.exception("Error en /escalate-reviews")
+        raise HTTPException(status_code=500, detail=f"Error en escalada: {str(e)}")
 
 
 # ─── Endpoint waitlist (landing teaser) ─────────────────────────────────────
