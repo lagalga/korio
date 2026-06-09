@@ -15,7 +15,7 @@ langchain-text-splitters>=0.0.1
 numpy>=1.26.0
 
 # Procesamiento de documentos
-markitdown[all]>=0.1.0
+markitdown[pdf,docx,xlsx,pptx]>=0.1.0
 
 # Anonimización PII
 presidio-analyzer>=2.2.351
