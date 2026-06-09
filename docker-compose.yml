@@ -50,10 +50,34 @@ services:
       timeout: 5s
       retries: 5
 
+  # n8n - Automatización de workflows
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: korio-n8n
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:5678:5678"  # solo localhost, nginx hace de proxy
+    environment:
+      - N8N_HOST=${N8N_HOST:-n8n.korio.es}
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=${N8N_PROTOCOL:-https}
+      - WEBHOOK_URL=${WEBHOOK_URL:-https://n8n.korio.es/}
+      - N8N_BASIC_AUTH_ACTIVE=true
+      - N8N_BASIC_AUTH_USER=${N8N_BASIC_AUTH_USER:-admin}
+      - N8N_BASIC_AUTH_PASSWORD=${N8N_BASIC_AUTH_PASSWORD:-changeme}
+      - N8N_LOG_LEVEL=info
+      - GENERIC_TIMEZONE=Europe/Madrid
+      - TZ=Europe/Madrid
+    volumes:
+      - n8n_data:/home/node/.n8n
+    extra_hosts:
+      - "host.docker.internal:host-gateway"  # acceso a FastAPI en el host
+
 volumes:
   ollama_data:
   falkordb_data:
   postgres_data:
+  n8n_data:
 
 networks:
   default:
