@@ -79,11 +79,13 @@ class ConflictReport:
         total_conflicts:  Número total de conflictos detectados
         auto_resolved:    Conflictos resueltos automáticamente
         pending_review:   Conflictos que requieren revisión humana (HITL)
+        hitl_email_sent:  True si el webhook HITL respondió OK (email enviado)
         conflicts:        Lista de conflictos individuales
     """
     total_conflicts:  int = 0
     auto_resolved:    int = 0
     pending_review:   int = 0
+    hitl_email_sent:  bool = False
     conflicts:        List[ConflictItem] = field(default_factory=list)
 
     @property
@@ -104,6 +106,7 @@ class ConflictReport:
             "pending_review":  self.pending_review,
             "has_conflicts":   self.has_conflicts,
             "has_pending":     self.has_pending,
+            "hitl_email_sent": self.hitl_email_sent,
             "conflicts": [
                 {
                     "new_chunk_id":          c.new_chunk_id,
@@ -348,7 +351,9 @@ def detect_conflicts(
 
     # Si hay conflictos pendientes → disparar email HITL via n8n
     if report.has_pending and HITL_WEBHOOK_URL:
-        _trigger_hitl_email(report, tenant_id, space_id, new_document_id)
+        report.hitl_email_sent = _trigger_hitl_email(
+            report, tenant_id, space_id, new_document_id
+        )
 
     if report.has_conflicts:
         logger.info(
@@ -367,7 +372,7 @@ def _trigger_hitl_email(
     tenant_id: str,
     space_id: str,
     new_document_id: str,
-) -> None:
+) -> bool:
     """
     Dispara el webhook de n8n para enviar emails HITL con links de acción.
 
@@ -380,14 +385,34 @@ def _trigger_hitl_email(
         tenant_id:          UUID del tenant
         space_id:           UUID del espacio
         new_document_id:    UUID del documento nuevo
+
+    Returns:
+        True si el webhook respondió 2xx (asumimos email enviado), False si no.
     """
     pending_items = [c for c in report.conflicts if c.resolution == "pending"]
     if not pending_items:
-        return
+        return False
+
+    # Obtener admin_email del tenant (puede ser NULL → n8n usa default)
+    tenant_admin_email = None
+    try:
+        from db import get_supabase_client
+        db = get_supabase_client()
+        tenant = db.client.table("tenants").select("admin_email, name").eq(
+            "id", tenant_id
+        ).single().execute()
+        if tenant.data:
+            tenant_admin_email = tenant.data.get("admin_email")
+            tenant_name        = tenant.data.get("name", "")
+    except Exception as e:
+        logger.warning(f"No se pudo obtener admin_email del tenant {tenant_id}: {e}")
+        tenant_name = ""
 
     # Construir payload para n8n
     payload = {
         "tenant_id":         tenant_id,
+        "tenant_name":       tenant_name,
+        "tenant_admin_email": tenant_admin_email,  # NULL → n8n usa fallback
         "space_id":          space_id,
         "new_document_id":   new_document_id,
         "conflict_count":    len(pending_items),
@@ -418,6 +443,8 @@ def _trigger_hitl_email(
         )
         resp.raise_for_status()
         logger.info(f"✉️  HITL email disparado via n8n (webhook status: {resp.status_code})")
+        return True
     except Exception as e:
         # No interrumpir la ingesta si falla el email
         logger.warning(f"⚠️  Error disparando email HITL: {e} — conflictos guardados, email no enviado")
+        return False
