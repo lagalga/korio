@@ -4,52 +4,72 @@
   <meta charset="UTF-8">
   <title>Korio — Grafo de conocimiento</title>
   <link rel="icon" type="image/png" href="assets/img/favicon.png">
-  <link rel="stylesheet" href="css/styles.css?v=9">
   <script src="https://unpkg.com/vis-network@9.1.9/standalone/umd/vis-network.min.js"></script>
   <style>
-    html, body { height: 100%; }
-    body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background:#f1f5f9; color:#1e293b; overflow: hidden; }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; width: 100%; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+      background: #f1f5f9; color: #1e293b;
+      overflow: hidden;
+    }
+
     .topbar {
       background: #ffffff; border-bottom: 1px solid #e2e8f0;
-      padding: 14px 24px; display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
-      height: 60px; box-sizing: border-box;
+      padding: 0 20px;
+      display: flex; align-items: center; gap: 12px;
+      height: 52px;
+      white-space: nowrap;
+      overflow-x: auto;
     }
-    .topbar__logo { font-size: 16px; font-weight: 700; color: #161632; }
-    .topbar__sep  { width: 1px; height: 24px; background:#e2e8f0; }
+    .topbar__logo { font-size: 15px; font-weight: 700; color: #161632; flex-shrink: 0; }
+    .topbar__sep  { width: 1px; height: 22px; background:#e2e8f0; flex-shrink: 0; }
     .topbar__chip {
       display: inline-flex; align-items: center; gap: 6px;
-      padding: 4px 10px; background: #f1f5f9; border-radius: 6px;
-      font-size: 12px; color: #475569; font-weight: 500;
+      padding: 3px 9px; background: #f1f5f9; border-radius: 6px;
+      font-size: 12px; color: #475569; font-weight: 500; flex-shrink: 0;
+    }
+    .topbar label {
+      font-size: 12px; color: #64748b; flex-shrink: 0;
     }
     .topbar select {
-      font-size: 13px; padding: 6px 10px; border: 1px solid #cbd5e1;
+      font-size: 13px; padding: 5px 8px; border: 1px solid #cbd5e1;
       border-radius: 6px; background: white; color: #1e293b;
+      flex-shrink: 0;
     }
-    .topbar__right { margin-left: auto; display: flex; gap: 8px; align-items: center; font-size: 12px; color:#64748b; }
+    .topbar__right {
+      margin-left: auto; display: flex; gap: 14px; align-items: center;
+      font-size: 12px; color:#64748b; flex-shrink: 0;
+    }
     .topbar a { color: #5B6AF5; text-decoration: none; font-size: 13px; }
+    .topbar a:hover { text-decoration: underline; }
 
     .container {
       display: flex;
       width: 100%;
-      height: calc(100vh - 60px);
+      height: calc(100vh - 52px);
     }
     #network {
-      flex: 1;
+      flex: 1 1 auto;
+      min-width: 0;
       height: 100%;
       background: white;
       position: relative;
     }
     .sidepanel {
-      width: 320px;
-      flex-shrink: 0;
+      width: 260px;
+      flex: 0 0 260px;
       background: white;
       border-left: 1px solid #e2e8f0;
       overflow-y: auto;
-      padding: 20px;
+      padding: 16px 18px;
       display: flex;
       flex-direction: column;
-      gap: 18px;
-      box-sizing: border-box;
+      gap: 16px;
+    }
+    @media (max-width: 800px) {
+      .sidepanel { display: none; }
     }
     .panel__section h3 {
       font-size: 13px; text-transform: uppercase; letter-spacing: .5px;
