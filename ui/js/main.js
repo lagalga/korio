@@ -366,6 +366,38 @@ const setFile = file => {
   ingestSubmit.disabled = false
 }
 
+const renderConflictReport = (cr) => {
+  if (!cr || !cr.has_conflicts) return ''
+
+  const resolutionLabel = r => ({
+    'auto_new_wins':      '⚡ Nuevo prevalece (auto)',
+    'auto_existing_wins': '⚡ Existente prevalece (auto)',
+    'pending':            '⏳ Pendiente revisión humana',
+    'approved_new':       '✅ Aprobado: nuevo',
+    'approved_existing':  '✅ Aprobado: existente',
+    'kept_both':          '✅ Conservados ambos',
+  })[r] || r
+
+  const conflictRows = cr.conflicts.map(c => `
+    <div class="conflict-item conflict-item--${c.resolution.startsWith('auto') ? 'auto' : c.resolution === 'pending' ? 'pending' : 'resolved'}">
+      <span class="conflict-item__file" title="${c.existing_document_id}">${c.existing_filename}</span>
+      <span class="conflict-item__sim">${Math.round(c.similarity * 100)}% similitud</span>
+      <span class="conflict-item__resolution">${resolutionLabel(c.resolution)}</span>
+    </div>`).join('')
+
+  return `
+    <div class="conflict-report">
+      <div class="conflict-report__header">
+        <span class="conflict-report__icon">${cr.pending_review > 0 ? '⚠️' : '⚡'}</span>
+        <strong>Gobernanza activa:</strong>
+        ${cr.total_conflicts} conflicto${cr.total_conflicts > 1 ? 's' : ''} detectado${cr.total_conflicts > 1 ? 's' : ''}
+        &nbsp;·&nbsp; ${cr.auto_resolved} auto-resuelto${cr.auto_resolved !== 1 ? 's' : ''}
+        ${cr.pending_review > 0 ? `&nbsp;·&nbsp; <em>${cr.pending_review} pendiente${cr.pending_review > 1 ? 's' : ''} (email enviado)</em>` : ''}
+      </div>
+      <div class="conflict-report__list">${conflictRows}</div>
+    </div>`
+}
+
 const submitIngest = async () => {
   if (!state.selectedFile) return
 
@@ -379,8 +411,16 @@ const submitIngest = async () => {
       currentTenant().id,
       ingestSpace.value
     )
-    modalProgressText.textContent = `✅ ${result.filename} — ${result.chunks_created} chunks creados`
-    setTimeout(closeModal, 2000)
+
+    const conflictHtml = renderConflictReport(result.conflict_report)
+    modalProgressText.innerHTML =
+      `✅ <strong>${result.filename}</strong> — ${result.chunks_created} chunks creados` +
+      (result.pii_found > 0 ? ` · ${result.pii_found} PII anonimizados` : '') +
+      conflictHtml
+
+    // Si hay conflictos pendientes, dejamos el modal abierto más tiempo
+    const delay = (result.conflict_report?.pending_review > 0) ? 6000 : 2500
+    setTimeout(closeModal, delay)
   } catch (err) {
     modalProgressText.textContent = `❌ Error: ${err.message}`
     ingestSubmit.disabled = false
