@@ -653,6 +653,34 @@ body { display: flex; overflow: hidden; }
 
 .modal__progress-text { font-size: 12px; color: var(--color-text-muted); text-align: center; }
 
+/* ─── Banner de conflicto en respuesta de búsqueda ─── */
+
+.conflict-banner {
+  background: #fef3c7;
+  border-left: 3px solid #f59e0b;
+  color: #78350f;
+  padding: 10px 14px;
+  border-radius: 6px;
+  font-size: 13px;
+  line-height: 1.5;
+  margin-bottom: 12px;
+}
+
+.source-chip--disputed {
+  background: #fff7ed;
+  border-color: #fdba74;
+}
+
+.source-chip__disputed {
+  font-size: 10px;
+  background: #f59e0b;
+  color: #fff;
+  padding: 2px 6px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: .3px;
+}
+
 /* ─── Conflict Report (gobernanza activa) ─── */
 
 .conflict-report {

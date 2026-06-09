@@ -99,6 +99,17 @@ def search(
     except Exception as e:
         raise RuntimeError(f"Error en búsqueda vectorial: {e}") from e
 
+    # Detectar conflictos en los chunks recuperados (gobernanza activa)
+    # Si algún chunk tiene chunk_status='disputed', la respuesta debe presentar
+    # ambas versiones y avisar al usuario explícitamente.
+    disputed_chunks = [c for c in raw_chunks if c.get("chunk_status") == "disputed"]
+    has_conflict = len(disputed_chunks) > 0
+    if has_conflict:
+        logger.warning(
+            f"  ⚠️ {len(disputed_chunks)} chunk(s) en estado 'disputed' — "
+            f"se presentarán ambas versiones del contenido en conflicto"
+        )
+
     # Step 4: Ensamblado de contexto + generación LLM
     logger.info("Step 3/4: Generando respuesta con LLM...")
     llm = get_llm_client()
@@ -108,6 +119,24 @@ def search(
             context_chunks=raw_chunks,
             language=language
         )
+
+        # Inyectar aviso de conflicto en el prompt cuando proceda
+        if has_conflict:
+            conflict_notice = (
+                "\n\nIMPORTANTE: Algunas de las fuentes que vas a citar contienen "
+                "información contradictoria sobre el tema preguntado y están marcadas "
+                "como 'en disputa' pendientes de revisión humana. NO elijas una versión "
+                "como cierta; presenta ambas afirmaciones citando sus fuentes y avisa "
+                "explícitamente al usuario de que existe una contradicción pendiente "
+                "de resolución por el administrador."
+                if language == "es" else
+                "\n\nIMPORTANT: Some of the sources you will cite contain contradictory "
+                "information about the topic and are flagged as 'disputed' pending human "
+                "review. Do NOT pick one version as true; present both claims with their "
+                "sources and explicitly warn the user that a contradiction is pending "
+                "resolution by the administrator."
+            )
+            system_prompt = system_prompt + conflict_notice
 
         answer = llm.generate(
             prompt=user_prompt,
@@ -137,7 +166,7 @@ def search(
     # Formatear fuentes para la respuesta
     sources = _format_sources(raw_chunks, filename_map)
 
-    # Step 6: Audit log
+    # Step 6: Audit log (incluye flag has_conflict si la respuesta tocó chunks disputed)
     if tenant_id:
         try:
             db.log_audit(
@@ -146,7 +175,8 @@ def search(
                 query=query,
                 doc_ids_used=doc_ids_used,
                 model_used=llm.model,
-                latency_ms=latency_ms
+                latency_ms=latency_ms,
+                has_conflict=has_conflict,
             )
         except Exception as e:
             # El audit log no debe interrumpir la respuesta
@@ -159,6 +189,8 @@ def search(
         "doc_ids_used": doc_ids_used,
         "latency_ms": latency_ms,
         "has_context": len(raw_chunks) > 0,
+        "has_conflict": has_conflict,
+        "disputed_chunks": len(disputed_chunks),
         "model_used": llm.model
     }
 
@@ -187,14 +219,19 @@ def _format_sources(chunks: list, filename_map: dict = None) -> list:
     for chunk in chunks:
         doc_id = chunk.get("document_id", "")
         similarity = chunk.get("similarity", 0)
+        is_disputed = chunk.get("chunk_status") == "disputed"
 
         if doc_id not in docs_seen or similarity > docs_seen[doc_id]["similarity"]:
             docs_seen[doc_id] = {
-                "document_id": doc_id,
-                "filename": filename_map.get(doc_id, ""),
-                "similarity": round(similarity, 3),
-                "chunk_index": chunk.get("chunk_index", 0)
+                "document_id":    doc_id,
+                "filename":       filename_map.get(doc_id, ""),
+                "similarity":     round(similarity, 3),
+                "chunk_index":    chunk.get("chunk_index", 0),
+                "is_disputed":    is_disputed,
             }
+        elif is_disputed:
+            # Si ya estaba el doc pero un chunk suyo está disputed, marcarlo
+            docs_seen[doc_id]["is_disputed"] = True
 
     # Ordenar por similitud descendente
     return sorted(docs_seen.values(), key=lambda x: x["similarity"], reverse=True)
