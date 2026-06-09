@@ -79,12 +79,14 @@ class SearchRequest(BaseModel):
 
 class SearchResponse(BaseModel):
     """Respuesta de búsqueda RAG."""
-    answer: str
-    sources: list
-    chunks_used: int
-    latency_ms: int
-    has_context: bool
-    model_used: str
+    answer:           str
+    sources:          list
+    chunks_used:      int
+    latency_ms:       int
+    has_context:      bool
+    model_used:       str
+    has_conflict:     bool = False    # True si la respuesta tocó chunks en disputa
+    disputed_chunks:  int  = 0        # Número de chunks 'disputed' usados
 
 
 class IngestRequest(BaseModel):

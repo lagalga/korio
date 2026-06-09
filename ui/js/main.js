@@ -182,16 +182,27 @@ const renderMessage = (query, result) => {
           const label = s.filename || s.document_id.slice(0, 16) + '…'
           const sim   = s.similarity
           const cls   = simClass(sim)
-          return `<div class="source-chip">
+          const disputedBadge = s.is_disputed
+            ? '<span class="source-chip__disputed" title="Esta fuente contiene información en disputa">⚠ en disputa</span>'
+            : ''
+          return `<div class="source-chip${s.is_disputed ? ' source-chip--disputed' : ''}">
             <span class="source-chip__filename" title="${s.filename || s.document_id}">${label}</span>
+            ${disputedBadge}
             <span class="source-chip__sim source-chip__sim--${cls}">${Math.round(sim * 100)}%</span>
           </div>`
         }).join('')}
       </div>
     </div>` : ''
 
+  const conflictBanner = result.has_conflict ? `
+    <div class="conflict-banner">
+      ⚠️ <strong>Contradicción detectada</strong> entre las fuentes —
+      hay ${result.disputed_chunks} fragmento${result.disputed_chunks > 1 ? 's' : ''} en disputa
+      pendiente${result.disputed_chunks > 1 ? 's' : ''} de revisión por el administrador.
+    </div>` : ''
+
   const answerHtml = result.has_context
-    ? `<p class="message-response__answer">${renderMarkdown(result.answer)}</p>`
+    ? `${conflictBanner}<p class="message-response__answer">${renderMarkdown(result.answer)}</p>`
     : `<p class="message-response__answer message-response__no-context">No encontré documentos relevantes para esta pregunta.</p>`
 
   const pair = document.createElement('div')
@@ -348,13 +359,19 @@ const clearSession = () => {
 
 // ─── Modal de ingesta ─────────────────────────────────────────────────────────
 
-const openModal = () => {
-  renderIngestSpaces()
+const resetIngestForm = () => {
   state.selectedFile = null
   ingestFileInfo.hidden = true
   dropZone.hidden = false
   ingestSubmit.disabled = true
+  ingestSubmit.textContent = 'Ingestar'
   modalProgress.hidden = true
+  modalProgressText.innerHTML = ''
+}
+
+const openModal = () => {
+  renderIngestSpaces()
+  resetIngestForm()
   modalOverlay.hidden = false
 }
 
@@ -401,6 +418,12 @@ const renderConflictReport = (cr) => {
 }
 
 const submitIngest = async () => {
+  // Si el botón está en modo "Subir otro" (post-ingesta exitosa), resetear el form
+  if (ingestSubmit.textContent === 'Subir otro') {
+    resetIngestForm()
+    return
+  }
+
   if (!state.selectedFile) return
 
   ingestSubmit.disabled = true
@@ -420,9 +443,10 @@ const submitIngest = async () => {
       (result.pii_found > 0 ? ` · ${result.pii_found} PII anonimizados` : '') +
       conflictHtml
 
-    // Si hay conflictos pendientes, dejamos el modal abierto más tiempo
-    const delay = (result.conflict_report?.pending_review > 0) ? 6000 : 2500
-    setTimeout(closeModal, delay)
+    // El modal NO se cierra automáticamente: el usuario debe verlo y cerrarlo manualmente.
+    // Reactivamos los botones para que pueda subir otro documento o cerrar.
+    ingestSubmit.disabled = false
+    ingestSubmit.textContent = 'Subir otro'
   } catch (err) {
     if (err.status === 409) {
       // Duplicado — no es realmente un error, informamos sin alarma
