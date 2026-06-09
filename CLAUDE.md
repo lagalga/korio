@@ -23,15 +23,26 @@
 - `docs/ARCHITECTURE.md`, `DEPLOYMENT.md`, `ROADMAP.md` — documentación técnica completa
 - README actualizado con quickstart, métricas reales y estructura
 
-### ✅ Phase 4 arrancada (9 junio)
-- Chat UI web (`ui/`) — HTML/CSS/JS vanilla, toggle de fuentes, markdown rendering
+### ✅ Phase 4 completada (9 junio)
+- Chat UI web (`ui/`) — HTML/CSS/JS vanilla, logo real, toggle fuentes, markdown
 - Endpoint `POST /upload` — ingesta de ficheros desde el navegador (multipart)
 - `scripts/benchmark.py` — medición p50/p95 de latencias RAG por escenario
+- Logo Korio integrado (logo-mark-light.svg generado para sidebar oscura, favicon)
+- API_BASE dinámico: `localhost:8000` en dev, same-origin en producción
+
+### ✅ Phase 5 — Despliegue en producción (9 junio)
+- VPS Hetzner: nginx + certbot SSL (Let's Encrypt, renovación automática)
+- `https://korio.es` → FastAPI + UI pública ✅
+- `https://n8n.korio.es` → n8n editor ✅
+- FastAPI como systemd service (`korio-api`, restart automático)
+- n8n en Docker (`korio-n8n`, puerto 5678 interno)
+- `deploy/` con configs nginx, systemd service y setup.sh
+- Dominio `korio.es` en dondominio.com apuntando al VPS
 
 ### 🔲 Pendiente (antes del 2 julio)
-- QA end-to-end: 10+ queries en ambos tenants con la UI
+- QA end-to-end: 10+ queries en ambos tenants con la UI pública
 - Benchmark formal de latencias (ejecutar scripts/benchmark.py)
-- n8n workflows: webhook ingesta + query desde Slack
+- n8n workflows: webhook ingesta + query desde Slack/email
 - MCP Server: exponer Korio como tool para Claude/n8n
 - Presentation deck (10–15 slides)
 
@@ -61,6 +72,10 @@ SSH:        ssh korio-vps   (alias en ~/.ssh/config → 167.233.72.42)
 Supabase:   https://pkurvkdmoulfqnngjsjr.supabase.co
 Ollama VPS: http://167.233.72.42:11434
 Docker:     docker exec korio-ollama ollama list
+
+URLs públicas:
+  https://korio.es        → UI + FastAPI (korio-api systemd)
+  https://n8n.korio.es    → n8n editor  (korio-n8n Docker)
 ```
 
 ### VPS — comandos útiles
@@ -69,6 +84,12 @@ ssh korio-vps
 docker ps                                    # ver contenedores
 docker exec korio-ollama ollama list         # modelos cargados
 docker logs korio-ollama --tail 50           # logs Ollama
+docker logs korio-n8n --tail 50             # logs n8n
+
+systemctl status korio-api                  # FastAPI service
+systemctl restart korio-api                 # reiniciar FastAPI
+journalctl -u korio-api -f                  # logs FastAPI en tiempo real
+curl https://korio.es/health                # health check producción
 ```
 
 ---
@@ -81,7 +102,7 @@ korio/
 ├── README.md
 ├── .env                         # Credenciales reales (no en git)
 ├── .env.example                 # Template
-├── docker-compose.yml           # Ollama en VPS
+├── docker-compose.yml           # Ollama + n8n en VPS
 ├── requirements.txt
 │
 ├── supabase/
@@ -268,4 +289,4 @@ El early binding es el corazón del sistema. Nunca saltarlo:
 
 ---
 
-*Actualizado: 9 junio 2026 — Phase 3 completada · Phase 4 en progreso*
+*Actualizado: 9 junio 2026 — Phase 4 completada · Phase 5 (producción) completada · korio.es en vivo*
