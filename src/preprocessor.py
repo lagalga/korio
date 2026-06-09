@@ -21,6 +21,7 @@ except ImportError:
 
 try:
     from presidio_analyzer import AnalyzerEngine
+    from presidio_analyzer.nlp_engine import NlpEngineProvider
     from presidio_anonymizer import AnonymizerEngine
     PRESIDIO_AVAILABLE = True
 except ImportError:
@@ -48,7 +49,19 @@ class Preprocessor:
             self.markdown_converter = MarkItDown()
 
         if PRESIDIO_AVAILABLE:
-            self.analyzer = AnalyzerEngine()
+            # Configurar Presidio para usar el modelo español de spaCy
+            # (por defecto busca en_core_web_lg que no tenemos instalado).
+            nlp_config = {
+                "nlp_engine_name": "spacy",
+                "models": [{"lang_code": "es", "model_name": "es_core_news_lg"}],
+            }
+            provider = NlpEngineProvider(nlp_configuration=nlp_config)
+            nlp_engine = provider.create_engine()
+
+            self.analyzer = AnalyzerEngine(
+                nlp_engine=nlp_engine,
+                supported_languages=["es"],
+            )
             self.anonymizer = AnonymizerEngine()
 
     def convert_to_markdown(self, file_path: str) -> str:
