@@ -49,7 +49,7 @@ USUARIO
 ## Pipeline de ingesta
 
 ```
-FICHERO (PDF / DOCX / XLSX / MD / TXT)
+ingest_document(file_path, tenant_id, space_id)   ← space_id fija el acceso
   │
   ▼
 ┌────────────────────────────────────────────────────────┐
@@ -69,13 +69,16 @@ FICHERO (PDF / DOCX / XLSX / MD / TXT)
 │  4. Embedding ────────► vector de 768 dims por chunk   │
 │     (embedder.py)       Ollama nomic-embed-text        │
 │                                                        │
-│  5. Almacenamiento ───► Supabase pgvector              │
-│     (db.py)             tabla embeddings               │
-│                         + metadata en tabla documents  │
+│  5. Almacenamiento ───► documents(id, tenant_id,       │
+│     (ingest.py)                   space_id,  ← RLS    │
+│                                   filename, ...)       │
+│                        embeddings(document_id,         │
+│                                   chunk_text,          │
+│                                   vector(768))         │
 └────────────────────────────────────────────────────────┘
-  │
-  ▼
-pgvector: embeddings(id, document_id, content, embedding vector(768))
+
+El space_id almacenado en documents es el único control de acceso
+del documento: si un usuario tiene ese space en user_spaces, lo ve.
 ```
 
 ---
