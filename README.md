@@ -1,3 +1,4 @@
+![Korio - Company Brain](https://github.com/lagalga/korio/blob/main/ui/assets/img/logo.png)
 # Korio — Company Brain
 
 > SaaS multi-tenant de RAG para pymes españolas, con **gobernanza activa** del conocimiento.
