@@ -15,15 +15,92 @@ Uso:
     python src/search.py "¿Cuál es el protocolo de admisión?" --user-id <uuid> --tenant-id <uuid>
 """
 
+import os
+import re
 import sys
 import time
 import argparse
 import logging
-from typing import Optional
+from typing import Optional, List
 
 from embedder import get_embedder
 from db import get_supabase_client
 from llm_client import get_llm_client
+
+# Grafo de conocimiento (opt-in)
+GRAPH_ENABLED = os.getenv("KORIO_GRAPH_ENABLED", "0") == "1"
+
+# Stopwords castellano (mínimas, suficientes para queries cortas tipo RAG)
+_QUERY_STOPWORDS = {
+    "cuál", "cual", "cuáles", "cuales", "qué", "que", "cómo", "como",
+    "cuándo", "cuando", "dónde", "donde", "cuántos", "cuantos", "cuántas", "cuantas",
+    "para", "según", "segun", "están", "estan", "esta", "esto", "estos", "estas",
+    "tiene", "tienen", "hay", "son", "ser", "es", "del", "los", "las",
+    "una", "uno", "unos", "unas", "con", "por", "más", "mas", "menos", "todos", "todas",
+    "que", "quien", "quién", "quienes", "quiénes",
+}
+
+
+def _extract_query_keywords(query: str, max_keywords: int = 6) -> List[str]:
+    """Tokeniza la query a keywords útiles para buscar en el grafo."""
+    tokens = re.findall(r"[a-záéíóúüñA-ZÁÉÍÓÚÜÑ0-9_]+", query.lower())
+    keywords = [t for t in tokens if len(t) >= 4 and t not in _QUERY_STOPWORDS]
+    # Quitar duplicados conservando orden
+    seen = set()
+    out = []
+    for k in keywords:
+        if k not in seen:
+            out.append(k)
+            seen.add(k)
+    return out[:max_keywords]
+
+
+def _graph_context(query: str, tenant_id: str, allowed_space_ids: List[str]) -> str:
+    """
+    Consulta el grafo de conocimiento con las keywords de la query y
+    devuelve un bloque de contexto formateado para inyectar al LLM.
+    Devuelve string vacío si no hay grafo o no hay matches.
+    """
+    if not GRAPH_ENABLED or not tenant_id or not allowed_space_ids:
+        return ""
+    try:
+        from graph_client import get_graph_client
+        gc = get_graph_client()
+        keywords = _extract_query_keywords(query)
+        if not keywords:
+            return ""
+        claims = gc.find_claims_by_predicate(
+            tenant_id=tenant_id,
+            predicate_keywords=keywords,
+            allowed_space_ids=allowed_space_ids,
+            only_active=True,
+        )
+        if not claims:
+            return ""
+        lines = []
+        seen_keys = set()
+        for c in claims:
+            key = (c.get("subject", ""), c.get("predicate", ""), c.get("value", ""))
+            if key in seen_keys:
+                continue
+            seen_keys.add(key)
+            lines.append(
+                f"  • {c['subject']} → {c['predicate']}: {c['value']}"
+            )
+            if len(lines) >= 8:
+                break
+        if not lines:
+            return ""
+        return (
+            "[CONOCIMIENTO ESTRUCTURADO DEL GRAFO]\n"
+            "Estas afirmaciones provienen del grafo de conocimiento del tenant "
+            "(extraídas previamente por análisis semántico). Úsalas como fuente "
+            "complementaria al contexto de chunks; cita con [grafo] cuando uses una de ellas:\n"
+            + "\n".join(lines)
+        )
+    except Exception as e:
+        logger.warning(f"Error consultando grafo: {e}")
+        return ""
 
 # Configurar logging
 logging.basicConfig(
@@ -120,6 +197,20 @@ def search(
         for c in raw_chunks:
             c["filename"] = filename_lookup.get(c["document_id"], "")
 
+    # Step 3.5: Consulta paralela al grafo de conocimiento (Phase 7.1)
+    graph_block = ""
+    if GRAPH_ENABLED:
+        # Reusar los space_ids ya calculados durante el RLS early binding
+        # En db.search_embeddings_rls los obtenemos pero no los devolvemos; los recalculamos aquí
+        try:
+            user_spaces = db.client.table("user_spaces").select("space_id").eq("user_id", user_id).execute()
+            space_ids = [row["space_id"] for row in (user_spaces.data or [])]
+            graph_block = _graph_context(query, tenant_id, space_ids)
+            if graph_block:
+                logger.info(f"  ✓ Grafo contribuyó con contexto adicional ({graph_block.count(chr(10).join(['', '']))} líneas)")
+        except Exception as e:
+            logger.warning(f"Error obteniendo contexto del grafo: {e}")
+
     # Step 4: Ensamblado de contexto + generación LLM
     logger.info("Step 3/4: Generando respuesta con LLM...")
     llm = get_llm_client()
@@ -129,6 +220,9 @@ def search(
             context_chunks=raw_chunks,
             language=language
         )
+        # Inyectar contexto del grafo al user_prompt
+        if graph_block:
+            user_prompt = graph_block + "\n\n---\n\n" + user_prompt
 
         # Inyectar aviso de conflicto en el prompt cuando proceda
         if has_conflict:
@@ -193,9 +287,10 @@ def search(
         "chunks_used": len(raw_chunks),
         "doc_ids_used": doc_ids_used,
         "latency_ms": latency_ms,
-        "has_context": len(raw_chunks) > 0,
+        "has_context": len(raw_chunks) > 0 or bool(graph_block),
         "has_conflict": has_conflict,
         "disputed_chunks": len(disputed_chunks),
+        "graph_contributed": bool(graph_block),
         "model_used": llm.model
     }
 
