@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Korio — Grafo de conocimiento</title>
+  <link rel="icon" type="image/png" href="assets/img/favicon.png">
+  <link rel="stylesheet" href="css/styles.css?v=8">
+  <script src="https://unpkg.com/vis-network@9.1.9/standalone/umd/vis-network.min.js"></script>
+  <style>
+    body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background:#f1f5f9; color:#1e293b; }
+    .page { display: grid; grid-template-rows: auto 1fr; height: 100vh; }
+    .topbar {
+      background: #ffffff; border-bottom: 1px solid #e2e8f0;
+      padding: 14px 24px; display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+    }
+    .topbar__logo { font-size: 16px; font-weight: 700; color: #161632; }
+    .topbar__sep  { width: 1px; height: 24px; background:#e2e8f0; }
+    .topbar__chip {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 4px 10px; background: #f1f5f9; border-radius: 6px;
+      font-size: 12px; color: #475569; font-weight: 500;
+    }
+    .topbar select {
+      font-size: 13px; padding: 6px 10px; border: 1px solid #cbd5e1;
+      border-radius: 6px; background: white; color: #1e293b;
+    }
+    .topbar__right { margin-left: auto; display: flex; gap: 8px; align-items: center; font-size: 12px; color:#64748b; }
+    .topbar a { color: #5B6AF5; text-decoration: none; font-size: 13px; }
+
+    .container { display: grid; grid-template-columns: 1fr 320px; height: 100%; min-height: 0; }
+    #network { width: 100%; height: 100%; background: white; }
+    .sidepanel {
+      background: white; border-left: 1px solid #e2e8f0; overflow-y: auto; padding: 20px;
+      display: flex; flex-direction: column; gap: 18px;
+    }
+    .panel__section h3 {
+      font-size: 13px; text-transform: uppercase; letter-spacing: .5px;
+      color: #64748b; margin: 0 0 10px 0; font-weight: 600;
+    }
+    .legend { display: flex; flex-direction: column; gap: 6px; font-size: 12px; }
+    .legend__item { display: flex; align-items: center; gap: 8px; }
+    .legend__dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
+    .contradiction-list { display: flex; flex-direction: column; gap: 10px; }
+    .contradiction {
+      background: #fff7ed; border: 1px solid #fed7aa; border-radius: 8px;
+      padding: 10px 12px; font-size: 12px; line-height: 1.5;
+    }
+    .contradiction__pred { font-weight: 600; color: #92400e; margin-bottom: 4px; }
+    .contradiction__vals { color: #1e293b; }
+    .contradiction__vals em { color: #475569; font-style: normal; font-size: 11px; }
+    .stats { font-size: 12px; color: #475569; }
+    .stats strong { color: #161632; font-size: 14px; }
+    .empty {
+      text-align: center; color: #94a3b8; font-size: 13px; padding: 28px 12px;
+    }
+  </style>
+</head>
+<body>
+<div class="page">
+
+  <!-- Topbar -->
+  <div class="topbar">
+    <span class="topbar__logo">⬢ Korio</span>
+    <span class="topbar__sep"></span>
+    <span class="topbar__chip">🕸 Grafo de conocimiento</span>
+
+    <span class="topbar__sep"></span>
+    <label style="font-size:12px;color:#64748b;">Tenant</label>
+    <select id="tenant-select">
+      <option value="delos">Clínica Delos</option>
+      <option value="garcia">Despacho García</option>
+    </select>
+
+    <label style="font-size:12px;color:#64748b;">Usuario</label>
+    <select id="user-select"></select>
+
+    <div class="topbar__right">
+      <span id="status-text">Cargando…</span>
+      <a href="/ui">← Volver a la app</a>
+    </div>
+  </div>
+
+  <!-- Layout -->
+  <div class="container">
+    <div id="network"></div>
+
+    <aside class="sidepanel">
+      <div class="panel__section">
+        <h3>Estadísticas</h3>
+        <div class="stats" id="stats">
+          <strong>—</strong> nodos · <strong>—</strong> aristas · <strong>—</strong> contradicciones
+        </div>
+      </div>
+
+      <div class="panel__section">
+        <h3>Leyenda</h3>
+        <div class="legend">
+          <div class="legend__item"><span class="legend__dot" style="background:#161632"></span> Documento</div>
+          <div class="legend__item"><span class="legend__dot" style="background:#94a3b8"></span> Chunk</div>
+          <div class="legend__item"><span class="legend__dot" style="background:#5B6AF5"></span> Entidad</div>
+          <div class="legend__item"><span class="legend__dot" style="background:#f59e0b"></span> Claim</div>
+          <div class="legend__item"><span class="legend__dot" style="background:#fb923c"></span> Chunk en disputa</div>
+          <div class="legend__item"><span class="legend__dot" style="background:#cbd5e1"></span> Chunk superseded</div>
+          <div class="legend__item" style="margin-top:6px;">
+            <span style="width:18px;height:2px;background:#fb923c;display:inline-block;"></span>
+            &nbsp; Arista <em style="color:#92400e;">contradice</em>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel__section">
+        <h3>Contradicciones</h3>
+        <div id="contradictions" class="contradiction-list">
+          <div class="empty">Sin contradicciones para mostrar</div>
+        </div>
+      </div>
+    </aside>
+  </div>
+
+</div>
+
+<script>
+'use strict'
+
+const API_BASE = window.location.hostname === 'localhost' ? 'http://localhost:8000' : ''
+
+const TENANTS = {
+  delos: {
+    id: 'a0000000-0000-0000-0000-000000000001',
+    name: 'Clínica Delos',
+    users: [
+      { id: 'a1000000-0000-0000-0000-000000000001', label: 'Admin (todos)' },
+      { id: 'a2000000-0000-0000-0000-000000000001', label: 'Doctor (RRHH+Médico)' },
+      { id: 'a3000000-0000-0000-0000-000000000001', label: 'Staff (RRHH)' },
+    ],
+  },
+  garcia: {
+    id: 'b0000000-0000-0000-0000-000000000002',
+    name: 'Despacho García',
+    users: [
+      { id: 'b1000000-0000-0000-0000-000000000002', label: 'Admin (Casos+Fiscal)' },
+      { id: 'b2000000-0000-0000-0000-000000000002', label: 'Lawyer (Casos)' },
+    ],
+  },
+}
+
+const $ = id => document.getElementById(id)
+
+const tenantSelect = $('tenant-select')
+const userSelect   = $('user-select')
+const statusText   = $('status-text')
+const statsBox     = $('stats')
+const contraBox    = $('contradictions')
+
+let network = null
+
+const renderUsers = () => {
+  const tenant = TENANTS[tenantSelect.value]
+  userSelect.innerHTML = tenant.users
+    .map(u => `<option value="${u.id}">${u.label}</option>`)
+    .join('')
+}
+
+const renderGraph = async () => {
+  const tenant = TENANTS[tenantSelect.value]
+  const userId = userSelect.value
+  statusText.textContent = 'Cargando grafo…'
+
+  try {
+    const [subRes, contraRes] = await Promise.all([
+      fetch(`${API_BASE}/graph/subgraph?tenant_id=${tenant.id}&user_id=${userId}&limit=300`),
+      fetch(`${API_BASE}/graph/contradictions?tenant_id=${tenant.id}&user_id=${userId}`),
+    ])
+
+    if (!subRes.ok) {
+      const e = await subRes.json().catch(() => ({}))
+      statusText.textContent = `Error: ${e.detail || subRes.statusText}`
+      return
+    }
+
+    const sub = await subRes.json()
+    const contras = contraRes.ok ? await contraRes.json() : { contradictions: [] }
+
+    // Render network
+    const data = {
+      nodes: new vis.DataSet(sub.nodes),
+      edges: new vis.DataSet(sub.edges),
+    }
+    const options = {
+      nodes: {
+        shape: 'dot',
+        size: 12,
+        font: { size: 11, color: '#1e293b', face: '-apple-system, sans-serif' },
+        borderWidth: 1,
+      },
+      edges: {
+        font: { size: 9, color: '#64748b', strokeWidth: 0, align: 'middle' },
+        smooth: { type: 'continuous' },
+      },
+      physics: {
+        forceAtlas2Based: { gravitationalConstant: -50, springLength: 100, springConstant: 0.08 },
+        maxVelocity: 50,
+        solver: 'forceAtlas2Based',
+        timestep: 0.35,
+        stabilization: { iterations: 150 },
+      },
+      interaction: { hover: true, navigationButtons: true, keyboard: true },
+    }
+    if (network) network.destroy()
+    network = new vis.Network($('network'), data, options)
+
+    // Stats
+    statsBox.innerHTML = `<strong>${sub.stats.nodes}</strong> nodos · <strong>${sub.stats.edges}</strong> aristas · <strong>${contras.count || 0}</strong> contradicciones`
+
+    // Contradicciones panel
+    if (!contras.contradictions || contras.contradictions.length === 0) {
+      contraBox.innerHTML = '<div class="empty">Sin contradicciones para mostrar</div>'
+    } else {
+      contraBox.innerHTML = contras.contradictions.map(c => {
+        const statusA = c.status_a === 'active' ? '✅' : c.status_a === 'disputed' ? '⚠️' : '⛔'
+        const statusB = c.status_b === 'active' ? '✅' : c.status_b === 'disputed' ? '⚠️' : '⛔'
+        const sim = c.similarity ? `${Math.round(c.similarity * 100)}%` : ''
+        return `<div class="contradiction">
+          <div class="contradiction__pred">${escapeHtml(c.subject)} → ${escapeHtml(c.predicate)} ${sim ? `<em>(${sim})</em>` : ''}</div>
+          <div class="contradiction__vals">${statusA} ${escapeHtml(c.value_a)}<br>${statusB} ${escapeHtml(c.value_b)}</div>
+        </div>`
+      }).join('')
+    }
+
+    statusText.textContent = `${TENANTS[tenantSelect.value].name} · ${sub.stats.nodes} nodos`
+  } catch (err) {
+    statusText.textContent = 'Error: ' + err.message
+    console.error(err)
+  }
+}
+
+const escapeHtml = s => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+
+tenantSelect.addEventListener('change', () => { renderUsers(); renderGraph() })
+userSelect.addEventListener('change', renderGraph)
+
+renderUsers()
+renderGraph()
+</script>
+
+</body>
+</html>

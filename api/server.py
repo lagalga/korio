@@ -88,6 +88,7 @@ class SearchResponse(BaseModel):
     model_used:       str
     has_conflict:     bool = False    # True si la respuesta tocó chunks en disputa
     disputed_chunks:  int  = 0        # Número de chunks 'disputed' usados
+    graph_contributed: bool = False   # True si el grafo de conocimiento aportó contexto
 
 
 class IngestRequest(BaseModel):
@@ -493,6 +494,146 @@ async def review_conflict(
     except Exception as e:
         logger.exception("Error en /review")
         raise HTTPException(status_code=500, detail=f"Error interno: {str(e)}")
+
+
+# ─── Endpoints del grafo de conocimiento (Phase 7.1) ────────────────────────
+
+GRAPH_ENABLED = os.getenv("KORIO_GRAPH_ENABLED", "0") == "1"
+
+
+def _get_allowed_spaces(user_id: str) -> list:
+    """RLS: obtiene los space_ids permitidos para el usuario."""
+    from db import get_supabase_client
+    db = get_supabase_client()
+    rows = db.client.table("user_spaces").select("space_id").eq("user_id", user_id).execute()
+    return [r["space_id"] for r in (rows.data or [])]
+
+
+@app.get("/graph/contradictions", tags=["Grafo"])
+async def graph_contradictions(tenant_id: str, user_id: str):
+    """
+    Lista todas las contradicciones (claims) del tenant para el usuario.
+    Aplica RLS por allowed_space_ids.
+    """
+    if not GRAPH_ENABLED:
+        raise HTTPException(status_code=503, detail="Grafo de conocimiento no activado")
+    try:
+        from graph_client import get_graph_client
+        gc = get_graph_client()
+        spaces = _get_allowed_spaces(user_id)
+        if not spaces:
+            raise HTTPException(status_code=403, detail="Usuario sin espacios asignados")
+        contradictions = gc.get_contradictions(tenant_id=tenant_id, allowed_space_ids=spaces)
+        return {
+            "tenant_id":    tenant_id,
+            "user_id":      user_id,
+            "count":        len(contradictions),
+            "contradictions": contradictions,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("Error en /graph/contradictions")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/graph/entity/{entity_name}", tags=["Grafo"])
+async def graph_entity(entity_name: str, tenant_id: str, user_id: str, only_active: bool = True):
+    """Devuelve todos los claims sobre una entidad concreta."""
+    if not GRAPH_ENABLED:
+        raise HTTPException(status_code=503, detail="Grafo de conocimiento no activado")
+    try:
+        from graph_client import get_graph_client
+        gc = get_graph_client()
+        spaces = _get_allowed_spaces(user_id)
+        if not spaces:
+            raise HTTPException(status_code=403, detail="Usuario sin espacios asignados")
+        claims = gc.find_claims_by_entity(
+            tenant_id=tenant_id,
+            entity_name=entity_name,
+            allowed_space_ids=spaces,
+            only_active=only_active,
+        )
+        return {"entity": entity_name, "count": len(claims), "claims": claims}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("Error en /graph/entity")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/graph/subgraph", tags=["Grafo"])
+async def graph_subgraph(tenant_id: str, user_id: str, limit: int = 200):
+    """
+    Devuelve el subgrafo del tenant (nodos + aristas) en formato vis-network.
+    Útil para la visualización en /ui/graph.
+    """
+    if not GRAPH_ENABLED:
+        raise HTTPException(status_code=503, detail="Grafo de conocimiento no activado")
+    try:
+        from graph_client import get_graph_client
+        gc = get_graph_client()
+        spaces = _get_allowed_spaces(user_id)
+        if not spaces:
+            raise HTTPException(status_code=403, detail="Usuario sin espacios asignados")
+        sg = gc.get_tenant_subgraph(
+            tenant_id=tenant_id,
+            allowed_space_ids=spaces,
+            limit=limit,
+        )
+        # Transformar al formato esperado por vis-network
+        vis_nodes = []
+        for n in sg["nodes"]:
+            label = (
+                n.get("name")
+                or n.get("subject")
+                or n.get("filename")
+                or str(n.get("node_id", ""))[:8]
+            )
+            kind = n.get("kind") or "Unknown"
+            # Color por tipo de nodo
+            color_map = {
+                "Document": "#161632",
+                "Chunk":    "#94a3b8",
+                "Entity":   "#5B6AF5",
+                "Claim":    "#f59e0b",
+            }
+            color = color_map.get(kind, "#cbd5e1")
+            if n.get("chunk_status") == "superseded":
+                color = "#cbd5e1"  # gris claro
+            elif n.get("chunk_status") == "disputed":
+                color = "#fb923c"  # naranja
+            vis_nodes.append({
+                "id":    n["internal_id"],
+                "label": str(label)[:40],
+                "title": f"{kind}: {label}",
+                "group": kind,
+                "color": color,
+            })
+        vis_edges = []
+        for e in sg["edges"]:
+            ekind = e.get("kind", "")
+            color = "#fb923c" if ekind == "CONTRADICTS" else "#cbd5e1"
+            width = 3 if ekind == "CONTRADICTS" else 1
+            vis_edges.append({
+                "from":  e["source"],
+                "to":    e["target"],
+                "label": ekind,
+                "color": {"color": color},
+                "width": width,
+                "arrows": "to",
+            })
+        return {
+            "tenant_id": tenant_id,
+            "nodes":     vis_nodes,
+            "edges":     vis_edges,
+            "stats":     {"nodes": len(vis_nodes), "edges": len(vis_edges)},
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("Error en /graph/subgraph")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 # ─── Endpoint escalada de HITL (cron) ────────────────────────────────────────
