@@ -42,7 +42,9 @@ class ConflictItem:
 
     Attributes:
         new_chunk_id:          ID del chunk recién ingestado
+        new_chunk_text:        Texto del chunk nuevo (para mostrar en HITL email)
         existing_chunk_id:     ID del chunk existente con el que hay conflicto
+        existing_chunk_text:   Texto del chunk existente (para mostrar en HITL email)
         existing_document_id:  UUID del documento existente
         existing_filename:     Nombre del fichero existente
         similarity:            Similitud coseno (0.85–1.0)
@@ -56,7 +58,9 @@ class ConflictItem:
         review_token:          Token para links email HITL (si está pendiente)
     """
     new_chunk_id:           int
+    new_chunk_text:         str
     existing_chunk_id:      int
+    existing_chunk_text:    str
     existing_document_id:   str
     existing_filename:      str
     similarity:             float
@@ -110,7 +114,9 @@ class ConflictReport:
             "conflicts": [
                 {
                     "new_chunk_id":          c.new_chunk_id,
+                    "new_chunk_text":        c.new_chunk_text,
                     "existing_chunk_id":     c.existing_chunk_id,
+                    "existing_chunk_text":   c.existing_chunk_text,
                     "existing_document_id":  c.existing_document_id,
                     "existing_filename":     c.existing_filename,
                     "similarity":            round(c.similarity, 3),
@@ -191,6 +197,7 @@ def _decide_resolution(
 def detect_conflicts(
     new_document_id: str,
     new_chunk_ids: List[int],
+    new_chunk_texts: List[str],
     new_embeddings: List[List[float]],
     space_id: str,
     tenant_id: str,
@@ -223,7 +230,7 @@ def detect_conflicts(
     # Llevar registro de conflictos ya procesados (evitar duplicados por chunk existente)
     seen_existing_chunks: set = set()
 
-    for i, (chunk_id, embedding) in enumerate(zip(new_chunk_ids, new_embeddings)):
+    for i, (chunk_id, chunk_text, embedding) in enumerate(zip(new_chunk_ids, new_chunk_texts, new_embeddings)):
         try:
             # Buscar chunks similares en el mismo espacio (excluye el nuevo documento)
             conflicts_raw = db.find_conflicting_chunks(
@@ -246,6 +253,7 @@ def detect_conflicts(
 
             existing_doc_id        = row["document_id"]
             existing_filename      = row.get("filename", "desconocido")
+            existing_chunk_text    = row.get("chunk_text", "")
             similarity             = float(row["similarity"])
             existing_authority     = int(row.get("authority_weight") or 5)
             existing_version_ts_raw = row.get("version_ts")
@@ -329,7 +337,9 @@ def detect_conflicts(
             # Crear ConflictItem
             conflict = ConflictItem(
                 new_chunk_id=chunk_id,
+                new_chunk_text=chunk_text,
                 existing_chunk_id=existing_chunk_id,
+                existing_chunk_text=existing_chunk_text,
                 existing_document_id=existing_doc_id,
                 existing_filename=existing_filename,
                 similarity=similarity,
@@ -425,6 +435,9 @@ def _trigger_hitl_email(
                 "resolution_reason":    c.resolution_reason,
                 "new_authority":        c.new_authority,
                 "existing_authority":   c.existing_authority,
+                # Texto real de los chunks en conflicto (para que el revisor decida con contexto)
+                "new_chunk_text":       c.new_chunk_text,
+                "existing_chunk_text":  c.existing_chunk_text,
                 # Links de acción para los botones del email
                 "action_approve_new":    f"{KORIO_BASE_URL}/review/{c.review_id}?action=approved_new&token={c.review_token}",
                 "action_keep_existing":  f"{KORIO_BASE_URL}/review/{c.review_id}?action=approved_existing&token={c.review_token}",
