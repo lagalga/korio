@@ -12,6 +12,11 @@
 --
 -- IMPORTANTE: el filtrado por allowed_doc_ids (RLS early binding) se mantiene
 -- íntegro en el caller (db.py → search_embeddings_rls).
+--
+-- Nota: PostgreSQL no permite cambiar el RETURNS TABLE con CREATE OR REPLACE
+-- cuando se añaden columnas, por eso hacemos DROP antes.
+
+DROP FUNCTION IF EXISTS search_embeddings(vector, float, int, uuid[]);
 
 CREATE OR REPLACE FUNCTION search_embeddings(
   query_embedding vector(768),
