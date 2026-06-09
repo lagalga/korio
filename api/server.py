@@ -427,25 +427,31 @@ async def review_conflict(
         # Aplicar efecto en base de datos según la acción
         review_data = review[0] if isinstance(review, list) else review
 
+        new_chunk_id      = review_data.get("new_chunk_id")
+        existing_chunk_id = review_data.get("existing_chunk_id")
+
         if action == "approved_new":
-            # El documento existente queda superseded
-            existing_chunk_id = review_data.get("existing_chunk_id")
+            # El documento existente queda superseded (el nuevo prevalece)
             if existing_chunk_id:
                 db.update_chunk_status(int(existing_chunk_id), "superseded")
             msg_es = "✅ Documento nuevo aprobado. El contenido anterior ha sido archivado."
 
         elif action == "approved_existing":
-            # El chunk nuevo queda superseded
-            new_chunk_id = review_data.get("new_chunk_id")
+            # El chunk nuevo queda superseded; el existente vuelve a active
+            # (durante la detección se había marcado como disputed)
             if new_chunk_id:
                 db.update_chunk_status(int(new_chunk_id), "superseded")
+            if existing_chunk_id:
+                db.update_chunk_status(int(existing_chunk_id), "active")
             msg_es = "✅ Documento existente conservado. El contenido nuevo ha sido descartado."
 
         else:  # kept_both
-            # Restaurar el chunk existente a active (estaba en disputed)
-            existing_chunk_id = review_data.get("existing_chunk_id")
+            # Ambos chunks vuelven a active (los dos quedarán visibles en búsqueda
+            # y el RAG presentará ambas afirmaciones como complementarias)
             if existing_chunk_id:
                 db.update_chunk_status(int(existing_chunk_id), "active")
+            if new_chunk_id:
+                db.update_chunk_status(int(new_chunk_id), "active")
             msg_es = "✅ Ambos documentos se han conservado. El sistema mostrará los dos contenidos."
 
         logger.info(f"HITL resuelto: review_id={review_id} action={action}")

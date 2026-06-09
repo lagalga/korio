@@ -110,6 +110,16 @@ def search(
             f"se presentarán ambas versiones del contenido en conflicto"
         )
 
+    # Enriquecer cada chunk con el filename del documento (para citas legibles en el LLM)
+    if raw_chunks:
+        unique_doc_ids = set(c["document_id"] for c in raw_chunks)
+        filename_lookup = {}
+        for did in unique_doc_ids:
+            doc = db.get_document_by_id(did)
+            filename_lookup[did] = doc.get("filename", "") if doc else ""
+        for c in raw_chunks:
+            c["filename"] = filename_lookup.get(c["document_id"], "")
+
     # Step 4: Ensamblado de contexto + generación LLM
     logger.info("Step 3/4: Generando respuesta con LLM...")
     llm = get_llm_client()
@@ -155,13 +165,8 @@ def search(
         chunk["document_id"] for chunk in raw_chunks
     )) if raw_chunks else []
 
-    # Enriquecer chunks con filename para las citas
-    filename_map = {}
-    if raw_chunks:
-        for doc_id in set(c["document_id"] for c in raw_chunks):
-            doc = db.get_document_by_id(doc_id)
-            if doc:
-                filename_map[doc_id] = doc.get("filename", "")
+    # Reutilizar el lookup ya hecho arriba para las citas en sources
+    filename_map = locals().get("filename_lookup", {})
 
     # Formatear fuentes para la respuesta
     sources = _format_sources(raw_chunks, filename_map)
