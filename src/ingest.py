@@ -214,9 +214,11 @@ def ingest_document(
     if chunk_ids:
         try:
             embeddings_list = [emb.tolist() for emb in embeddings]
+            chunk_texts     = [c[0] for c in chunks_with_meta]
             conflict_report = detect_conflicts(
                 new_document_id=document_id,
                 new_chunk_ids=chunk_ids,
+                new_chunk_texts=chunk_texts,
                 new_embeddings=embeddings_list,
                 space_id=space_id,
                 tenant_id=tenant_id,
