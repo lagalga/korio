@@ -4,14 +4,15 @@
   <meta charset="UTF-8">
   <title>Korio — Grafo de conocimiento</title>
   <link rel="icon" type="image/png" href="assets/img/favicon.png">
-  <link rel="stylesheet" href="css/styles.css?v=8">
+  <link rel="stylesheet" href="css/styles.css?v=9">
   <script src="https://unpkg.com/vis-network@9.1.9/standalone/umd/vis-network.min.js"></script>
   <style>
-    body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background:#f1f5f9; color:#1e293b; }
-    .page { display: grid; grid-template-rows: auto 1fr; height: 100vh; }
+    html, body { height: 100%; }
+    body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background:#f1f5f9; color:#1e293b; overflow: hidden; }
     .topbar {
       background: #ffffff; border-bottom: 1px solid #e2e8f0;
       padding: 14px 24px; display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+      height: 60px; box-sizing: border-box;
     }
     .topbar__logo { font-size: 16px; font-weight: 700; color: #161632; }
     .topbar__sep  { width: 1px; height: 24px; background:#e2e8f0; }
@@ -27,11 +28,28 @@
     .topbar__right { margin-left: auto; display: flex; gap: 8px; align-items: center; font-size: 12px; color:#64748b; }
     .topbar a { color: #5B6AF5; text-decoration: none; font-size: 13px; }
 
-    .container { display: grid; grid-template-columns: 1fr 320px; height: 100%; min-height: 0; }
-    #network { width: 100%; height: 100%; background: white; }
+    .container {
+      display: flex;
+      width: 100%;
+      height: calc(100vh - 60px);
+    }
+    #network {
+      flex: 1;
+      height: 100%;
+      background: white;
+      position: relative;
+    }
     .sidepanel {
-      background: white; border-left: 1px solid #e2e8f0; overflow-y: auto; padding: 20px;
-      display: flex; flex-direction: column; gap: 18px;
+      width: 320px;
+      flex-shrink: 0;
+      background: white;
+      border-left: 1px solid #e2e8f0;
+      overflow-y: auto;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+      box-sizing: border-box;
     }
     .panel__section h3 {
       font-size: 13px; text-transform: uppercase; letter-spacing: .5px;
@@ -56,7 +74,6 @@
   </style>
 </head>
 <body>
-<div class="page">
 
   <!-- Topbar -->
   <div class="topbar">
@@ -116,8 +133,6 @@
       </div>
     </aside>
   </div>
-
-</div>
 
 <script>
 'use strict'
@@ -181,6 +196,11 @@ const renderGraph = async () => {
     const sub = await subRes.json()
     const contras = contraRes.ok ? await contraRes.json() : { contradictions: [] }
 
+    if (!sub.nodes || sub.nodes.length === 0) {
+      statusText.textContent = 'No hay nodos en el grafo todavía'
+      return
+    }
+
     // Render network
     const data = {
       nodes: new vis.DataSet(sub.nodes),
@@ -189,25 +209,50 @@ const renderGraph = async () => {
     const options = {
       nodes: {
         shape: 'dot',
-        size: 12,
+        size: 10,
         font: { size: 11, color: '#1e293b', face: '-apple-system, sans-serif' },
         borderWidth: 1,
+        scaling: { min: 8, max: 20 },
       },
       edges: {
         font: { size: 9, color: '#64748b', strokeWidth: 0, align: 'middle' },
         smooth: { type: 'continuous' },
       },
       physics: {
-        forceAtlas2Based: { gravitationalConstant: -50, springLength: 100, springConstant: 0.08 },
+        barnesHut: {
+          gravitationalConstant: -8000,
+          springLength: 120,
+          springConstant: 0.04,
+          damping: 0.5,
+          avoidOverlap: 0.1,
+        },
         maxVelocity: 50,
-        solver: 'forceAtlas2Based',
-        timestep: 0.35,
-        stabilization: { iterations: 150 },
+        solver: 'barnesHut',
+        timestep: 0.5,
+        stabilization: { iterations: 80, fit: true },
       },
-      interaction: { hover: true, navigationButtons: true, keyboard: true },
+      interaction: {
+        hover: true,
+        navigationButtons: true,
+        keyboard: true,
+        tooltipDelay: 100,
+      },
+      layout: { improvedLayout: false },  // mucho más rápido con 200+ nodos
     }
-    if (network) network.destroy()
+    if (network) { network.destroy(); network = null }
     network = new vis.Network($('network'), data, options)
+
+    // Cuando termina la simulación física, encuadra el viewport
+    network.once('stabilizationIterationsDone', () => {
+      network.fit({ animation: { duration: 400, easingFunction: 'easeInOutQuad' } })
+    })
+
+    // También permitir doble clic para enfocar un nodo
+    network.on('doubleClick', (params) => {
+      if (params.nodes && params.nodes.length) {
+        network.focus(params.nodes[0], { scale: 1.5, animation: true })
+      }
+    })
 
     // Stats
     statsBox.innerHTML = `<strong>${sub.stats.nodes}</strong> nodos · <strong>${sub.stats.edges}</strong> aristas · <strong>${contras.count || 0}</strong> contradicciones`
