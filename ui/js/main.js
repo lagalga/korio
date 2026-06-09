@@ -404,6 +404,13 @@ const renderConflictReport = (cr) => {
       <span class="conflict-item__resolution">${resolutionLabel(c.resolution)}</span>
     </div>`).join('')
 
+  // Etiqueta del estado HITL: refleja si el email se envió de verdad
+  let hitlLabel = ''
+  if (cr.pending_review > 0) {
+    const tail = cr.hitl_email_sent ? 'email enviado al admin' : 'registrados, email no configurado'
+    hitlLabel = `&nbsp;·&nbsp; <em>${cr.pending_review} pendiente${cr.pending_review > 1 ? 's' : ''} (${tail})</em>`
+  }
+
   return `
     <div class="conflict-report">
       <div class="conflict-report__header">
@@ -411,7 +418,7 @@ const renderConflictReport = (cr) => {
         <strong>Gobernanza activa:</strong>
         ${cr.total_conflicts} conflicto${cr.total_conflicts > 1 ? 's' : ''} detectado${cr.total_conflicts > 1 ? 's' : ''}
         &nbsp;·&nbsp; ${cr.auto_resolved} auto-resuelto${cr.auto_resolved !== 1 ? 's' : ''}
-        ${cr.pending_review > 0 ? `&nbsp;·&nbsp; <em>${cr.pending_review} pendiente${cr.pending_review > 1 ? 's' : ''} (email enviado)</em>` : ''}
+        ${hitlLabel}
       </div>
       <div class="conflict-report__list">${conflictRows}</div>
     </div>`
