@@ -23,7 +23,9 @@
       white-space: nowrap;
       overflow-x: auto;
     }
-    .topbar__logo { font-size: 15px; font-weight: 700; color: #161632; flex-shrink: 0; }
+    .topbar__logo {
+      height: 28px; width: auto; display: block; flex-shrink: 0;
+    }
     .topbar__sep  { width: 1px; height: 22px; background:#e2e8f0; flex-shrink: 0; }
     .topbar__chip {
       display: inline-flex; align-items: center; gap: 6px;
@@ -97,7 +99,9 @@
 
   <!-- Topbar -->
   <div class="topbar">
-    <span class="topbar__logo">⬢ Korio</span>
+    <a href="/" title="Inicio Korio">
+      <img class="topbar__logo" src="assets/img/logo.svg" alt="Korio">
+    </a>
     <span class="topbar__sep"></span>
     <span class="topbar__chip">🕸 Grafo de conocimiento</span>
 
