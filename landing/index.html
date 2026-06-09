@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Korio | El Cerebro Corporativo Inteligente y Seguro para Empresas</title>
+  <meta name="description" content="Conecta el conocimiento disperso de tu empresa de forma segura. Korio integra tus herramientas (Drive, Notion, Slack) en un cerebro corporativo con IA avanzada y privacidad Enterprise.">
+  <meta name="keywords" content="cerebro corporativo, gestion del conocimiento empresa, inteligencia artificial segura, RAG empresarial, segundo cerebro empresas, IA para empresas, busqueda semantica interna, seguridad de datos IA">
+  <meta name="robots" content="index, follow">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="canonical" href="https://korio.es">
+
+  <!-- Open Graph -->
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://korio.es">
+  <meta property="og:title" content="Korio | El Cerebro Corporativo Inteligente y Seguro para Empresas">
+  <meta property="og:description" content="Toda la información de tu organización, unificada y accesible mediante IA. Descubre cómo Korio conecta tus datos respetando la privacidad y jerarquía de accesos de tu empresa.">
+  <meta property="og:image" content="https://korio.es/assets/og-image.png">
+  <meta property="og:locale" content="es_ES">
+
+  <!-- Twitter -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:url" content="https://korio.es">
+  <meta name="twitter:title" content="Korio | El Cerebro Corporativo Inteligente y Seguro para Empresas">
+  <meta name="twitter:description" content="Conecta Drive, Slack, Notion y más en un único motor de conocimiento con IA corporativa. Privacidad avanzada e integración agnóstica mediante MCP.">
+  <meta name="twitter:image" content="https://korio.es/assets/og-image.png">
+
+  <link rel="icon" type="image/png" href="/assets/favicon.png">
+
+  <style>
+    :root {
+      --color-bg: #ffffff;
+      --color-ink: #161632;       /* Azul oscuro del logo */
+      --color-ink-soft: #475569;
+      --color-muted: #94a3b8;
+      --color-accent: #5B6AF5;    /* Azul Korio */
+      --color-magenta: #ff0066;   /* Magenta vibrante */
+      --color-soft: #f8fafc;
+      --color-border: #e2e8f0;
+
+      --font-display: 'Optima', 'Optima Nova', 'URW Classico', 'Linotype Optima',
+                      'Palatino Linotype', 'Palatino', 'Trebuchet MS', sans-serif;
+      --font-body: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      margin: 0; padding: 0;
+      background: var(--color-bg);
+      color: var(--color-ink);
+      font-family: var(--font-display);
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      line-height: 1.5;
+    }
+
+    a { color: var(--color-accent); text-decoration: none; }
+    a:hover { color: var(--color-magenta); }
+
+    /* ─── Header con logo ─── */
+    header {
+      padding: 32px 24px 0;
+      max-width: 720px;
+      margin: 0 auto;
+    }
+    .header__inner {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .header__logo { height: 40px; width: auto; }
+
+    /* ─── Hero ─── */
+    main {
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 48px 24px 32px;
+    }
+
+    h1 {
+      font-family: var(--font-display);
+      font-weight: 400;
+      font-size: clamp(40px, 7vw, 64px);
+      line-height: 1.1;
+      letter-spacing: -0.02em;
+      color: var(--color-ink);
+      margin: 0 0 28px 0;
+    }
+    h1 .accent {
+      color: var(--color-magenta);
+      font-style: italic;
+    }
+
+    h2 {
+      font-family: var(--font-display);
+      font-weight: 400;
+      font-size: clamp(18px, 2.4vw, 22px);
+      line-height: 1.5;
+      color: var(--color-ink-soft);
+      margin: 0 0 40px 0;
+      max-width: 620px;
+    }
+
+    /* ─── Lista de valores ─── */
+    .features {
+      list-style: none;
+      padding: 0;
+      margin: 0 0 48px 0;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+    .features li {
+      font-family: var(--font-body);
+      font-size: 15px;
+      line-height: 1.6;
+      color: var(--color-ink);
+      padding-left: 36px;
+      position: relative;
+    }
+    .features li .icon {
+      position: absolute;
+      left: 0;
+      top: 0;
+      font-size: 20px;
+      line-height: 1.4;
+    }
+    .features li strong {
+      font-weight: 600;
+      color: var(--color-ink);
+    }
+
+    /* ─── CTA / formulario ─── */
+    .cta {
+      margin-top: 32px;
+      padding: 28px;
+      background: var(--color-soft);
+      border-radius: 14px;
+      border: 1px solid var(--color-border);
+    }
+    .cta__label {
+      font-family: var(--font-body);
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: .8px;
+      color: var(--color-magenta);
+      margin-bottom: 10px;
+    }
+    .cta__title {
+      font-family: var(--font-display);
+      font-size: 22px;
+      font-weight: 400;
+      color: var(--color-ink);
+      margin: 0 0 18px 0;
+    }
+    .waitlist-form {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .waitlist-form input[type="email"] {
+      flex: 1;
+      min-width: 0;
+      font-family: var(--font-body);
+      font-size: 15px;
+      padding: 14px 16px;
+      border: 1px solid var(--color-border);
+      border-radius: 10px;
+      background: white;
+      color: var(--color-ink);
+      outline: none;
+      transition: border-color .15s;
+    }
+    .waitlist-form input[type="email"]:focus {
+      border-color: var(--color-accent);
+    }
+    .waitlist-form button {
+      font-family: var(--font-body);
+      font-size: 15px;
+      font-weight: 600;
+      padding: 14px 22px;
+      background: var(--color-ink);
+      color: white;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: background .15s;
+      white-space: nowrap;
+    }
+    .waitlist-form button:hover { background: var(--color-magenta); }
+    .waitlist-form button:disabled {
+      opacity: .5;
+      cursor: not-allowed;
+    }
+
+    .waitlist-status {
+      margin-top: 12px;
+      font-family: var(--font-body);
+      font-size: 13px;
+      min-height: 18px;
+    }
+    .waitlist-status--ok { color: #16a34a; }
+    .waitlist-status--err { color: #dc2626; }
+
+    /* ─── Footer ─── */
+    footer {
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 32px 24px 48px;
+      border-top: 1px solid var(--color-border);
+      margin-top: 32px;
+      font-family: var(--font-body);
+      font-size: 12px;
+      color: var(--color-muted);
+      display: flex;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    footer a { color: var(--color-muted); }
+    footer a:hover { color: var(--color-magenta); }
+
+    /* ─── Responsive ─── */
+    @media (max-width: 500px) {
+      .waitlist-form { flex-direction: column; }
+      .waitlist-form button { width: 100%; }
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="header__inner">
+      <img src="/assets/logo.svg" alt="Korio" class="header__logo">
+    </div>
+  </header>
+
+  <main>
+
+    <h1>
+      El conocimiento de tu empresa,<br>
+      unificado en un solo <span class="accent">cerebro corporativo</span>.
+    </h1>
+
+    <h2>
+      Korio conecta de forma segura tus herramientas diarias (Drive, Slack, Notion, SharePoint) en un motor de IA que resuelve consultas, gestiona conflictos de información y respeta estrictamente los permisos de acceso de tu organización.
+    </h2>
+
+    <ul class="features">
+      <li>
+        <span class="icon">🔒</span>
+        <strong>Privacidad Enterprise.</strong>
+        Pseudoanonimización automática de datos sensibles antes de procesar el conocimiento. Multi-tenant con Row-Level Security real.
+      </li>
+      <li>
+        <span class="icon">⚡</span>
+        <strong>Integración agnóstica.</strong>
+        Consulta desde Slack, nuestra interfaz o tu IA habitual mediante protocolo MCP. Sin lock-in de proveedor.
+      </li>
+      <li>
+        <span class="icon">⚖️</span>
+        <strong>Gobernanza activa.</strong>
+        Detección automática de contradicciones entre documentos, resolución por autoridad y temporalidad, y revisión humana cuando no hay criterio claro.
+      </li>
+      <li>
+        <span class="icon">📊</span>
+        <strong>Medición de ROI.</strong>
+        Analíticas continuas para reducir drásticamente el tiempo de búsqueda de información interna.
+      </li>
+    </ul>
+
+    <section class="cta">
+      <div class="cta__label">Beta privada — Q3 2026</div>
+      <h3 class="cta__title">Únete a la lista de espera</h3>
+      <form class="waitlist-form" id="waitlist-form">
+        <input
+          type="email"
+          name="email"
+          id="waitlist-email"
+          placeholder="tu@empresa.com"
+          required
+          autocomplete="email"
+        >
+        <button type="submit" id="waitlist-submit">Solicitar acceso →</button>
+      </form>
+      <div class="waitlist-status" id="waitlist-status" aria-live="polite"></div>
+    </section>
+
+  </main>
+
+  <footer>
+    <span>© 2026 Korio · TFM Máster IA Business &amp; Innovation</span>
+    <span>
+      <a href="mailto:contacto@lagalga.es">contacto@lagalga.es</a>
+    </span>
+  </footer>
+
+  <script>
+    'use strict'
+
+    const form    = document.getElementById('waitlist-form')
+    const input   = document.getElementById('waitlist-email')
+    const button  = document.getElementById('waitlist-submit')
+    const status  = document.getElementById('waitlist-status')
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault()
+      const email = input.value.trim()
+      if (!email) return
+
+      button.disabled = true
+      status.className = 'waitlist-status'
+      status.textContent = 'Enviando…'
+
+      try {
+        const res = await fetch('/waitlist', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email,
+            referer: document.referrer || null
+          })
+        })
+
+        if (res.ok) {
+          status.className = 'waitlist-status waitlist-status--ok'
+          status.textContent = '✓ Estás en la lista. Te avisaremos cuando se abra el beta.'
+          input.value = ''
+        } else if (res.status === 409) {
+          status.className = 'waitlist-status waitlist-status--ok'
+          status.textContent = '✓ Ya estabas en la lista. Te avisaremos.'
+        } else {
+          const err = await res.json().catch(() => ({}))
+          status.className = 'waitlist-status waitlist-status--err'
+          status.textContent = err.detail || 'No pudimos registrar tu email. Inténtalo más tarde.'
+          button.disabled = false
+        }
+      } catch (err) {
+        status.className = 'waitlist-status waitlist-status--err'
+        status.textContent = 'Error de red. Revisa tu conexión.'
+        button.disabled = false
+      }
+    })
+  </script>
+
+</body>
+</html>

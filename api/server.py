@@ -21,11 +21,11 @@ from typing import Optional
 # Añadir src/ al path para importar los módulos del pipeline
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
-from fastapi import FastAPI, HTTPException, UploadFile, Form, Query
+from fastapi import FastAPI, HTTPException, UploadFile, Form, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import RedirectResponse, HTMLResponse
-from pydantic import BaseModel, Field
+from fastapi.responses import RedirectResponse, HTMLResponse, FileResponse
+from pydantic import BaseModel, Field, EmailStr
 
 from search import search as run_search
 from ingest import ingest_document, DuplicateDocumentError
@@ -494,12 +494,69 @@ async def review_conflict(
         raise HTTPException(status_code=500, detail=f"Error interno: {str(e)}")
 
 
-# ─── Static files (UI) ───────────────────────────────────────────────────────
+# ─── Endpoint waitlist (landing teaser) ─────────────────────────────────────
 
-_ui_dir = os.path.join(os.path.dirname(__file__), '..', 'ui')
+class WaitlistRequest(BaseModel):
+    """Petición de alta en la lista de espera del beta."""
+    email:   EmailStr = Field(..., description="Email del interesado en el beta")
+    referer: Optional[str] = Field(None, description="Página de origen (opcional)")
+    source:  str = Field("landing", description="Origen del lead")
+
+
+@app.post("/waitlist", tags=["Landing"])
+async def waitlist_signup(payload: WaitlistRequest, request: Request):
+    """
+    Guarda un email en la tabla de waitlist (lista de espera del beta).
+    Idempotente: si el email ya existe, devuelve 409 sin error.
+    """
+    try:
+        from db import get_supabase_client
+        db = get_supabase_client()
+
+        ua = request.headers.get("user-agent", "")[:500]
+
+        result = db.client.table("waitlist").insert({
+            "email":      str(payload.email).lower().strip(),
+            "source":     payload.source,
+            "user_agent": ua,
+            "referer":    payload.referer,
+        }).execute()
+
+        logger.info(f"Waitlist signup: {payload.email}")
+        return {"success": True, "message": "Email registrado en la lista de espera"}
+
+    except Exception as e:
+        # Unique constraint → email ya registrado (idempotente)
+        if "duplicate key" in str(e).lower() or "unique" in str(e).lower():
+            raise HTTPException(
+                status_code=409,
+                detail="Este email ya estaba en la lista de espera"
+            )
+        logger.exception("Error en /waitlist")
+        raise HTTPException(status_code=500, detail="No pudimos registrar el email")
+
+
+# ─── Static files: Landing (raíz) + UI app (/ui) ────────────────────────────
+
+_landing_dir = os.path.join(os.path.dirname(__file__), '..', 'landing')
+_ui_dir      = os.path.join(os.path.dirname(__file__), '..', 'ui')
+
+# UI app sigue en /ui (no cambia)
 if os.path.isdir(_ui_dir):
     app.mount("/ui", StaticFiles(directory=_ui_dir, html=True), name="ui")
 
+# Landing en raíz: sirve /assets/* y / como index.html
+if os.path.isdir(_landing_dir):
+    _landing_assets = os.path.join(_landing_dir, 'assets')
+    if os.path.isdir(_landing_assets):
+        app.mount("/assets", StaticFiles(directory=_landing_assets), name="landing-assets")
+
+    @app.get("/", include_in_schema=False)
+    async def landing_root():
+        """Sirve la landing teaser de korio.es"""
+        return FileResponse(os.path.join(_landing_dir, "index.html"))
+elif os.path.isdir(_ui_dir):
+    # Fallback: si no hay landing, raíz redirige a la app
     @app.get("/", include_in_schema=False)
     async def root():
         return RedirectResponse(url="/ui")
