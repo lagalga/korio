@@ -11,23 +11,28 @@
 
 ---
 
-## Estado actual (8 junio 2026)
+## Estado actual (9 junio 2026)
 
-### ✅ Completado
+### ✅ Completado — Phases 1–3
 - Pipeline ingesta: Documento → MarkItDown → Presidio → Chunking → Embeddings → pgvector
 - Pipeline búsqueda RAG: Query → embed → RLS early binding → pgvector → Mistral API → respuesta
-- FastAPI server: `POST /search`, `POST /ingest`, `GET /health`
+- FastAPI server: `POST /search`, `POST /ingest`, `POST /upload`, `GET /health`
 - Tests: 20/20 ✅ (test_rls.py × 10 + test_search.py × 10)
 - 2 tenants activos con datos sintéticos: Clínica Delos + Despacho García
 - RLS verificado: 0 fugas entre tenants y entre espacios
+- `docs/ARCHITECTURE.md`, `DEPLOYMENT.md`, `ROADMAP.md` — documentación técnica completa
+- README actualizado con quickstart, métricas reales y estructura
 
-### 🔲 Pendiente (Phase 3 — antes del 2 julio)
-- `docs/ARCHITECTURE.md` — diagrama visual del sistema
-- `docs/DEPLOYMENT.md` — setup desde cero en Hetzner
-- `docs/ROADMAP.md` — post-TFM
-- README final con quickstart
-- QA end-to-end: 10+ queries en ambos tenants
-- Medición formal de latencias (p50, p95)
+### ✅ Phase 4 arrancada (9 junio)
+- Chat UI web (`ui/`) — HTML/CSS/JS vanilla, toggle de fuentes, markdown rendering
+- Endpoint `POST /upload` — ingesta de ficheros desde el navegador (multipart)
+- `scripts/benchmark.py` — medición p50/p95 de latencias RAG por escenario
+
+### 🔲 Pendiente (antes del 2 julio)
+- QA end-to-end: 10+ queries en ambos tenants con la UI
+- Benchmark formal de latencias (ejecutar scripts/benchmark.py)
+- n8n workflows: webhook ingesta + query desde Slack
+- MCP Server: exponer Korio como tool para Claude/n8n
 - Presentation deck (10–15 slides)
 
 ---
@@ -97,7 +102,7 @@ korio/
 │
 ├── api/
 │   ├── __init__.py
-│   └── server.py        # FastAPI: /search, /ingest, /health
+│   └── server.py        # FastAPI: /search, /ingest, /upload, /health
 │
 ├── tests/
 │   ├── __init__.py
@@ -113,10 +118,18 @@ korio/
 │   ├── garcia_dictamen_fiscal.md
 │   └── garcia_protocolo_clientes.md
 │
-└── docs/                # PENDIENTE
-    ├── ARCHITECTURE.md
-    ├── DEPLOYMENT.md
-    └── ROADMAP.md
+├── ui/                  # Chat UI web (Phase 4)
+│   ├── index.html
+│   ├── css/styles.css
+│   └── js/main.js
+│
+├── scripts/
+│   └── benchmark.py     # Medición latencias p50/p95 por escenario
+│
+└── docs/
+    ├── ARCHITECTURE.md  # Diagrama del sistema, modelo de datos, RLS
+    ├── DEPLOYMENT.md    # Setup en Hetzner desde cero
+    └── ROADMAP.md       # Fases post-TFM detalladas
 ```
 
 ---
@@ -140,9 +153,17 @@ python src/ingest.py data-synthetic/FILE.md \
 # Búsqueda
 python src/search.py "¿pregunta?" --user-id <uuid> --tenant-id <uuid>
 
-# Servidor FastAPI
+# Servidor FastAPI (arrancar desde el directorio del proyecto/worktree)
 python -m uvicorn api.server:app --reload --port 8000
 # Swagger: http://localhost:8000/docs
+# UI:      http://localhost:8000/ui
+
+# UI (servidor estático alternativo, sin FastAPI)
+python -m http.server 3000 --directory ui
+
+# Benchmark de latencias (requiere servidor en :8000)
+python scripts/benchmark.py                     # 5 iter por escenario
+python scripts/benchmark.py -n 10 -o out.json  # 10 iter + JSON
 ```
 
 ---
@@ -215,9 +236,9 @@ El early binding es el corazón del sistema. Nunca saltarlo:
 
 ---
 
-## Métricas reales (8 junio 2026)
+## Métricas reales (9 junio 2026)
 
-- Latencia RAG con Mistral API: **~3.3s**
+- Latencia RAG con Mistral API: **~3.3s** (p50 manual, pendiente benchmark.py formal)
 - Latencia embedding (Ollama CPU): **~0.8s**
 - Tests completos (20): **~20s**
 - Chunks en producción: **~27** (6 docs × ~4.5 chunks/doc promedio)
@@ -247,4 +268,4 @@ El early binding es el corazón del sistema. Nunca saltarlo:
 
 ---
 
-*Actualizado: 8 junio 2026 — Phase 2 completada*
+*Actualizado: 9 junio 2026 — Phase 3 completada · Phase 4 en progreso*
