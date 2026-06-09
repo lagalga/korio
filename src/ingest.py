@@ -36,6 +36,24 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+class DuplicateDocumentError(Exception):
+    """
+    Se intenta ingestar un documento cuyo content_hash ya existe en la base.
+
+    No es un error en el sentido estricto: es la deduplicación funcionando.
+    Llevamos el ID y filename del documento existente para que el caller
+    pueda informar al usuario.
+    """
+    def __init__(self, document_id: str, filename: str, space_id: str, content_hash: str):
+        self.document_id  = document_id
+        self.filename     = filename
+        self.space_id     = space_id
+        self.content_hash = content_hash
+        super().__init__(
+            f"El documento ya estaba ingestado (id={document_id}, filename={filename})"
+        )
+
+
 def ingest_document(
     file_path: str,
     tenant_id: str,
@@ -123,6 +141,22 @@ def ingest_document(
         # Calcular hash del contenido para deduplicación
         import hashlib
         content_hash = hashlib.sha256(content.encode()).hexdigest()
+
+        # Comprobar si ya existe un documento con el mismo content_hash
+        # (deduplicación: no permitir ingestar el mismo fichero dos veces)
+        existing = supabase.table("documents").select(
+            "id, filename, space_id, created_at"
+        ).eq("content_hash", content_hash).execute()
+
+        if existing.data:
+            dup = existing.data[0]
+            logger.info(f"  ⚠️  Documento duplicado detectado (hash ya existe en doc {dup['id']})")
+            raise DuplicateDocumentError(
+                document_id=dup["id"],
+                filename=dup["filename"],
+                space_id=dup["space_id"],
+                content_hash=content_hash,
+            )
 
         # Crear documento (incluye authority_weight y version_ts para gobernanza)
         doc_response = supabase.table("documents").insert({

@@ -288,7 +288,9 @@ const doUpload = async (file, tenantId, spaceId) => {
 
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: res.statusText }))
-    throw new Error(err.detail || `Error ${res.status}`)
+    const e = new Error(err.detail || `Error ${res.status}`)
+    e.status = res.status
+    throw e
   }
 
   return res.json()
@@ -422,7 +424,12 @@ const submitIngest = async () => {
     const delay = (result.conflict_report?.pending_review > 0) ? 6000 : 2500
     setTimeout(closeModal, delay)
   } catch (err) {
-    modalProgressText.textContent = `❌ Error: ${err.message}`
+    if (err.status === 409) {
+      // Duplicado — no es realmente un error, informamos sin alarma
+      modalProgressText.innerHTML = `ℹ️ <strong>Documento ya ingestado.</strong> ${err.message}`
+    } else {
+      modalProgressText.textContent = `❌ Error: ${err.message}`
+    }
     ingestSubmit.disabled = false
   }
 }

@@ -28,7 +28,7 @@ from fastapi.responses import RedirectResponse, HTMLResponse
 from pydantic import BaseModel, Field
 
 from search import search as run_search
-from ingest import ingest_document
+from ingest import ingest_document, DuplicateDocumentError
 
 # Configurar logging
 logging.basicConfig(
@@ -296,6 +296,11 @@ async def ingest(request: IngestRequest):
             "conflict_report": cr if cr.get("has_conflicts") else None,
         }
 
+    except DuplicateDocumentError as e:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Este documento ya estaba ingestado (filename existente: {e.filename})"
+        )
     except FileNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except ValueError as e:
@@ -353,6 +358,16 @@ async def upload_and_ingest(
             "message":         msg,
             "conflict_report": cr if cr.get("has_conflicts") else None,
         }
+    except DuplicateDocumentError as e:
+        # Documento ya estaba ingestado (deduplicación por content_hash)
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"Este documento ya estaba en el knowledge base "
+                f"(filename: {e.filename}). Para forzar la re-ingesta, "
+                f"elimínalo primero o sube una versión modificada."
+            )
+        )
     except Exception as e:
         logger.exception("Error en /upload")
         raise HTTPException(status_code=500, detail=str(e))
