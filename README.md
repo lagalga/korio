@@ -1,16 +1,17 @@
 ![Korio - Company Brain](https://github.com/lagalga/korio/blob/main/ui/assets/img/logo.png)
 # Korio — Company Brain
 
-> SaaS multi-tenant de RAG para pymes españolas, con **gobernanza activa** del conocimiento.
+> SaaS multi-tenant de RAG para pymes españolas, con **gobernanza activa** del conocimiento y **grafo de conocimiento** complementario.
 > TFM · Máster IA Business & Innovation · Nuclio Digital School
 
 Korio permite a una organización consultar en lenguaje natural el conocimiento acumulado en sus documentos internos (PDFs, Word, Excel, Markdown), con:
 
 - **Aislamiento real** entre clientes (multi-tenancy con RLS de Supabase + early binding en aplicación).
 - **Aislamiento por departamento** dentro de cada cliente (un médico no ve documentos del departamento Legal).
-- **Detección automática de contradicciones** entre documentos al ingestar (auto-resolución por autoridad/fecha, HITL via email para casos ambiguos).
+- **Detección automática de contradicciones** entre documentos al ingestar (auto-resolución por autoridad/fecha, HITL via email para casos ambiguos, cron de escalada con auto-cierre).
+- **Grafo de conocimiento** en FalkorDB con entidades + claims atómicos extraídos por LLM. Search híbrido vector + grafo rescata datos cuando la query está semánticamente reformulada respecto al texto fuente.
 
-**Estado:** Phase 5 completada · Producción en [korio.es](https://korio.es) · Demo TFM 2 julio 2026
+**Estado:** Phases 1–7.1 completadas · Producción en [korio.es](https://korio.es) · Demo TFM 2 julio 2026
 
 ---
 
@@ -20,8 +21,9 @@ Korio permite a una organización consultar en lenguaje natural el conocimiento 
 |---|---|
 | [korio.es](https://korio.es) | Landing teaser de la marca |
 | [korio.es/ui](https://korio.es/ui) | App de chat (RAG + ingesta + gobernanza) |
+| [korio.es/ui/graph.html](https://korio.es/ui/graph.html) | **Visualización del grafo de conocimiento** |
 | [korio.es/docs](https://korio.es/docs) | Swagger UI (FastAPI) |
-| [n8n.korio.es](https://n8n.korio.es) | Editor de workflows (automatizaciones) |
+| [n8n.korio.es](https://n8n.korio.es) | Editor de workflows (HITL email + cron escalada) |
 
 ---
 
@@ -67,10 +69,24 @@ En el SQL Editor de Supabase, ejecutar en orden todas las migraciones:
 supabase/migrations/001_initial_schema.sql
 supabase/migrations/002_search_function.sql
 supabase/migrations/003_fix_vector_dims.sql
-supabase/migrations/004_conflict_reviews.sql  ← Gobernanza activa
-supabase/migrations/005_search_with_disputed.sql  ← Search incluye 'disputed'
-supabase/migrations/006_tenant_admin_email.sql  ← admin_email por tenant
-supabase/migrations/007_waitlist.sql  ← Landing waitlist
+supabase/migrations/004_conflict_reviews.sql       ← Gobernanza activa
+supabase/migrations/005_search_with_disputed.sql   ← Search incluye 'disputed'
+supabase/migrations/006_tenant_admin_email.sql     ← admin_email por tenant
+supabase/migrations/007_waitlist.sql               ← Landing waitlist
+supabase/migrations/008_escalation_tracking.sql    ← Cron de escalada HITL
+```
+
+### 3b. Grafo de conocimiento (opcional pero recomendado)
+
+```bash
+# FalkorDB en docker-compose
+docker compose up -d falkordb
+
+# Activar el grafo en .env
+echo "KORIO_GRAPH_ENABLED=1" >> .env
+
+# Backfill (procesa todos los chunks existentes con Mistral, ~10s por chunk)
+python scripts/graph_backfill.py
 ```
 
 ### 4. Tests
@@ -161,6 +177,36 @@ Cuando se ingesta un documento que solapa semánticamente con otro:
 
 Los chunks "perdedores" pasan a `superseded` y dejan de aparecer en búsquedas. Los chunks en disputa (HITL pendiente) sí aparecen, con flag visual de contradicción.
 
+### Cron de escalada HITL (Phase 6)
+
+Los conflictos sin resolver reciben recordatorios automáticos por email:
+
+| Día | Acción |
+|---|---|
+| 0 | Email inicial al detectar el conflicto |
+| 3 | Recordatorio Nº 1 |
+| 7 | Recordatorio Nº 2 |
+| 14 | Recordatorio Nº 3 urgente |
+| 21 | Auto-cierre como `timeout_kept_both` (ambos documentos activos) |
+
+Disparado por workflow n8n Schedule Trigger diario a las 09:00 Madrid que llama a `POST /escalate-reviews`. Cadencia parametrizable vía `.env`.
+
+### Grafo de conocimiento (Phase 7.1)
+
+El RAG vectorial puro depende de la similitud semántica entre query y texto fuente. Cuando la query se rephrasea, la recuperación cae. Para mitigarlo, Korio extrae **entidades + claims atómicos** de cada chunk con Mistral y los almacena en FalkorDB:
+
+```
+[empleados asalariados de tiempo completo] -- jornada_minima --> [35 horas/semana]
+```
+
+En tiempo de consulta, el search híbrido lanza en paralelo el vector search y una consulta al grafo por keywords del predicate. El LLM recibe ambos contextos.
+
+**Ejemplo real**: la query *"¿Cuántas horas semanales mínimas exige la política?"* devolvía *"No encuentro información"* con vector-puro porque el texto fuente dice *"rige para empleados que trabajan más de 35 horas"* (umbral de aplicabilidad, no jornada mínima). Con el grafo activado, responde correctamente *"más de 35 horas a la semana"* en ~1s.
+
+Schema del grafo: nodos `Document → Chunk → Entity / Claim` con aristas `CONTAINS / MENTIONS / HAS_CLAIM / ABOUT_ENTITY / CONTRADICTS`. Multi-tenant por `tenant_id` en todos los nodos + filtro por `allowed_space_ids` en las queries (RLS-equivalente en grafo).
+
+Visualización interactiva en [`korio.es/ui/graph.html`](https://korio.es/ui/graph.html) con vis-network.
+
 ---
 
 ## Stack
@@ -169,13 +215,16 @@ Los chunks "perdedores" pasan a `superseded` y dejan de aparecer en búsquedas. 
 |---|---|---|
 | Embeddings | `nomic-embed-text` via Ollama | **768 dims — fijo** |
 | Vector store | pgvector en Supabase | RLS nativo, Frankfurt (GDPR) |
+| **Graph store** | **FalkorDB** (Redis 8.6.3 + Cypher) | docker-compose, puerto 6379 |
 | LLM generación | Mistral API `mistral-small-latest` | ~3s latencia, temp 0.2 |
+| LLM extracción claims | Mistral API (structured JSON, temp 0.0) | en `entity_extractor.py` |
 | LLM fallback | Ollama `mistral:7b-instruct-q4_K_M` | offline en VPS |
 | Backend API | FastAPI + Uvicorn, Python 3.12 | systemd service |
 | PII detection | Presidio + spaCy `es_core_news_lg` | configurado en español |
 | Chunking | LangChain `RecursiveCharacterTextSplitter` | 500 tok / 50 overlap |
 | Doc parsing | MarkItDown `[pdf,docx,xlsx,pptx]` | |
-| Automatización | n8n v1.x (Docker en VPS) | Workflow HITL email |
+| Automatización | n8n v1.x (Docker en VPS) | 2 workflows: HITL email + Cron escalada |
+| Visualización grafo | **vis-network 9.1.9** (CDN) | barnesHut física, canvas render |
 | Servidor | Hetzner CX32, Frankfurt | 4vCPU/8GB, Ubuntu 24.04 |
 | Reverse proxy | nginx + Let's Encrypt (certbot) | renovación automática |
 
@@ -239,10 +288,15 @@ python -m pytest tests/test_search.py -v    # 10/10 RAG ✅ (~20s)
 | Métrica | Valor |
 |---|---|
 | Tests | 20/20 ✅ |
-| Latencia RAG (manual) | ~1.0–3.3s |
+| Latencia RAG vector-puro | ~1.0–3.3s |
+| Latencia RAG híbrido (vector + grafo) | ~1.0s |
 | Latencia embedding | ~0.8s |
-| Phases completadas | 1 · 2 · 3 · 4 · 5 |
-| Producción | korio.es en vivo |
+| Tiempo backfill grafo (9 docs → 233 claims) | 107s |
+| Phases completadas | 1 · 2 · 3 · 4 · 5 · 6 · 7.1 |
+| Nodos en grafo de producción | 238 |
+| Aristas en grafo de producción | 300 |
+| Contradicciones detectadas | 3 |
+| Producción | korio.es + grafo en vivo |
 
 ---
 
@@ -251,30 +305,37 @@ python -m pytest tests/test_search.py -v    # 10/10 RAG ✅ (~20s)
 ```
 korio/
 ├── api/
-│   └── server.py             # FastAPI: /search, /ingest, /upload, /review, /waitlist, /health
+│   └── server.py             # FastAPI: /search, /ingest, /upload, /review,
+│                             #          /waitlist, /escalate-reviews,
+│                             #          /graph/contradictions, /graph/entity/{name},
+│                             #          /graph/subgraph, /health
 ├── src/
-│   ├── search.py             # Orquestador RAG
-│   ├── ingest.py             # Orquestador ingesta + dedup por content_hash
+│   ├── search.py             # Orquestador RAG híbrido vector + grafo
+│   ├── ingest.py             # Orquestador ingesta + dedup + conflictos + grafo
 │   ├── conflict_detector.py  # Detección + auto-resolución + HITL
+│   ├── escalation.py         # Cron de escalada HITL
+│   ├── graph_client.py       # Wrapper FalkorDB (Phase 7.1)
+│   ├── entity_extractor.py   # Mistral structured JSON (Phase 7.1)
 │   ├── embedder.py           # Wrapper Ollama nomic-embed-text
 │   ├── chunker.py            # RecursiveTextSplitter
 │   ├── preprocessor.py       # MarkItDown + Presidio (es_core_news_lg)
 │   ├── llm_client.py         # Mistral API + Ollama fallback + prompt RAG
 │   └── db.py                 # Supabase client + RLS + conflict_reviews
-├── ui/                       # App chat (HTML/CSS/JS vanilla)
-│   ├── index.html
+├── ui/
+│   ├── index.html            # App chat
+│   ├── graph.html            # Visualización grafo (vis-network)
 │   ├── css/styles.css
 │   └── js/main.js
 ├── landing/                  # Landing teaser de korio.es
-│   ├── index.html
-│   └── assets/               # Logo, favicon, OG image
 ├── tests/
 │   ├── test_rls.py           # 10 tests RLS ✅
 │   └── test_search.py        # 10 tests RAG ✅
-├── supabase/migrations/      # 7 migraciones SQL
+├── supabase/migrations/      # 8 migraciones SQL
 ├── docs/                     # ARCHITECTURE, DEPLOYMENT, ROADMAP
 ├── deploy/                   # systemd, nginx, setup.sh, refresh-landing.sh
-├── scripts/                  # benchmark.py
+├── scripts/
+│   ├── benchmark.py
+│   └── graph_backfill.py     # Pobla el grafo con todos los chunks existentes
 └── data-synthetic/           # Documentos de prueba (en .gitignore)
 ```
 

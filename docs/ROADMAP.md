@@ -1,6 +1,6 @@
 # Korio — Roadmap
 
-> Estado actual: **Phase 5 completada · korio.es en producción** · Demo TFM: 2 julio 2026
+> Estado actual: **Phases 5 + 6 + 7.1 completadas · korio.es + grafo en producción** · Demo TFM: 2 julio 2026
 
 ---
 
@@ -83,6 +83,33 @@
 | Tabla `waitlist` en Supabase | ✅ |
 | Script `deploy/refresh-landing.sh` para edits en producción | ✅ |
 
+### Phase 6 · Cron de escalada HITL ✅
+
+| Feature | Estado |
+|---|---|
+| Migración 008: `reminders_sent`, `last_reminder_at`, `timeout_at` | ✅ |
+| Enum resolution amplía con `timeout_kept_both` | ✅ |
+| `src/escalation.py` con cadencia 3/7/14 + timeout 21 (parametrizable) | ✅ |
+| `POST /escalate-reviews` con auth `X-Korio-Admin-Key` | ✅ |
+| Workflow n8n Schedule Trigger diario 09:00 Madrid | ✅ |
+| Email template adaptativo: initial / reminder / timeout | ✅ |
+| Probado E2E con 5 reviews: cadencia 4/8/15/22 días | ✅ |
+
+### Phase 7.1 · Grafo de conocimiento ✅
+
+| Feature | Estado |
+|---|---|
+| FalkorDB (Redis + Cypher) en docker-compose | ✅ |
+| Driver Python `falkordb>=1.0.10` | ✅ |
+| `src/graph_client.py` con schema multi-tenant | ✅ |
+| `src/entity_extractor.py` con Mistral structured JSON | ✅ |
+| Integración opt-in en `ingest.py` (Step 6) | ✅ |
+| `scripts/graph_backfill.py` — pobló 233 claims en 107s | ✅ |
+| Search híbrido vector + grafo en `search.py` | ✅ |
+| Endpoints `/graph/contradictions`, `/graph/entity`, `/graph/subgraph` | ✅ |
+| UI `/ui/graph.html` con vis-network + panel contradicciones | ✅ |
+| Query rephrase ("jornada mínima") resuelta por el grafo | ✅ |
+
 ---
 
 ## Pendiente antes del 2 julio 2026
@@ -92,109 +119,57 @@
 | QA end-to-end: 10+ queries en ambos tenants | 🔲 | Manual o test automatizado |
 | Benchmark formal de latencias (p50, p95) | 🔲 | `scripts/benchmark.py` listo |
 | Presentation deck (10–15 slides) | 🔲 | Para defensa del TFM |
-| Vídeo demo de gobernanza activa | 🔲 | Mostrar email HITL en acción |
+| Vídeo demo: gobernanza + cron + grafo | 🔲 | Mostrar todo el ciclo HITL + grafo en acción |
 
 ---
 
-## Fase 6 — Cron de escalada + UX admin
-
-Pendientes del diseño de gobernanza activa que aún no están en código.
-
-### 6.1 Cron de escalada para conflictos sin resolver
-
-Diseño Notion: *"Los conflictos sin resolver reciben recordatorios periódicos por cron (cada 3 días, cada semana). Si transcurre el tiempo máximo, ambos chunks permanecen activos con estado `en_disputa`."*
-
-Implementación:
-- Workflow n8n con Schedule Trigger (cron diario)
-- Lee `conflict_reviews WHERE resolution='pending' AND created_at < now() - interval`
-- Reenvía emails con prefijo "Recordatorio" + contador de días
-- Si supera el máximo configurado (ej. 14 días) → marca como `kept_both` automáticamente
-
-### 6.2 Matriz de autoridad configurable en onboarding
-
-Actualmente `authority_weight` está fijo en 5 por defecto. Falta UI para:
-- Configurar `authority_weight` por space (RRHH=7, Dirección=9, etc.)
-- Configurar `authority_weight` por `source_type` (manual=8, slack=3, etc.)
-- Wizard de onboarding cuando se crea un tenant
-
-### 6.3 Panel admin de revisión de conflictos
-
-Alternativa visual al email HITL:
-- Vista en `/ui/admin/conflicts` con todos los `pending`
-- Filtros por space, fecha, similitud
-- Botones de resolución 1-clic (mismo backend que el email)
-- Estadísticas: % auto-resueltos vs % HITL, tiempo medio de respuesta
-
----
-
-## Fase 7 — Integración nativa + MCP
-
-### 7.1 n8n workflows adicionales
-
-Ya tenemos el workflow HITL. Pendientes:
+## Fase 7.2 — n8n workflows de ingesta automática (próxima sesión)
 
 | Workflow | Descripción |
 |---|---|
-| Webhook ingesta automática | Drive/Slack/email → `POST /upload` |
-| Query desde Slack | `/korio ¿pregunta?` → `POST /search` → respuesta en thread |
-| Ingesta automática desde Gmail | Extender "Email a Notion" para ingestar adjuntos |
-| Reporte semanal | Cron que genera resumen del `audit_log` |
-
-### 7.2 MCP Server
-
-Exponer Korio como servidor MCP para que herramientas AI (Claude Desktop, n8n, ChatGPT) puedan usarlo directamente.
-
-```
-Tools a exponer:
-  - search_knowledge_base(query, user_id, tenant_id)
-  - ingest_document(file_url, tenant_id, space_id)
-  - list_spaces(user_id)
-  - get_audit_summary(tenant_id, days)
-  - list_pending_conflicts(tenant_id)
-```
-
-Implementación: FastAPI MCP endpoint o servidor MCP independiente.
+| Gmail → Korio | Vigila carpeta de Gmail, extrae adjuntos PDF/DOCX → `POST /upload` |
+| Google Drive monitor | Cambios en carpeta → `POST /upload` |
+| Slack `/korio` | Comando → `POST /search` → respuesta en thread |
+| Reporte semanal | Cron resumen del `audit_log` |
 
 ---
 
-## Fase 8 — Escala y GPU
+## Fase 8 — Mitigaciones a limitaciones detectadas
+
+| Mejora | Impacto |
+|---|---|
+| Reranking cross-encoder | +20-30% calidad RAG en queries rephrasadas |
+| Query expansion con LLM antes del embed | Más cobertura |
+| Bajar threshold default 0.4 → 0.35 | Mejora recall |
+| Validación semántica en aristas CONTRADICTS | Reduce falsos positivos del backfill |
+
+---
+
+## Fase 9 — Producto SaaS
+
+| Feature | Descripción |
+|---|---|
+| Matriz de autoridad configurable en onboarding | UI para `authority_weight` por space y source_type |
+| Panel admin de conflictos en `/ui/admin/conflicts` | Alternativa visual al email |
+| Auth real | Supabase Auth (email/password, Google OAuth) |
+| Billing | Stripe por tenant/mes |
+| Conectores nativos | Drive, Slack, Notion, Gmail sin n8n |
+| API keys por tenant | Para integrar Korio desde otras apps |
+| Límites de plan | Chunks máximos, queries/mes, usuarios |
+| **MCP Server** | Exponer Korio a Claude Desktop, n8n, ChatGPT |
+
+---
+
+## Fase 10 — Escala y GPU
 
 | Mejora | Impacto | Coste |
 |---|---|---|
 | GPU en Hetzner (GEX44) | Embed ~0.1s, LLM ~1s | ~€65/mes |
 | Caché de embeddings (Redis) | Queries repetidas ~0s | ~€5/mes |
-| Reranking (cross-encoder) | +20-30% calidad RAG | CPU overhead |
 | Postgres dedicado vs Supabase | Más control, menor coste a escala | Variable |
 
 **Objetivo latencia p50 con GPU:** <1s end-to-end.
 
 ---
 
-## Fase 9 — Producto SaaS
-
-Convertir el prototipo TFM en un producto real.
-
-| Feature | Descripción |
-|---|---|
-| Auth real | Supabase Auth (email/password, Google OAuth) |
-| Billing | Stripe por tenant/mes |
-| Admin dashboard | Gestión de tenants, usuarios, spaces, documentos |
-| Conectores nativos | Google Drive, Slack, Notion, Gmail (sin n8n) |
-| API keys por tenant | Para integrar Korio desde otras apps |
-| Límites de plan | Chunks máximos, queries/mes, usuarios |
-| FalkorDB (grafo) | Representación de conflictos como aristas activas |
-
----
-
-## Decisiones de arquitectura pendientes
-
-| Decisión | Opciones | Estado |
-|---|---|---|
-| LLM primario post-TFM | Mistral API vs OpenAI vs Ollama GPU | Abierto |
-| MCP Server lenguaje | Python (FastAPI) vs TypeScript | Abierto |
-| Graph store | FalkorDB (en docker-compose) vs Neo4j | Abierto |
-| Reranking | cross-encoder vs sin reranking | Abierto |
-
----
-
-*Actualizado: 9 junio 2026 — Phase 5 completada, korio.es en producción*
+*Actualizado: 9 junio 2026 (noche · sesión 2) — Phases 5 + 6 + 7.1 completadas, grafo en producción*

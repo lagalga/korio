@@ -11,40 +11,39 @@
 
 ---
 
-## Estado actual (9 junio 2026)
+## Estado actual (9 junio 2026 · noche · sesión 2)
 
-### ✅ Completado — Phases 1–3
-- Pipeline ingesta: Documento → MarkItDown → Presidio → Chunking → Embeddings → pgvector
-- Pipeline búsqueda RAG: Query → embed → RLS early binding → pgvector → Mistral API → respuesta
-- FastAPI server: `POST /search`, `POST /ingest`, `POST /upload`, `GET /health`
-- Tests: 20/20 ✅ (test_rls.py × 10 + test_search.py × 10)
-- 2 tenants activos con datos sintéticos: Clínica Delos + Despacho García
-- RLS verificado: 0 fugas entre tenants y entre espacios
-- `docs/ARCHITECTURE.md`, `DEPLOYMENT.md`, `ROADMAP.md` — documentación técnica completa
-- README actualizado con quickstart, métricas reales y estructura
+### ✅ Completado — Phases 1–7.1
 
-### ✅ Phase 4 completada (9 junio)
-- Chat UI web (`ui/`) — HTML/CSS/JS vanilla, logo real, toggle fuentes, markdown
-- Endpoint `POST /upload` — ingesta de ficheros desde el navegador (multipart)
-- `scripts/benchmark.py` — medición p50/p95 de latencias RAG por escenario
-- Logo Korio integrado (logo-mark-light.svg generado para sidebar oscura, favicon)
-- API_BASE dinámico: `localhost:8000` en dev, same-origin en producción
+**Phases 1–4** — pipeline ingesta, RAG vectorial, multi-tenancy con RLS, docs técnicos, chat UI con upload, benchmark script.
 
-### ✅ Phase 5 — Despliegue en producción (9 junio)
-- VPS Hetzner: nginx + certbot SSL (Let's Encrypt, renovación automática)
-- `https://korio.es` → FastAPI + UI pública ✅
-- `https://n8n.korio.es` → n8n editor ✅
-- FastAPI como systemd service (`korio-api`, restart automático)
-- n8n en Docker (`korio-n8n`, puerto 5678 interno)
-- `deploy/` con configs nginx, systemd service y setup.sh
-- Dominio `korio.es` en dondominio.com apuntando al VPS
+**Phase 5** — producción en korio.es, gobernanza activa (auto-resolución + HITL email), landing teaser.
 
-### 🔲 Pendiente (antes del 2 julio)
-- QA end-to-end: 10+ queries en ambos tenants con la UI pública
-- Benchmark formal de latencias (ejecutar scripts/benchmark.py)
-- n8n workflows: webhook ingesta + query desde Slack/email
-- MCP Server: exponer Korio como tool para Claude/n8n
+**Phase 6** — cron de escalada HITL (recordatorios 3/7/14 días + auto-cierre a 21 días). Workflow n8n Schedule Trigger diario 09:00 Madrid. Migración 008.
+
+**Phase 7.1** — grafo de conocimiento con FalkorDB:
+- `src/graph_client.py` — schema multi-tenant (Document, Chunk, Entity, Claim + 5 tipos arista)
+- `src/entity_extractor.py` — Mistral structured JSON, extrae entidades tipadas + claims SPO
+- Hook en `ingest.py` Step 6 (opt-in vía `KORIO_GRAPH_ENABLED=1`)
+- `scripts/graph_backfill.py` — pobló 233 claims sobre 9 docs en 107s
+- Search híbrido vector + grafo en `search.py` (paso 3.5)
+- Endpoints `/graph/contradictions`, `/graph/entity/{name}`, `/graph/subgraph`
+- UI `/ui/graph.html` con vis-network 9.1.9 + panel contradicciones
+
+**Hito demostrable TFM**: la query *"¿Cuántas horas semanales mínimas exige la política?"* que el RAG vectorial puro no encontraba ahora responde correctamente con el grafo: *"más de 35 horas a la semana"* en 1088ms.
+
+### 🔲 Próxima sesión (10 junio) — Phase 7.2: n8n ingesta automática
+
+- Workflow Gmail → adjuntos PDF/DOCX → `POST /upload`
+- Workflow Google Drive monitor → cambios en carpeta → `POST /upload`
+- Workflow Slack `/korio ¿pregunta?` → `POST /search` → respuesta en thread
+
+### 🔲 Pendiente antes del 2 julio
+
+- QA end-to-end: 10+ queries en ambos tenants
+- Benchmark formal de latencias (`scripts/benchmark.py`)
 - Presentation deck (10–15 slides)
+- Vídeo demo del ciclo completo gobernanza + grafo
 
 ---
 
@@ -74,22 +73,65 @@ Ollama VPS: http://167.233.72.42:11434
 Docker:     docker exec korio-ollama ollama list
 
 URLs públicas:
-  https://korio.es        → UI + FastAPI (korio-api systemd)
-  https://n8n.korio.es    → n8n editor  (korio-n8n Docker)
+  https://korio.es              → Landing teaser
+  https://korio.es/ui           → App de chat
+  https://korio.es/ui/graph.html → Visualización del grafo de conocimiento
+  https://korio.es/docs         → Swagger UI
+  https://n8n.korio.es          → n8n editor (workflows HITL + cron escalada)
 ```
 
 ### VPS — comandos útiles
 ```bash
 ssh korio-vps
-docker ps                                    # ver contenedores
-docker exec korio-ollama ollama list         # modelos cargados
-docker logs korio-ollama --tail 50           # logs Ollama
-docker logs korio-n8n --tail 50             # logs n8n
+docker ps                                       # ver contenedores
+docker exec korio-ollama ollama list            # modelos cargados
+docker exec korio-falkordb redis-cli PING       # ping grafo
+docker logs korio-ollama --tail 50              # logs Ollama
+docker logs korio-n8n --tail 50                 # logs n8n
+docker logs korio-falkordb --tail 50            # logs FalkorDB
 
 systemctl status korio-api                  # FastAPI service
 systemctl restart korio-api                 # reiniciar FastAPI
 journalctl -u korio-api -f                  # logs FastAPI en tiempo real
 curl https://korio.es/health                # health check producción
+
+# Disparar cron escalada manualmente (el daily corre a las 09:00 Madrid)
+curl -X POST https://korio.es/escalate-reviews \
+  -H "X-Korio-Admin-Key: $KORIO_ADMIN_API_KEY" \
+  -d '{}'
+
+# Inspeccionar el grafo desde el host
+.venv/bin/python -c "
+from src.graph_client import get_graph_client
+gc = get_graph_client()
+print(gc.get_contradictions(tenant_id='a0000000-0000-0000-0000-000000000001',
+                            allowed_space_ids=['a1000000-0000-0000-0000-000000000001']))
+"
+```
+
+### Variables de entorno clave (en `/root/korio/.env`)
+
+```
+# Embeddings + Vector store
+SUPABASE_URL=https://pkurvkdmoulfqnngjsjr.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=...
+SUPABASE_ANON_KEY=...
+
+# LLM
+MISTRAL_API_KEY=...
+
+# Gobernanza
+HITL_WEBHOOK_URL=https://n8n.korio.es/webhook/korio-hitl
+KORIO_BASE_URL=https://korio.es
+KORIO_ADMIN_API_KEY=...                  # para /escalate-reviews
+ESCALATION_REMINDER_DAYS=3,7,14
+ESCALATION_TIMEOUT_DAYS=21
+
+# Grafo de conocimiento
+KORIO_GRAPH_ENABLED=1
+FALKORDB_HOST=127.0.0.1
+FALKORDB_PORT=6379
+KORIO_GRAPH_NAME=korio
 ```
 
 ---
@@ -289,4 +331,4 @@ El early binding es el corazón del sistema. Nunca saltarlo:
 
 ---
 
-*Actualizado: 9 junio 2026 — Phase 4 completada · Phase 5 (producción) completada · korio.es en vivo*
+*Actualizado: 9 junio 2026 (noche · sesión 2) — Phases 5 + 6 + 7.1 completadas · grafo de conocimiento en producción · 238 nodos, 300 aristas, 3 contradicciones en FalkorDB*
