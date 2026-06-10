@@ -194,11 +194,17 @@ const renderMessage = (query, result) => {
       </div>
     </div>` : ''
 
+  // Construir URL del grafo con el tenant/usuario actuales preseleccionados
+  const graphUrl = `graph.html?tenant=${state.tenantKey}&user=${state.userIndex}`
+
   const conflictBanner = result.has_conflict ? `
     <div class="conflict-banner">
       ⚠️ <strong>Contradicción detectada</strong> entre las fuentes —
       hay ${result.disputed_chunks} fragmento${result.disputed_chunks > 1 ? 's' : ''} en disputa
       pendiente${result.disputed_chunks > 1 ? 's' : ''} de revisión por el administrador.
+      <a class="conflict-banner__link" href="${graphUrl}" target="_blank" rel="noopener">
+        Ver en el grafo →
+      </a>
     </div>` : ''
 
   const answerHtml = result.has_context
@@ -411,6 +417,8 @@ const renderConflictReport = (cr) => {
     hitlLabel = `&nbsp;·&nbsp; <em>${cr.pending_review} pendiente${cr.pending_review > 1 ? 's' : ''} (${tail})</em>`
   }
 
+  const graphUrl = `graph.html?tenant=${state.tenantKey}&user=${state.userIndex}`
+
   return `
     <div class="conflict-report">
       <div class="conflict-report__header">
@@ -421,6 +429,11 @@ const renderConflictReport = (cr) => {
         ${hitlLabel}
       </div>
       <div class="conflict-report__list">${conflictRows}</div>
+      <div class="conflict-report__footer">
+        <a class="conflict-report__link" href="${graphUrl}" target="_blank" rel="noopener">
+          Ver el impacto en el grafo de conocimiento →
+        </a>
+      </div>
     </div>`
 }
 

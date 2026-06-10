@@ -196,8 +196,27 @@ let network = null
 const renderUsers = () => {
   const tenant = TENANTS[tenantSelect.value]
   userSelect.innerHTML = tenant.users
-    .map(u => `<option value="${u.id}">${u.label}</option>`)
+    .map((u, i) => `<option value="${u.id}" data-idx="${i}">${u.label}</option>`)
     .join('')
+}
+
+// Aplicar parámetros URL (?tenant=delos&user=0) si vienen desde la app
+const applyUrlParams = () => {
+  const params = new URLSearchParams(window.location.search)
+  const tenantKey = params.get('tenant')
+  const userIdx   = params.get('user')
+
+  if (tenantKey && TENANTS[tenantKey]) {
+    tenantSelect.value = tenantKey
+    renderUsers()
+  }
+  if (userIdx !== null) {
+    const tenant = TENANTS[tenantSelect.value]
+    const idx = parseInt(userIdx, 10)
+    if (tenant.users[idx]) {
+      userSelect.value = tenant.users[idx].id
+    }
+  }
 }
 
 const renderGraph = async () => {
@@ -309,6 +328,7 @@ tenantSelect.addEventListener('change', () => { renderUsers(); renderGraph() })
 userSelect.addEventListener('change', renderGraph)
 
 renderUsers()
+applyUrlParams()
 renderGraph()
 </script>
 
