@@ -11,9 +11,9 @@
 
 ---
 
-## Estado actual (9 junio 2026 · noche · sesión 2)
+## Estado actual (10 junio 2026 · mañana · sesión 3)
 
-### ✅ Completado — Phases 1–7.1
+### ✅ Completado — Phases 1–7.1 CERRADAS
 
 **Phases 1–4** — pipeline ingesta, RAG vectorial, multi-tenancy con RLS, docs técnicos, chat UI con upload, benchmark script.
 
@@ -21,22 +21,34 @@
 
 **Phase 6** — cron de escalada HITL (recordatorios 3/7/14 días + auto-cierre a 21 días). Workflow n8n Schedule Trigger diario 09:00 Madrid. Migración 008.
 
-**Phase 7.1** — grafo de conocimiento con FalkorDB:
-- `src/graph_client.py` — schema multi-tenant (Document, Chunk, Entity, Claim + 5 tipos arista)
+**Phase 7.1** — grafo de conocimiento con FalkorDB **vivo, integrado en UI**:
+- `src/graph_client.py` — schema multi-tenant (Document, Chunk, Entity, Claim + 5 tipos arista). Método `link_contradictions_between_chunks` para sincronización on-the-fly. Endpoint `get_tenant_subgraph` con dos queries para garantizar que CONTRADICTS no se trunca.
 - `src/entity_extractor.py` — Mistral structured JSON, extrae entidades tipadas + claims SPO
 - Hook en `ingest.py` Step 6 (opt-in vía `KORIO_GRAPH_ENABLED=1`)
 - `scripts/graph_backfill.py` — pobló 233 claims sobre 9 docs en 107s
 - Search híbrido vector + grafo en `search.py` (paso 3.5)
 - Endpoints `/graph/contradictions`, `/graph/entity/{name}`, `/graph/subgraph`
 - UI `/ui/graph.html` con vis-network 9.1.9 + panel contradicciones
+- **Sincronización en vivo**: conflict_detector + /review + escalation actualizan FalkorDB en tiempo real (chunk_status + aristas CONTRADICTS). El grafo ya es un reflejo vivo del estado de gobernanza.
+- **3 puntos de acceso al grafo desde la UI**: link contextual en banner ⚠️ del chat, link en conflict report del modal de ingesta, entrada permanente en sidebar (footer). Deep-linking `?tenant=&user=`.
+- **Polish visual**: chunks/claims disputed en rojo `#dc2626`, superseded en blanco con borde gris (outlined), aristas CONTRADICTS rojas width 4.
 
-**Hito demostrable TFM**: la query *"¿Cuántas horas semanales mínimas exige la política?"* que el RAG vectorial puro no encontraba ahora responde correctamente con el grafo: *"más de 35 horas a la semana"* en 1088ms.
+**Hito demostrable TFM**: la query *"¿Cuántas horas semanales mínimas exige la política?"* que el RAG vectorial puro no encontraba ahora responde correctamente con el grafo: *"más de 35 horas a la semana"* en ~1s. El banner ⚠️ del chat tiene link al grafo donde se ven las aristas rojas de contradicción reales.
 
-### 🔲 Próxima sesión (10 junio) — Phase 7.2: n8n ingesta automática
+### 🔲 Próxima sesión (Phase 7.2 — n8n ingesta automática)
 
 - Workflow Gmail → adjuntos PDF/DOCX → `POST /upload`
 - Workflow Google Drive monitor → cambios en carpeta → `POST /upload`
 - Workflow Slack `/korio ¿pregunta?` → `POST /search` → respuesta en thread
+
+### 🔲 Phase 7.3 — MCP Server (post n8n)
+
+Exponer Korio como servidor MCP para Claude Desktop, ChatGPT, n8n:
+- `search_knowledge_base(query, user_id, tenant_id)`
+- `ingest_document(file_url, tenant_id, space_id)`
+- `list_pending_conflicts(tenant_id)`
+- `list_spaces(user_id)`
+- Stack: probablemente FastAPI MCP endpoint (mantiene Python)
 
 ### 🔲 Pendiente antes del 2 julio
 
@@ -331,4 +343,4 @@ El early binding es el corazón del sistema. Nunca saltarlo:
 
 ---
 
-*Actualizado: 9 junio 2026 (noche · sesión 2) — Phases 5 + 6 + 7.1 completadas · grafo de conocimiento en producción · 238 nodos, 300 aristas, 3 contradicciones en FalkorDB*
+*Actualizado: 10 junio 2026 (mañana · sesión 3) — Phase 7.1 CERRADA · grafo vivo con sync en tiempo real · 258 nodos, 303 aristas, 3 contradicciones rojas visibles en /ui/graph.html*
