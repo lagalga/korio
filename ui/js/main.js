@@ -213,7 +213,7 @@ const renderMessage = (query, result) => {
     </div>` : ''
 
   const answerHtml = result.has_context
-    ? `${conflictBanner}<p class="message-response__answer">${renderMarkdown(result.answer, graphUrl)}</p>`
+    ? `${conflictBanner}<p class="message-response__answer">${renderMarkdown(result.answer)}</p>`
     : `<p class="message-response__answer message-response__no-context">No encontré documentos relevantes para esta pregunta.</p>`
 
   const pair = document.createElement('div')
@@ -255,18 +255,14 @@ const escapeHtml = str => str
   .replace(/>/g, '&gt;')
   .replace(/"/g, '&quot;')
 
-const renderMarkdown = (str, graphUrl) => {
-  let html = escapeHtml(str)
-    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-    .replace(/(?<!\*)\*([^*\n]+?)\*(?!\*)/g, '<em>$1</em>')
-    .replace(/`([^`]+?)`/g, '<code>$1</code>')
-    .replace(/\n/g, '<br>')
-  // Convertir las citas literales [grafo] que emite el LLM en links al grafo
-  if (graphUrl) {
-    html = html.replace(/\[grafo\]/g, `<a class="answer-graph-tag" href="${graphUrl}" target="_blank" rel="noopener" title="Ver en el grafo de conocimiento">[grafo]</a>`)
-  }
-  return html
-}
+const renderMarkdown = str => escapeHtml(str)
+  // Strippear marcadores [grafo] que el LLM pudiera emitir por inercia:
+  // sin enlaces específicos por arista no aportan valor y confunden al usuario
+  .replace(/\s*\[grafo\]\s*\.?/g, '')
+  .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+  .replace(/(?<!\*)\*([^*\n]+?)\*(?!\*)/g, '<em>$1</em>')
+  .replace(/`([^`]+?)`/g, '<code>$1</code>')
+  .replace(/\n/g, '<br>')
 
 // ─── API calls ────────────────────────────────────────────────────────────────
 

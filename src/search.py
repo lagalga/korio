@@ -95,7 +95,8 @@ def _graph_context(query: str, tenant_id: str, allowed_space_ids: List[str]) -> 
             "[CONOCIMIENTO ESTRUCTURADO DEL GRAFO]\n"
             "Estas afirmaciones provienen del grafo de conocimiento del tenant "
             "(extraídas previamente por análisis semántico). Úsalas como fuente "
-            "complementaria al contexto de chunks; cita con [grafo] cuando uses una de ellas:\n"
+            "complementaria al contexto de chunks. No incluyas marcadores ni "
+            "citas literales sobre el origen — responde de forma natural:\n"
             + "\n".join(lines)
         )
     except Exception as e:
