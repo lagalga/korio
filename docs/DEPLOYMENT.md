@@ -103,6 +103,25 @@ OLLAMA_HOST=http://localhost:11434
 # Mistral API
 MISTRAL_API_KEY=<tu_api_key>
 
+# Gobernanza HITL
+HITL_WEBHOOK_URL=https://n8n.korio.es/webhook/korio-hitl
+HITL_WEBHOOK_USER=<basic_auth_user>
+HITL_WEBHOOK_PASS=<basic_auth_pass>
+KORIO_BASE_URL=https://korio.es
+KORIO_ADMIN_API_KEY=<random_token_para_endpoints_admin>
+ESCALATION_REMINDER_DAYS=3,7,14
+ESCALATION_TIMEOUT_DAYS=21
+
+# Grafo de conocimiento (FalkorDB)
+KORIO_GRAPH_ENABLED=1
+FALKORDB_HOST=127.0.0.1
+FALKORDB_PORT=6379
+KORIO_GRAPH_NAME=korio
+
+# n8n.korio.es (opcional, para crear workflows vía API REST)
+N8N_KORIO_API_KEY=<n8n_api_key>
+N8N_KORIO_BASE_URL=https://n8n.korio.es
+
 # Postgres local (opcional, solo para dev)
 POSTGRES_PASSWORD=korio
 ```
@@ -135,10 +154,20 @@ docker exec korio-ollama ollama list
 En [supabase.com](https://supabase.com), ir a **SQL Editor** y ejecutar las migraciones en orden:
 
 ```bash
-# Orden de ejecución:
-# 1. supabase/migrations/001_initial_schema.sql
-# 2. supabase/migrations/002_search_function.sql
-# 3. supabase/migrations/003_fix_vector_dims.sql
+# Orden de ejecución (9 migraciones):
+# 1. supabase/migrations/001_initial_schema.sql     — schema + RLS + seed
+# 2. supabase/migrations/002_search_function.sql    — search_embeddings(vector(768))
+# 3. supabase/migrations/003_fix_vector_dims.sql    — 384 → 768 dims
+# 4. supabase/migrations/004_conflict_reviews.sql   — gobernanza activa
+# 5. supabase/migrations/005_search_with_disputed.sql
+# 6. supabase/migrations/006_tenant_admin_email.sql
+# 7. supabase/migrations/007_waitlist.sql           — landing
+# 8. supabase/migrations/008_escalation_tracking.sql — cron HITL
+# 9. supabase/migrations/009_source_metadata.sql    — canal de origen en ingesta
+#
+# IMPORTANTE tras aplicar cualquier migración:
+#   NOTIFY pgrst, 'reload schema';
+# (PostgREST cachea el schema; sin esto las nuevas columnas no son visibles)
 ```
 
 ### Verificar que el schema está correcto

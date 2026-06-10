@@ -11,9 +11,9 @@
 
 ---
 
-## Estado actual (10 junio 2026 · mañana · sesión 3)
+## Estado actual (10 junio 2026 · tarde · sesión 3)
 
-### ✅ Completado — Phases 1–7.1 CERRADAS
+### ✅ Completado — Phases 1–7.2 CERRADAS
 
 **Phases 1–4** — pipeline ingesta, RAG vectorial, multi-tenancy con RLS, docs técnicos, chat UI con upload, benchmark script.
 
@@ -21,41 +21,38 @@
 
 **Phase 6** — cron de escalada HITL (recordatorios 3/7/14 días + auto-cierre a 21 días). Workflow n8n Schedule Trigger diario 09:00 Madrid. Migración 008.
 
-**Phase 7.1** — grafo de conocimiento con FalkorDB **vivo, integrado en UI**:
-- `src/graph_client.py` — schema multi-tenant (Document, Chunk, Entity, Claim + 5 tipos arista). Método `link_contradictions_between_chunks` para sincronización on-the-fly. Endpoint `get_tenant_subgraph` con dos queries para garantizar que CONTRADICTS no se trunca.
-- `src/entity_extractor.py` — Mistral structured JSON, extrae entidades tipadas + claims SPO
-- Hook en `ingest.py` Step 6 (opt-in vía `KORIO_GRAPH_ENABLED=1`)
-- `scripts/graph_backfill.py` — pobló 233 claims sobre 9 docs en 107s
-- Search híbrido vector + grafo en `search.py` (paso 3.5)
-- Endpoints `/graph/contradictions`, `/graph/entity/{name}`, `/graph/subgraph`
-- UI `/ui/graph.html` con vis-network 9.1.9 + panel contradicciones
-- **Sincronización en vivo**: conflict_detector + /review + escalation actualizan FalkorDB en tiempo real (chunk_status + aristas CONTRADICTS). El grafo ya es un reflejo vivo del estado de gobernanza.
-- **3 puntos de acceso al grafo desde la UI**: link contextual en banner ⚠️ del chat, link en conflict report del modal de ingesta, entrada permanente en sidebar (footer). Deep-linking `?tenant=&user=`.
-- **Polish visual**: chunks/claims disputed en rojo `#dc2626`, superseded en blanco con borde gris (outlined), aristas CONTRADICTS rojas width 4.
+**Phase 7.1** — grafo de conocimiento con FalkorDB vivo, sync en tiempo real, 3 puntos de acceso desde la UI. Hito TFM: la query "¿Cuántas horas semanales mínimas?" que el RAG vectorial puro no encontraba ahora responde "más de 35 horas/semana" en ~1s vía grafo. Banner ⚠️ del chat con link al grafo.
 
-**Hito demostrable TFM**: la query *"¿Cuántas horas semanales mínimas exige la política?"* que el RAG vectorial puro no encontraba ahora responde correctamente con el grafo: *"más de 35 horas a la semana"* en ~1s. El banner ⚠️ del chat tiene link al grafo donde se ven las aristas rojas de contradicción reales.
+**Phase 7.2** — ingesta automática multi-canal en producción:
+- **Migración 009**: `documents.source_metadata` (JSONB) + índice parcial por `via`. Registra el canal de origen.
+- **`ingest_document()`** acepta `source_metadata: Optional[dict]` y lo persiste; `/upload` lo acepta como Form field JSON string.
+- **`DELETE /document/{id}`** (admin) — borra Postgres en cascada + limpia FalkorDB. Auth con `APIKeyHeader` X-Korio-Admin-Key (botón Authorize visible en Swagger).
+- **Fix crítico de gobernanza**: webhook HITL ahora protegido con Basic Auth (`HITL_USER_REDACTED` / `HITL_PASS_REDACTED`); `conflict_detector.py` y `escalation.py` parcheados para enviar credenciales via `HITL_WEBHOOK_USER` + `HITL_WEBHOOK_PASS` del `.env`.
+- **3 workflows nuevos** en `n8n.korio.es`:
+  - **Gmail → /upload (Delos RRHH)**: vigila label `korio/ingesta` en `contacto@lagalga.es` cada 5 min, ingiere adjuntos PDF/DOCX, marca leído + aplica label `korio/procesado`.
+  - **Drive → /upload (Delos RRHH)**: vigila carpeta `Clínica Delos / input` (`1rlBEmkqLHvidWEPv64LaMpzBh9bMDGF4`) cada 5 min.
+  - **Slack /korio → /search (Delos admin)**: slash command → ACK ephemeral → POST /search → reply en thread con respuesta + fuentes con %relevancia + link a korio.es.
+- **UI polish**: filenames de fuentes ya no se truncan; eliminado marcador `[grafo]` confuso de las respuestas.
+- **Documento de diseño** `docs/MULTI-TENANT-INGESTION.md` — Phase 8 post-TFM (OAuth multi-tenant, vault de tokens, ingestion_rules, onboarding UX). Sirve como capítulo de la memoria TFM "Arquitectura objetivo SaaS post-defensa".
 
-### 🔲 Próxima sesión (Phase 7.2 — n8n ingesta automática)
+### 🔲 Pendiente antes del 2 julio (demo) + 9 julio (defensa)
 
-- Workflow Gmail → adjuntos PDF/DOCX → `POST /upload`
-- Workflow Google Drive monitor → cambios en carpeta → `POST /upload`
-- Workflow Slack `/korio ¿pregunta?` → `POST /search` → respuesta en thread
+- **QA end-to-end**: 10+ queries en ambos tenants
+- **Benchmark formal** de latencias (`scripts/benchmark.py`) — métricas p50/p95
+- **Vídeo demo** del ciclo completo (Gmail llega → 30s después consultable → conflicto → email HITL → grafo)
+- **Slide deck** (10–15 slides) + ensayo presentación
+- **Memoria TFM** — escritura completa con capítulos Phase 8 (`MULTI-TENANT-INGESTION.md`) y guardrails (`CHAT-PIPELINE-GUARDRAILS.md`)
+- **Memoria de chat** (sesión 4 en curso): query reformulation con LLM para multi-turn
+- **Fix CONTRADICTS falsos positivos**: validar par claim_a/claim_b antes de crear arista (mejora calidad demo grafo)
 
-### 🔲 Phase 7.3 — MCP Server (post n8n)
+### 🔲 Phase 7.3 — MCP Server (post-demo, opcional para defensa)
 
 Exponer Korio como servidor MCP para Claude Desktop, ChatGPT, n8n:
 - `search_knowledge_base(query, user_id, tenant_id)`
 - `ingest_document(file_url, tenant_id, space_id)`
 - `list_pending_conflicts(tenant_id)`
 - `list_spaces(user_id)`
-- Stack: probablemente FastAPI MCP endpoint (mantiene Python)
-
-### 🔲 Pendiente antes del 2 julio
-
-- QA end-to-end: 10+ queries en ambos tenants
-- Benchmark formal de latencias (`scripts/benchmark.py`)
-- Presentation deck (10–15 slides)
-- Vídeo demo del ciclo completo gobernanza + grafo
+- Stack probable: FastAPI MCP endpoint (mantiene Python)
 
 ---
 
@@ -65,12 +62,15 @@ Exponer Korio como servidor MCP para Claude Desktop, ChatGPT, n8n:
 |---|---|---|
 | Embeddings | `nomic-embed-text` via Ollama en VPS | **768 dims — FIJO, no cambiar nunca** |
 | Vector store | pgvector en Supabase (Frankfurt) | RLS nativo, GDPR |
+| Graph store | FalkorDB (Redis 8.6.3 + módulo grafo) | Cypher, multi-tenant por propiedad |
 | LLM generación | Mistral API `mistral-small-latest` | ~3s latencia |
+| LLM extracción | Mistral API `mistral-small-latest` (temp 0.0) | Structured JSON |
 | LLM fallback | Ollama `mistral:7b-instruct-q4_K_M` en VPS | ~25s CPU, offline |
-| Backend API | FastAPI + Uvicorn, Python 3.12 | Swagger en `/docs` |
+| Backend API | FastAPI + Uvicorn, Python 3.12 | Swagger en `/docs` con Authorize |
 | PII detection | Presidio + spaCy `es_core_news_lg` | Antes de ingestar |
 | Chunking | LangChain `RecursiveCharacterTextSplitter` | 500 tok / 50 overlap |
 | Conversión docs | MarkItDown | PDF/DOCX/XLSX → Markdown |
+| Automatización | n8n v1.x (Docker en VPS) | **5 workflows**: HITL + Cron + Gmail + Drive + Slack |
 | Servidor | Hetzner CX32, Frankfurt, 4vCPU/8GB | `ssh korio-vps` |
 | Base de datos | Supabase Pro, Frankfurt | `pkurvkdmoulfqnngjsjr.supabase.co` |
 
@@ -88,8 +88,8 @@ URLs públicas:
   https://korio.es              → Landing teaser
   https://korio.es/ui           → App de chat
   https://korio.es/ui/graph.html → Visualización del grafo de conocimiento
-  https://korio.es/docs         → Swagger UI
-  https://n8n.korio.es          → n8n editor (workflows HITL + cron escalada)
+  https://korio.es/docs         → Swagger UI (con botón Authorize para endpoints admin)
+  https://n8n.korio.es          → n8n editor (5 workflows: HITL + Cron + Gmail + Drive + Slack)
 ```
 
 ### VPS — comandos útiles
@@ -134,8 +134,10 @@ MISTRAL_API_KEY=...
 
 # Gobernanza
 HITL_WEBHOOK_URL=https://n8n.korio.es/webhook/korio-hitl
+HITL_WEBHOOK_USER=HITL_USER_REDACTED                  # basic auth del webhook HITL
+HITL_WEBHOOK_PASS=HITL_PASS_REDACTED
 KORIO_BASE_URL=https://korio.es
-KORIO_ADMIN_API_KEY=...                  # para /escalate-reviews
+KORIO_ADMIN_API_KEY=...                  # para /escalate-reviews y DELETE /document/{id}
 ESCALATION_REMINDER_DAYS=3,7,14
 ESCALATION_TIMEOUT_DAYS=21
 
@@ -144,6 +146,10 @@ KORIO_GRAPH_ENABLED=1
 FALKORDB_HOST=127.0.0.1
 FALKORDB_PORT=6379
 KORIO_GRAPH_NAME=korio
+
+# n8n (para que Claude pueda crear workflows directos sin pasar por lagalga)
+N8N_KORIO_API_KEY=...
+N8N_KORIO_BASE_URL=https://n8n.korio.es
 ```
 
 ---
@@ -163,21 +169,35 @@ korio/
 │   └── migrations/
 │       ├── 001_initial_schema.sql   # Schema + RLS + seed data
 │       ├── 002_search_function.sql  # search_embeddings(vector(768))
-│       └── 003_fix_vector_dims.sql  # Corrección 384→768 dims
+│       ├── 003_fix_vector_dims.sql  # Corrección 384→768 dims
+│       ├── 004_conflict_reviews.sql # Gobernanza activa
+│       ├── 005_search_with_disputed.sql
+│       ├── 006_tenant_admin_email.sql
+│       ├── 007_waitlist.sql
+│       ├── 008_escalation_tracking.sql
+│       └── 009_source_metadata.sql  # JSONB con canal de origen (Gmail, Drive, manual…)
 │
 ├── src/
-│   ├── ingest.py        # CLI ingesta: doc → chunks → pgvector
-│   ├── search.py        # CLI búsqueda: query → RAG → respuesta
-│   ├── embedder.py      # Wrapper Ollama nomic-embed-text, 768 dims
-│   ├── chunker.py       # RecursiveTextSplitter
-│   ├── preprocessor.py  # MarkItDown + Presidio
-│   ├── llm_client.py    # Mistral API + Ollama fallback
-│   ├── db.py            # Supabase client, RLS early binding, audit log
+│   ├── ingest.py             # Pipeline ingesta: doc → chunks → pgvector + grafo
+│   ├── search.py             # RAG híbrido vector + grafo
+│   ├── embedder.py           # Wrapper Ollama nomic-embed-text, 768 dims
+│   ├── chunker.py            # RecursiveTextSplitter
+│   ├── preprocessor.py       # MarkItDown + Presidio
+│   ├── llm_client.py         # Mistral API + Ollama fallback
+│   ├── db.py                 # Supabase client, RLS early binding, audit log
+│   ├── conflict_detector.py  # Gobernanza activa al nivel de chunk
+│   ├── escalation.py         # Cron HITL: recordatorios + auto-timeout
+│   ├── graph_client.py       # Wrapper FalkorDB con RLS multi-tenant
+│   ├── entity_extractor.py   # Mistral structured JSON → entidades + claims
 │   └── utils.py
 │
 ├── api/
 │   ├── __init__.py
-│   └── server.py        # FastAPI: /search, /ingest, /upload, /health
+│   └── server.py        # FastAPI: /search, /ingest, /upload, /review,
+│                        #          /escalate-reviews, /waitlist,
+│                        #          /graph/contradictions, /graph/entity/{name},
+│                        #          /graph/subgraph, /health,
+│                        #          DELETE /document/{id} (admin)
 │
 ├── tests/
 │   ├── __init__.py
@@ -193,18 +213,24 @@ korio/
 │   ├── garcia_dictamen_fiscal.md
 │   └── garcia_protocolo_clientes.md
 │
-├── ui/                  # Chat UI web (Phase 4)
+├── ui/                  # Chat UI web + visualización grafo
 │   ├── index.html
+│   ├── graph.html       # vis-network 9.1.9 + panel contradicciones
 │   ├── css/styles.css
 │   └── js/main.js
 │
+├── landing/             # Landing teaser estático en /
+│
 ├── scripts/
-│   └── benchmark.py     # Medición latencias p50/p95 por escenario
+│   ├── benchmark.py     # Medición latencias p50/p95 por escenario
+│   └── graph_backfill.py # Pobló 233 claims sobre 9 docs en 107s
 │
 └── docs/
-    ├── ARCHITECTURE.md  # Diagrama del sistema, modelo de datos, RLS
-    ├── DEPLOYMENT.md    # Setup en Hetzner desde cero
-    └── ROADMAP.md       # Fases post-TFM detalladas
+    ├── ARCHITECTURE.md           # Diagrama del sistema, modelo de datos, RLS
+    ├── DEPLOYMENT.md             # Setup en Hetzner desde cero
+    ├── ROADMAP.md                # Fases pasadas y futuras
+    ├── SESSION-STARTER.md        # Prompt de arranque para nueva sesión Claude
+    └── MULTI-TENANT-INGESTION.md # Diseño Phase 8: OAuth multi-tenant SaaS
 ```
 
 ---
@@ -311,12 +337,15 @@ El early binding es el corazón del sistema. Nunca saltarlo:
 
 ---
 
-## Métricas reales (9 junio 2026)
+## Métricas reales (10 junio 2026)
 
-- Latencia RAG con Mistral API: **~3.3s** (p50 manual, pendiente benchmark.py formal)
-- Latencia embedding (Ollama CPU): **~0.8s**
+- Latencia RAG vector puro: **~1.0–3.3s** (p50 manual, pendiente benchmark.py formal)
+- Latencia RAG híbrido vector + grafo: **~1.0s** (caso PCA jornada mínima)
+- Latencia embedding query (Ollama CPU): **~0.8s**
+- Latencia HITL email E2E: **~1s**
+- Tiempo backfill grafo (9 docs → 233 claims): **107s**
 - Tests completos (20): **~20s**
-- Chunks en producción: **~27** (6 docs × ~4.5 chunks/doc promedio)
+- Datos en producción: 9+ docs (varía con ingesta automática), 29+ chunks, 158 entidades, 233 claims, 3 contradicciones
 
 ---
 
@@ -340,7 +369,9 @@ El early binding es el corazón del sistema. Nunca saltarlo:
 4. No agregar dependencias sin consultar
 5. Documentar decisiones en Notion después de cada sesión
 6. Commits atómicos con mensaje claro
+7. **n8n: la instancia de Korio es `n8n.korio.es`, NO `n8n.lagalga.es`**. El `n8n-mcp` de Claude Code apunta a lagalga; los workflows hay que exportar/importar a korio O usar `N8N_KORIO_API_KEY` del `.env` del VPS contra la API REST de korio.
+8. **Webhook HITL protegido con Basic Auth**: cualquier llamada desde backend debe ir con `HITL_WEBHOOK_USER` + `HITL_WEBHOOK_PASS`.
 
 ---
 
-*Actualizado: 10 junio 2026 (mañana · sesión 3) — Phase 7.1 CERRADA · grafo vivo con sync en tiempo real · 258 nodos, 303 aristas, 3 contradicciones rojas visibles en /ui/graph.html*
+*Actualizado: 10 junio 2026 (tarde · sesión 3) — Phase 7.2 CERRADA · ingesta automática multi-canal (Gmail + Drive + Slack) en producción con `source_metadata`; endpoint admin `DELETE /document/{id}`; doc de diseño Phase 8 para memoria TFM.*

@@ -1,10 +1,10 @@
 # Korio — Roadmap
 
-> Estado actual: **Phases 5 + 6 + 7.1 completadas · korio.es + grafo en producción** · Demo TFM: 2 julio 2026
+> Estado actual: **Phases 1–7.2 completadas · ingesta automática multi-canal + grafo en producción** · Demo TFM: 2 julio 2026 · Defensa: 9 julio 2026
 
 ---
 
-## Estado actual (Phases 1–5 completadas)
+## Estado actual (Phases 1–7.2 completadas)
 
 ### Phase 1–2 · Núcleo RAG y multi-tenancy ✅
 
@@ -114,38 +114,75 @@
 | **Polish visual: disputed rojo, superseded blanco outlined, CONTRADICTS rojo width 4** | ✅ |
 | **Fix LIMIT que truncaba CONTRADICTS en /graph/subgraph** | ✅ |
 
+### Phase 7.2 · Ingesta automática multi-canal ✅ CERRADA (10 jun · sesión 3 tarde)
+
+#### Backend
+| Feature | Estado |
+|---|---|
+| Migración 009: `documents.source_metadata` (JSONB) + índice parcial por `via` | ✅ |
+| `ingest_document()` acepta `source_metadata: Optional[dict]` | ✅ |
+| `/upload` acepta Form fields `source_type` y `source_metadata` (JSON string) | ✅ |
+| `DELETE /document/{id}` (admin) — borra Postgres en cascada + FalkorDB | ✅ |
+| `APIKeyHeader` + dependency `require_admin()` — botón Authorize en Swagger | ✅ |
+| Fix crítico: Basic Auth en webhook HITL (`HITL_WEBHOOK_USER`/`PASS`) | ✅ |
+
+#### Workflows n8n.korio.es
+| Feature | Estado |
+|---|---|
+| **Gmail → /upload (Delos RRHH)** — label `korio/ingesta` cada 5 min | ✅ |
+| **Drive → /upload (Delos RRHH)** — carpeta `Clínica Delos / input` cada 5 min | ✅ |
+| **Slack /korio → /search (Delos admin)** — slash command → reply en thread | ✅ |
+
+#### UI polish
+| Feature | Estado |
+|---|---|
+| Filenames de fuentes sin truncar (`flex: 1 + min-width: 0`) | ✅ |
+| Eliminado marcador `[grafo]` confuso del prompt + JS | ✅ |
+
+#### Documentación
+| Feature | Estado |
+|---|---|
+| `docs/MULTI-TENANT-INGESTION.md` — diseño Phase 8 SaaS multi-tenant configurable | ✅ |
+| Memoria local Claude Code: `feedback_n8n_instance.md`, `project_hitl_webhook_auth.md` | ✅ |
+
 ---
 
-## Pendiente antes del 2 julio 2026
+## Pendiente antes del 2 julio 2026 (demo) y 9 julio 2026 (defensa)
 
+### Críticos para la defensa
+| Tarea | Prioridad | Estimación | Notas |
+|---|---|---|---|
+| QA end-to-end: 10+ queries en ambos tenants | 🔴 Alta | 2-3h | Manual con script |
+| Benchmark formal p50/p95 | 🔴 Alta | 1h | `scripts/benchmark.py` listo |
+| Vídeo demo del ciclo completo | 🔴 Alta | 3-4h | Gmail → ingesta → consulta → grafo |
+| Presentation deck (10-15 slides) | 🔴 Alta | 6-8h | Para defensa |
+| Memoria TFM (escritura) | 🔴 Alta | 20-30h | Incluye capítulos Phase 8 y guardrails |
+
+### Mejoras en curso (sesión 4)
+| Tarea | Estado | Notas |
+|---|---|---|
+| **Memoria de chat con query reformulation** | 🟡 En curso | UI guarda history, LLM reformula query autónoma antes del embed |
+| **Doc de diseño `CHAT-PIPELINE-GUARDRAILS.md`** | 🟡 En curso | Capítulo memoria TFM: n8n + ingress/egress guardrails post-defensa |
+| **Fix CONTRADICTS falsos positivos** | 🟡 En curso | Validación LLM par claim_a/claim_b antes de crear arista |
+
+### Opcional para defensa
 | Tarea | Prioridad | Notas |
 |---|---|---|
-| QA end-to-end: 10+ queries en ambos tenants | 🔲 | Manual o test automatizado |
-| Benchmark formal de latencias (p50, p95) | 🔲 | `scripts/benchmark.py` listo |
-| Presentation deck (10–15 slides) | 🔲 | Para defensa del TFM |
-| Vídeo demo: gobernanza + cron + grafo | 🔲 | Mostrar todo el ciclo HITL + grafo en acción |
+| Phase 7.3 — MCP Server | 🟢 Baja | Bonus si queda tiempo después del contenido TFM |
 
 ---
 
-## Fase 7.2 — n8n workflows de ingesta automática (próxima sesión)
+## Fase 8 — Mitigaciones a limitaciones detectadas (post-defensa)
 
-| Workflow | Descripción |
-|---|---|
-| Gmail → Korio | Vigila carpeta de Gmail, extrae adjuntos PDF/DOCX → `POST /upload` |
-| Google Drive monitor | Cambios en carpeta → `POST /upload` |
-| Slack `/korio` | Comando → `POST /search` → respuesta en thread |
-| Reporte semanal | Cron resumen del `audit_log` |
-
----
-
-## Fase 8 — Mitigaciones a limitaciones detectadas
-
-| Mejora | Impacto |
-|---|---|
-| Reranking cross-encoder | +20-30% calidad RAG en queries rephrasadas |
-| Query expansion con LLM antes del embed | Más cobertura |
-| Bajar threshold default 0.4 → 0.35 | Mejora recall |
-| Validación semántica en aristas CONTRADICTS | Reduce falsos positivos del backfill |
+| Mejora | Impacto | Esfuerzo |
+|---|---|---|
+| **Ingesta multi-tenant configurable** (OAuth + vault tokens + onboarding) | Producto SaaS real | ~6 semanas + verificación Google CASA en paralelo. Diseñado en `docs/MULTI-TENANT-INGESTION.md`. |
+| **Chat pipeline con guardrails** (n8n + Lakera/Rebuff) | Seguridad para producción | ~2 semanas. Diseñado en `docs/CHAT-PIPELINE-GUARDRAILS.md`. |
+| Validación semántica en aristas CONTRADICTS | Reduce falsos positivos del backfill (parcheado pre-demo si hay tiempo) | 2-3h |
+| Reranking cross-encoder | +20-30% calidad RAG en queries rephrasadas | 6-8h |
+| Query expansion con LLM antes del embed | Más cobertura | 4-6h. Solapado con memoria de chat (query reformulation). |
+| Fix Presidio anonymize parcial | Anonimización completa de PII | 3-5h. Bajo impacto en demo. |
+| Bajar threshold default 0.4 → 0.35 | Mejora recall | 30 min + verificación |
 
 ---
 
@@ -157,10 +194,12 @@
 | Panel admin de conflictos en `/ui/admin/conflicts` | Alternativa visual al email |
 | Auth real | Supabase Auth (email/password, Google OAuth) |
 | Billing | Stripe por tenant/mes |
-| Conectores nativos | Drive, Slack, Notion, Gmail sin n8n |
+| Conectores nativos configurables | Drive, Slack, Notion, Gmail con OAuth multi-tenant (ver Phase 8) |
 | API keys por tenant | Para integrar Korio desde otras apps |
 | Límites de plan | Chunks máximos, queries/mes, usuarios |
-| **MCP Server** | Exponer Korio a Claude Desktop, n8n, ChatGPT |
+| **MCP Server** | Exponer Korio a Claude Desktop, n8n, ChatGPT (Phase 7.3) |
+| Persistencia de chat por usuario | Conversaciones multi-sesión cross-device |
+| Reflejo de chat Slack ↔ chat web | Identidad compartida, conversaciones cross-canal |
 
 ---
 
@@ -176,4 +215,4 @@
 
 ---
 
-*Actualizado: 9 junio 2026 (noche · sesión 2) — Phases 5 + 6 + 7.1 completadas, grafo en producción*
+*Actualizado: 10 junio 2026 (tarde · sesión 3) — Phases 1–7.2 completadas, ingesta multi-canal en producción, sesión 4 en curso (memoria de chat + guardrails design + fix CONTRADICTS)*
