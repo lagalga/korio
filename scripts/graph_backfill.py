@@ -149,11 +149,20 @@ def backfill(
     contradictions_added = 0
     for r in reviews:
         try:
-            # Buscar claims con el mismo predicate entre el chunk nuevo y el existente
+            # Crear arista CONTRADICTS solo entre claims con MISMO predicate +
+            # MISMO subject (o uno contiene al otro) + valores distintos.
+            # El filtro de subject evita falsos positivos del tipo:
+            #   (subject="política RRHH",   predicate="responsable", value="director")
+            #   (subject="protocolo limpieza", predicate="responsable", value="proveedor")
+            # — comparten predicate "responsable" pero hablan de cosas distintas.
             cypher = """
             MATCH (cA:Claim {tenant_id: $tenant_id, chunk_id: $new_id}),
                   (cB:Claim {tenant_id: $tenant_id, chunk_id: $existing_id})
-            WHERE cA.predicate = cB.predicate AND cA.value <> cB.value
+            WHERE cA.predicate = cB.predicate
+              AND cA.value <> cB.value
+              AND (cA.subject = cB.subject
+                   OR cA.subject CONTAINS cB.subject
+                   OR cB.subject CONTAINS cA.subject)
             MERGE (cA)-[r:CONTRADICTS]->(cB)
             SET r.similarity = $similarity, r.review_id = $review_id
             RETURN count(r) AS added

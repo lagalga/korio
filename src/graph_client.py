@@ -283,7 +283,13 @@ class GraphClient:
     ) -> int:
         """
         Crea aristas CONTRADICTS entre claims de dos chunks que tengan
-        el MISMO predicate pero VALORES distintos.
+        el MISMO predicate, el MISMO subject (o uno contiene al otro)
+        y VALORES distintos.
+
+        El filtro de subject evita falsos positivos del tipo:
+          (subject="política RRHH", predicate="responsable", value="director")
+          (subject="protocolo limpieza", predicate="responsable", value="proveedor")
+        — comparten predicate pero hablan de cosas distintas, no son contradicción.
 
         Diseñado para llamarse on-the-fly desde conflict_detector cuando
         se crea una review pending — refleja la contradicción en el grafo
@@ -297,7 +303,11 @@ class GraphClient:
                 """
                 MATCH (cA:Claim {tenant_id: $tenant_id, chunk_id: $new_id}),
                       (cB:Claim {tenant_id: $tenant_id, chunk_id: $existing_id})
-                WHERE cA.predicate = cB.predicate AND cA.value <> cB.value
+                WHERE cA.predicate = cB.predicate
+                  AND cA.value <> cB.value
+                  AND (cA.subject = cB.subject
+                       OR cA.subject CONTAINS cB.subject
+                       OR cB.subject CONTAINS cA.subject)
                 MERGE (cA)-[r:CONTRADICTS]->(cB)
                 SET r.similarity = $similarity,
                     r.review_id  = $review_id
