@@ -12,9 +12,9 @@ Hola. Continuamos con **Korio** (mi TFM del Máster IA Business & Innovation de 
 
 Configurado para que `git push` (sin args) publique directamente en `main`.
 
-## Estado actual (al cierre de la última sesión · 10 jun 2026 · tarde)
+## Estado actual (al cierre de la última sesión · 10 jun 2026 · tarde · sesión 4)
 
-✅ **Phases 1–7.2 completadas**. En producción:
+✅ **Phases 1–7.2 completadas + memoria de chat + fix CONTRADICTS**. En producción:
 
 - `https://korio.es` — landing teaser
 - `https://korio.es/ui` — chat RAG multi-tenant con gobernanza activa, banner ⚠️ de contradicciones y 3 puntos de acceso al grafo
@@ -37,12 +37,19 @@ Configurado para que `git push` (sin args) publique directamente en `main`.
 
 ✅ **UI polish**: filenames de fuentes ya no se truncan; eliminado el marcador `[grafo]` confuso (los accesos al grafo siguen disponibles desde el banner ⚠️, sidebar y conflict report).
 
+✅ **Memoria de chat multi-turn (sesión 4)**: el chat guarda los últimos 6 turnos en `state.conversation` del frontend y los envía a `/search`. Si llega `history`, `search.py` reformula la query como pregunta autónoma vía LLM (`llm_client.reformulate_query()`) antes del embedding. Así: turno 1 "¿cuántos días con 10 años?" → respuesta; turno 2 "¿y si llevo 15?" → se reformula a "¿cuántos días con 15 años?" y el RAG funciona. Reset automático al cambiar tenant/usuario. La respuesta incluye `original_query`, `embedded_query` y `query_reformulated` para trazabilidad.
+
+✅ **Fix CONTRADICTS falsos positivos (sesión 4)**: el grafo creaba aristas rojas entre claims con mismo `predicate` pero `subject` totalmente distinto (ej. "responsable" de RRHH vs de limpieza). Ahora el Cypher exige `subject` igual o substring containment en cualquier dirección. Aplicado en `graph_client.link_contradictions_between_chunks` (live) y `scripts/graph_backfill.py` (batch). Para limpiar las aristas falsas existentes: `MATCH ()-[r:CONTRADICTS]->() DELETE r` + relanzar backfill.
+
+✅ **Documento de seguridad** `docs/CHAT-PIPELINE-GUARDRAILS.md` (sesión 4) — diseño Phase 8 para n8n + ingress/egress guardrails (Lakera/Rebuff + Presidio + rate limit). Capítulo de la memoria TFM "Seguridad del chat como producto SaaS".
+
 ## Fuentes de verdad (léelas si necesitas contexto)
 
 1. **`CLAUDE.md`** del repo — memoria técnica, stack, URLs, comandos VPS
 2. **`docs/ROADMAP.md`** — phases pasadas y siguientes con checklist
 3. **`docs/MULTI-TENANT-INGESTION.md`** — diseño Phase 8 (post-TFM) para ingesta SaaS configurable
-4. **Notion · Estado técnico para TFM** — https://app.notion.com/p/3792e8533b4481719aeddd9d2eb94b8a
+4. **`docs/CHAT-PIPELINE-GUARDRAILS.md`** — diseño Phase 8 (post-TFM) para chat con guardrails n8n
+5. **Notion · Estado técnico para TFM** — https://app.notion.com/p/3792e8533b4481719aeddd9d2eb94b8a
 5. **Notion · Roadmap & Tareas** — https://app.notion.com/p/3792e8533b44814b8fa9cdc8de668533
 6. **Notion · Historial de Desarrollo** (Troubleshooting) — https://app.notion.com/p/3782e8533b4480a98142c8fedb52c9e1
 7. **Notion · Company brain proceso completo** — https://app.notion.com/p/3782e8533b448012bf1ecd77aee3c9c6
@@ -84,21 +91,29 @@ Variables clave del `.env` del VPS (no las pongas en código, ya están en `/roo
   - **Slack API** (bot token `xoxb-...`) — para el bot `Korio-Delos`
 - 5 workflows activos (detalles arriba)
 
-## Próxima sesión — Phase 7.3 MCP Server
+## Próxima sesión — contenido TFM o Phase 7.3
 
-Exponer Korio como servidor MCP para que Claude Desktop / ChatGPT / n8n puedan llamar a las funciones del backend como herramientas. Tools previstas:
+Tienes dos caminos prioritarios y un opcional:
 
-- `search_knowledge_base(query, user_id, tenant_id)`
-- `ingest_document(file_url, tenant_id, space_id)`
-- `list_pending_conflicts(tenant_id)`
-- `list_spaces(user_id)`
+**Camino A · Contenido TFM (recomendado, lo crítico)**
+- QA E2E: ronda de 10+ queries en ambos tenants vía `korio.es/ui` (algunas usando memoria de chat para demostrar el multi-turn)
+- Ejecutar `scripts/benchmark.py` para sacar p50/p95 formales
+- Grabar vídeo demo (2-3 min): correo llega → ~30s después consultable → multi-turn → conflicto → email HITL → grafo
+- Empezar slide deck (10-15 slides)
 
-Stack probable: FastAPI MCP endpoint (mantiene Python). Decisiones a cerrar al arrancar: auth (¿API key? ¿OAuth?), formato de tools (JSON Schema), si tener un MCP por tenant o uno global.
+**Camino B · Memoria TFM**
+- Escribir capítulos con los docs de diseño ya listos: `MULTI-TENANT-INGESTION.md` (post-TFM) y `CHAT-PIPELINE-GUARDRAILS.md` (post-TFM)
+- Sección de decisiones de diseño (graf+RAG híbrido, FalkorDB vs Neo4j, query reformulation vs context-in-prompt, etc.)
+
+**Camino C · Phase 7.3 MCP Server (opcional, bonus)**
+- Exponer Korio como servidor MCP para Claude Desktop / ChatGPT / n8n
+- Tools: `search_knowledge_base`, `ingest_document`, `list_pending_conflicts`, `list_spaces`
+- Stack probable: FastAPI MCP endpoint
 
 ## Pendiente antes de la defensa (2 jul demo, 9 jul defensa)
 
-- QA end-to-end: 10+ queries en ambos tenants
+- QA end-to-end: 10+ queries en ambos tenants (con casos multi-turn)
 - Benchmark formal de latencias (`scripts/benchmark.py`)
-- Slide deck (10–15 slides)
-- Vídeo demo del ciclo completo: ingesta automática (Gmail/Drive/Slack) → gobernanza → grafo → consulta
-- Memoria TFM: capítulo dedicado al diseño Phase 8 (multi-tenant ingest) basado en `docs/MULTI-TENANT-INGESTION.md`
+- Slide deck (10–15 slides) + ensayo
+- Vídeo demo del ciclo completo: ingesta automática (Gmail/Drive/Slack) → gobernanza → grafo → consulta multi-turn
+- Memoria TFM: capítulos Phase 8 ya documentados en `docs/MULTI-TENANT-INGESTION.md` y `docs/CHAT-PIPELINE-GUARDRAILS.md`

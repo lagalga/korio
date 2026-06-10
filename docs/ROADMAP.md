@@ -158,12 +158,13 @@
 | Presentation deck (10-15 slides) | 🔴 Alta | 6-8h | Para defensa |
 | Memoria TFM (escritura) | 🔴 Alta | 20-30h | Incluye capítulos Phase 8 y guardrails |
 
-### Mejoras en curso (sesión 4)
+### Mejoras de sesión 4 (10 jun 2026 tarde) ✅ CERRADAS
 | Tarea | Estado | Notas |
 |---|---|---|
-| **Memoria de chat con query reformulation** | 🟡 En curso | UI guarda history, LLM reformula query autónoma antes del embed |
-| **Doc de diseño `CHAT-PIPELINE-GUARDRAILS.md`** | 🟡 En curso | Capítulo memoria TFM: n8n + ingress/egress guardrails post-defensa |
-| **Fix CONTRADICTS falsos positivos** | 🟡 En curso | Validación LLM par claim_a/claim_b antes de crear arista |
+| **Memoria de chat con query reformulation** | ✅ | `state.conversation` en frontend, `llm_client.reformulate_query()` antes del embed. Reset al cambiar tenant/usuario. Trazabilidad en `original_query`/`embedded_query`/`query_reformulated`. |
+| **Doc de diseño `CHAT-PIPELINE-GUARDRAILS.md`** | ✅ | Capítulo memoria TFM: n8n + Lakera/Rebuff/Presidio + rate limit + compliance por tenant. |
+| **Fix CONTRADICTS falsos positivos** | ✅ | Cypher exige `subject` igual o substring containment + diff `value` para crear arista. Aplicado en `graph_client` (live) y `graph_backfill.py` (batch). Limpiar aristas falsas existentes con `MATCH ()-[r:CONTRADICTS]->() DELETE r` + relink. |
+| **Sync local docs** | ✅ | CLAUDE.md, ROADMAP.md, ARCHITECTURE.md, DEPLOYMENT.md, README.md actualizados. |
 
 ### Opcional para defensa
 | Tarea | Prioridad | Notas |
@@ -215,4 +216,4 @@
 
 ---
 
-*Actualizado: 10 junio 2026 (tarde · sesión 3) — Phases 1–7.2 completadas, ingesta multi-canal en producción, sesión 4 en curso (memoria de chat + guardrails design + fix CONTRADICTS)*
+*Actualizado: 10 junio 2026 (tarde · sesión 4) — Phases 1–7.2 completadas, ingesta multi-canal + memoria de chat multi-turn + fix CONTRADICTS en producción. Quedan: QA E2E, benchmark, vídeo, slides, memoria TFM.*

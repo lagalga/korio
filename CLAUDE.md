@@ -11,9 +11,9 @@
 
 ---
 
-## Estado actual (10 junio 2026 · tarde · sesión 3)
+## Estado actual (10 junio 2026 · tarde · sesión 4)
 
-### ✅ Completado — Phases 1–7.2 CERRADAS
+### ✅ Completado — Phases 1–7.2 CERRADAS + mejoras de sesión 4
 
 **Phases 1–4** — pipeline ingesta, RAG vectorial, multi-tenancy con RLS, docs técnicos, chat UI con upload, benchmark script.
 
@@ -35,6 +35,12 @@
 - **UI polish**: filenames de fuentes ya no se truncan; eliminado marcador `[grafo]` confuso de las respuestas.
 - **Documento de diseño** `docs/MULTI-TENANT-INGESTION.md` — Phase 8 post-TFM (OAuth multi-tenant, vault de tokens, ingestion_rules, onboarding UX). Sirve como capítulo de la memoria TFM "Arquitectura objetivo SaaS post-defensa".
 
+**Sesión 4 (tarde · post-Phase 7.2)** — mejoras técnicas + docs:
+- **Memoria de chat multi-turn**: `state.conversation` en el frontend guarda los últimos turnos y los envía a `/search`. Si llega `history`, `search.py` invoca `llm_client.reformulate_query()` con un prompt en español que reescribe la pregunta como autónoma antes del embedding. Latencia +1s. Reset automático al cambiar tenant/usuario. Solo se guardan turnos con `has_context=true` para no contaminar el historial con "no encontré información". La respuesta expone `original_query`, `embedded_query`, `query_reformulated` para trazabilidad.
+- **Fix CONTRADICTS falsos positivos en el grafo**: el Cypher original juntaba claims con mismo `predicate` y distinto `value` aunque el `subject` fuera totalmente distinto (ej: "responsable" de RRHH vs de limpieza). Ahora exige `cA.subject = cB.subject` o substring containment en cualquier dirección. Aplicado en `graph_client.link_contradictions_between_chunks` (live) y `scripts/graph_backfill.py` (batch). Para limpiar las aristas falsas existentes: `MATCH ()-[r:CONTRADICTS]->() DELETE r` + relanzar backfill.
+- **Documento de seguridad** `docs/CHAT-PIPELINE-GUARDRAILS.md` — diseño Phase 8 con n8n + Lakera/Rebuff (ingress) + Presidio (egress) + rate limit + compliance por tenant. Capítulo memoria TFM "Seguridad del chat como producto SaaS".
+- **Sync local docs**: CLAUDE.md, ROADMAP.md, ARCHITECTURE.md, DEPLOYMENT.md, README.md alineados con estado real (sesiones 3 + 4).
+
 ### 🔲 Pendiente antes del 2 julio (demo) + 9 julio (defensa)
 
 - **QA end-to-end**: 10+ queries en ambos tenants
@@ -42,8 +48,8 @@
 - **Vídeo demo** del ciclo completo (Gmail llega → 30s después consultable → conflicto → email HITL → grafo)
 - **Slide deck** (10–15 slides) + ensayo presentación
 - **Memoria TFM** — escritura completa con capítulos Phase 8 (`MULTI-TENANT-INGESTION.md`) y guardrails (`CHAT-PIPELINE-GUARDRAILS.md`)
-- **Memoria de chat** (sesión 4 en curso): query reformulation con LLM para multi-turn
-- **Fix CONTRADICTS falsos positivos**: validar par claim_a/claim_b antes de crear arista (mejora calidad demo grafo)
+- ~~**Memoria de chat**~~ ✅ implementada en sesión 4 (query reformulation)
+- ~~**Fix CONTRADICTS falsos positivos**~~ ✅ implementado en sesión 4 (filtro subject)
 
 ### 🔲 Phase 7.3 — MCP Server (post-demo, opcional para defensa)
 
@@ -226,11 +232,12 @@ korio/
 │   └── graph_backfill.py # Pobló 233 claims sobre 9 docs en 107s
 │
 └── docs/
-    ├── ARCHITECTURE.md           # Diagrama del sistema, modelo de datos, RLS
-    ├── DEPLOYMENT.md             # Setup en Hetzner desde cero
-    ├── ROADMAP.md                # Fases pasadas y futuras
-    ├── SESSION-STARTER.md        # Prompt de arranque para nueva sesión Claude
-    └── MULTI-TENANT-INGESTION.md # Diseño Phase 8: OAuth multi-tenant SaaS
+    ├── ARCHITECTURE.md             # Diagrama del sistema, modelo de datos, RLS
+    ├── DEPLOYMENT.md               # Setup en Hetzner desde cero
+    ├── ROADMAP.md                  # Fases pasadas y futuras
+    ├── SESSION-STARTER.md          # Prompt de arranque para nueva sesión Claude
+    ├── MULTI-TENANT-INGESTION.md   # Diseño Phase 8: OAuth multi-tenant SaaS
+    └── CHAT-PIPELINE-GUARDRAILS.md # Diseño Phase 8: chat con guardrails n8n
 ```
 
 ---
@@ -374,4 +381,4 @@ El early binding es el corazón del sistema. Nunca saltarlo:
 
 ---
 
-*Actualizado: 10 junio 2026 (tarde · sesión 3) — Phase 7.2 CERRADA · ingesta automática multi-canal (Gmail + Drive + Slack) en producción con `source_metadata`; endpoint admin `DELETE /document/{id}`; doc de diseño Phase 8 para memoria TFM.*
+*Actualizado: 10 junio 2026 (tarde · sesión 4) — Phase 7.2 CERRADA + memoria de chat multi-turn (query reformulation) + fix CONTRADICTS falsos positivos + doc de diseño `CHAT-PIPELINE-GUARDRAILS.md`. Pendiente para defensa: QA E2E, benchmark, vídeo demo, slides, memoria TFM.*
