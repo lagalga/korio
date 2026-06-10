@@ -731,6 +731,76 @@ async def escalate_reviews(request: Request):
         raise HTTPException(status_code=500, detail=f"Error en escalada: {str(e)}")
 
 
+# ─── Endpoint admin: borrar documento ────────────────────────────────────────
+
+
+@app.delete("/document/{document_id}", tags=["Admin"])
+async def delete_document(document_id: str, request: Request):
+    """
+    Elimina un documento del knowledge base.
+
+    Borra en cascada: chunks + embeddings (FK ON DELETE CASCADE en Postgres)
+    y nodos/aristas asociados en el grafo (FalkorDB) si KORIO_GRAPH_ENABLED.
+
+    Auth: header `X-Korio-Admin-Key` debe coincidir con KORIO_ADMIN_API_KEY.
+
+    Útil para:
+    - Limpiar pruebas de ingesta automática (Gmail/Drive) que entran en el
+      space equivocado.
+    - "Desingerir" un documento sin tener que abrir Supabase.
+    """
+    if not KORIO_ADMIN_API_KEY:
+        raise HTTPException(
+            status_code=500,
+            detail="KORIO_ADMIN_API_KEY no configurada en el servidor"
+        )
+    if request.headers.get("X-Korio-Admin-Key", "") != KORIO_ADMIN_API_KEY:
+        raise HTTPException(status_code=401, detail="Admin key inválida")
+
+    from db import get_supabase_client
+    db = get_supabase_client()
+
+    # Comprobar que existe y recuperar contexto para limpiar el grafo
+    existing = db.client.table("documents").select(
+        "id, filename, tenant_id, space_id"
+    ).eq("id", document_id).execute()
+
+    if not existing.data:
+        raise HTTPException(status_code=404, detail=f"Documento {document_id} no encontrado")
+
+    doc = existing.data[0]
+
+    # Borrar del grafo primero (si está habilitado). Si falla, no abortamos el
+    # borrado de Postgres — preferible un grafo levemente inconsistente a un
+    # documento huérfano en BD.
+    graph_deleted = False
+    if os.getenv("KORIO_GRAPH_ENABLED", "0") == "1":
+        try:
+            from graph_client import get_graph_client
+            get_graph_client().delete_document(document_id, doc["tenant_id"])
+            graph_deleted = True
+        except Exception as e:
+            logger.warning(f"Error borrando documento del grafo: {e}")
+
+    # Borrar en Postgres (cascade limpia embeddings, chunks, conflict_reviews)
+    try:
+        db.client.table("documents").delete().eq("id", document_id).execute()
+    except Exception as e:
+        logger.exception("Error borrando documento en Supabase")
+        raise HTTPException(status_code=500, detail=f"Error borrando en BD: {str(e)}")
+
+    logger.info(f"🗑️  Documento borrado: {document_id} ({doc['filename']})")
+
+    return {
+        "success":       True,
+        "document_id":   document_id,
+        "filename":      doc["filename"],
+        "tenant_id":     doc["tenant_id"],
+        "space_id":      doc["space_id"],
+        "graph_deleted": graph_deleted,
+    }
+
+
 # ─── Endpoint waitlist (landing teaser) ─────────────────────────────────────
 
 class WaitlistRequest(BaseModel):
