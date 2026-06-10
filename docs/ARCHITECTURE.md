@@ -1,22 +1,39 @@
 # Korio — Arquitectura del Sistema
 
-> Company Brain · RAG multi-tenant para pymes españolas  
-> Versión: Phase 2 completada · Junio 2026
+> Company Brain · RAG híbrido vector + grafo, multi-tenant, para pymes españolas
+> Versión: Phases 1–7.2 cerradas · 10 junio 2026
 
 ---
 
 ## Visión general
 
-Korio es un sistema de RAG (*Retrieval-Augmented Generation*) multi-tenant que permite a pequeñas empresas consultar en lenguaje natural el conocimiento acumulado en sus documentos internos, con aislamiento de datos garantizado entre tenants y entre departamentos.
+Korio es un sistema de RAG (*Retrieval-Augmented Generation*) multi-tenant que permite a pequeñas empresas consultar en lenguaje natural el conocimiento acumulado en sus documentos internos, con aislamiento de datos garantizado entre tenants y entre departamentos, **gobernanza activa de información contradictoria** y **grafo de conocimiento** complementario que rescata datos cuando la query está semánticamente reformulada.
+
+### Capas funcionales
+
+1. **Ingesta multi-canal** — manual (UI/CLI) + automática vía n8n (Gmail, Drive, Slack). Cada documento lleva `source_metadata` (JSONB) con el contexto del canal de origen.
+2. **Pipeline de procesamiento** — MarkItDown → Presidio → chunking → embeddings (768d) → pgvector + extracción de entidades + claims al grafo FalkorDB.
+3. **Gobernanza activa** — detección semántica de chunks contradictorios en ingesta, auto-resolución por fecha/autoridad, HITL email para casos ambiguos, cron de escalada con auto-cierre a 21 días.
+4. **Búsqueda RAG híbrida** — vector + grafo en paralelo, RLS en 3 capas (aplicación + Postgres + FalkorDB).
+5. **Endpoints de consulta** — chat web (`/ui`), visualización del grafo (`/ui/graph.html`), Swagger (`/docs`), Slack `/korio`.
+
+> **Nota sobre la cobertura de este documento:** los diagramas siguientes capturan el núcleo del sistema (RAG vectorial + ingesta básica + RLS) tal como se diseñó en Phase 2. Las capas añadidas en Phases 5, 6, 7.1 y 7.2 (gobernanza activa, cron escalada, grafo de conocimiento, ingesta multi-canal, endpoint admin) están documentadas en detalle en `Notion · Estado técnico para TFM` y en los docs específicos:
+>
+> - **Gobernanza + grafo:** ver `Notion · Estado técnico` secciones 3 y 4.
+> - **Ingesta multi-canal (Phase 7.2):** workflows n8n para Gmail, Drive, Slack que llaman a `/upload` con `source_metadata` (JSONB) registrando el canal de origen.
+> - **Producto SaaS multi-tenant configurable (Phase 8):** `docs/MULTI-TENANT-INGESTION.md` — OAuth por proveedor, vault de tokens, ingestion_rules, onboarding UX.
+> - **Chat con guardrails (Phase 8):** `docs/CHAT-PIPELINE-GUARDRAILS.md` — n8n + Lakera/Rebuff ingress/egress.
 
 ```
-USUARIO
+USUARIO (web chat / Slack /korio / n8n workflow)
   │
-  │  POST /search {"query": "...", "user_id": "..."}
+  │  POST /search {"query": "...", "user_id": "...", "tenant_id": "..."}
   ▼
 ┌──────────────────────────────────────────────────────────┐
 │                    FastAPI (api/server.py)                │
-│            POST /search · POST /ingest · GET /health     │
+│   /search · /ingest · /upload · /review · /escalate-     │
+│   reviews · /waitlist · /graph/{contradictions,entity,   │
+│   subgraph} · DELETE /document/{id} · /health            │
 └──────────────────┬───────────────────────────────────────┘
                    │
                    ▼

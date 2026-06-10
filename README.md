@@ -10,8 +10,9 @@ Korio permite a una organización consultar en lenguaje natural el conocimiento 
 - **Aislamiento por departamento** dentro de cada cliente (un médico no ve documentos del departamento Legal).
 - **Detección automática de contradicciones** entre documentos al ingestar (auto-resolución por autoridad/fecha, HITL via email para casos ambiguos, cron de escalada con auto-cierre).
 - **Grafo de conocimiento** en FalkorDB con entidades + claims atómicos extraídos por LLM. Search híbrido vector + grafo rescata datos cuando la query está semánticamente reformulada respecto al texto fuente.
+- **Ingesta automática multi-canal** vía n8n: Gmail (label vigilada), Drive (carpeta vigilada), Slack (`/korio ¿pregunta?` con respuesta en thread). Cada documento lleva `source_metadata` (JSONB) con el contexto del canal de origen.
 
-**Estado:** Phases 1–7.1 completadas · Producción en [korio.es](https://korio.es) · Demo TFM 2 julio 2026
+**Estado:** Phases 1–7.2 completadas · Producción en [korio.es](https://korio.es) · Demo TFM 2 julio 2026 · Defensa 9 julio 2026
 
 ---
 
@@ -22,8 +23,8 @@ Korio permite a una organización consultar en lenguaje natural el conocimiento 
 | [korio.es](https://korio.es) | Landing teaser de la marca |
 | [korio.es/ui](https://korio.es/ui) | App de chat (RAG + ingesta + gobernanza) |
 | [korio.es/ui/graph.html](https://korio.es/ui/graph.html) | **Visualización del grafo de conocimiento** |
-| [korio.es/docs](https://korio.es/docs) | Swagger UI (FastAPI) |
-| [n8n.korio.es](https://n8n.korio.es) | Editor de workflows (HITL email + cron escalada) |
+| [korio.es/docs](https://korio.es/docs) | Swagger UI (FastAPI) con Authorize para endpoints admin |
+| [n8n.korio.es](https://n8n.korio.es) | Editor de workflows (5 activos: HITL + Cron + Gmail + Drive + Slack) |
 
 ---
 
