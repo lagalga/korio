@@ -472,9 +472,18 @@ class GraphClient:
                n.kind AS entity_kind
         LIMIT $limit
         """
-        edge_q = """
+        # Dos queries para las aristas: las CONTRADICTS SIEMPRE entran (son lo
+        # más relevante visualmente y son pocas); el resto con LIMIT para no
+        # saturar la respuesta.
+        contradicts_q = """
+        MATCH (a)-[r:CONTRADICTS]->(b)
+        WHERE a.tenant_id = $tenant_id AND b.tenant_id = $tenant_id
+        RETURN id(a) AS source, id(b) AS target, type(r) AS kind
+        """
+        other_edges_q = """
         MATCH (a)-[r]->(b)
         WHERE a.tenant_id = $tenant_id AND b.tenant_id = $tenant_id
+          AND type(r) <> 'CONTRADICTS'
           AND (NOT EXISTS(a.space_id) OR a.space_id IN $space_ids)
           AND (NOT EXISTS(b.space_id) OR b.space_id IN $space_ids)
         RETURN id(a) AS source, id(b) AS target, type(r) AS kind
@@ -486,8 +495,9 @@ class GraphClient:
             "limit":     limit,
         }
         nodes = self._rows_to_dicts(self.graph.query(node_q, params))
-        edges = self._rows_to_dicts(self.graph.query(edge_q, params))
-        return {"nodes": nodes, "edges": edges}
+        contradicts = self._rows_to_dicts(self.graph.query(contradicts_q, params))
+        others      = self._rows_to_dicts(self.graph.query(other_edges_q, params))
+        return {"nodes": nodes, "edges": contradicts + others}
 
     # ─── Mantenimiento ────────────────────────────────────────────────────────
 
