@@ -431,11 +431,24 @@ async def review_conflict(
 
         new_chunk_id      = review_data.get("new_chunk_id")
         existing_chunk_id = review_data.get("existing_chunk_id")
+        tenant_id         = review_data.get("tenant_id")
+
+        # Helper para sincronizar el grafo si está activado
+        def _sync_graph_chunk(chunk_id, status):
+            if not GRAPH_ENABLED or not chunk_id or not tenant_id:
+                return
+            try:
+                from graph_client import get_graph_client
+                gc = get_graph_client()
+                gc.update_chunk_status(int(chunk_id), tenant_id, status)
+            except Exception as e:
+                logger.warning(f"Grafo: no se pudo sincronizar chunk {chunk_id}→{status}: {e}")
 
         if action == "approved_new":
             # El documento existente queda superseded (el nuevo prevalece)
             if existing_chunk_id:
                 db.update_chunk_status(int(existing_chunk_id), "superseded")
+                _sync_graph_chunk(existing_chunk_id, "superseded")
             msg_es = "✅ Documento nuevo aprobado. El contenido anterior ha sido archivado."
 
         elif action == "approved_existing":
@@ -443,8 +456,10 @@ async def review_conflict(
             # (durante la detección se había marcado como disputed)
             if new_chunk_id:
                 db.update_chunk_status(int(new_chunk_id), "superseded")
+                _sync_graph_chunk(new_chunk_id, "superseded")
             if existing_chunk_id:
                 db.update_chunk_status(int(existing_chunk_id), "active")
+                _sync_graph_chunk(existing_chunk_id, "active")
             msg_es = "✅ Documento existente conservado. El contenido nuevo ha sido descartado."
 
         else:  # kept_both
@@ -452,8 +467,10 @@ async def review_conflict(
             # y el RAG presentará ambas afirmaciones como complementarias)
             if existing_chunk_id:
                 db.update_chunk_status(int(existing_chunk_id), "active")
+                _sync_graph_chunk(existing_chunk_id, "active")
             if new_chunk_id:
                 db.update_chunk_status(int(new_chunk_id), "active")
+                _sync_graph_chunk(new_chunk_id, "active")
             msg_es = "✅ Ambos documentos se han conservado. El sistema mostrará los dos contenidos."
 
         logger.info(f"HITL resuelto: review_id={review_id} action={action}")

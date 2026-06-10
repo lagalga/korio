@@ -227,10 +227,23 @@ def _apply_timeout(db, review: dict, now: datetime) -> None:
     # Ambos chunks vuelven a active (estaban: existing=disputed, new=active)
     existing_chunk_id = review.get("existing_chunk_id")
     new_chunk_id      = review.get("new_chunk_id")
+    tenant_id         = review.get("tenant_id")
     if existing_chunk_id:
         db.update_chunk_status(int(existing_chunk_id), "active")
     if new_chunk_id:
         db.update_chunk_status(int(new_chunk_id), "active")
+
+    # Sincronizar el grafo (opt-in via env)
+    if os.getenv("KORIO_GRAPH_ENABLED", "0") == "1":
+        try:
+            from graph_client import get_graph_client
+            gc = get_graph_client()
+            if existing_chunk_id:
+                gc.update_chunk_status(int(existing_chunk_id), tenant_id, "active")
+            if new_chunk_id:
+                gc.update_chunk_status(int(new_chunk_id), tenant_id, "active")
+        except Exception as e:
+            logger.warning(f"Grafo: error sincronizando timeout {review['id']}: {e}")
 
     logger.info(f"Review {review['id']} cerrada por timeout ({TIMEOUT_DAYS} días)")
 
