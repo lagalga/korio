@@ -110,6 +110,11 @@ const renderUserSelect = () => {
 const renderUserBadge = () => {
   const u = currentUser()
   userBadge.innerHTML = `<strong>${u.role}</strong>${u.spaces}`
+  // Sincronizar el link del grafo con el contexto actual (tenant + usuario)
+  const graphLink = $('graph-link')
+  if (graphLink) {
+    graphLink.href = `graph.html?tenant=${state.tenantKey}&user=${state.userIndex}`
+  }
 }
 
 const renderSuggestions = () => {
