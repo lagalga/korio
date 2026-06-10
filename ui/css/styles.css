@@ -394,7 +394,21 @@ body { display: flex; overflow: hidden; }
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  max-width: 200px;
+  flex: 1;
+  min-width: 0;
+}
+
+.answer-graph-tag {
+  color: var(--color-primary);
+  text-decoration: none;
+  font-size: 0.85em;
+  padding: 0 2px;
+  border-radius: 3px;
+  transition: background .15s;
+}
+.answer-graph-tag:hover {
+  background: var(--color-primary-soft, rgba(59, 130, 246, .1));
+  text-decoration: underline;
 }
 
 .source-chip__sim {
