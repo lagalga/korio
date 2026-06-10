@@ -95,7 +95,7 @@
 | Email template adaptativo: initial / reminder / timeout | ✅ |
 | Probado E2E con 5 reviews: cadencia 4/8/15/22 días | ✅ |
 
-### Phase 7.1 · Grafo de conocimiento ✅
+### Phase 7.1 · Grafo de conocimiento ✅ CERRADA
 
 | Feature | Estado |
 |---|---|
@@ -109,6 +109,10 @@
 | Endpoints `/graph/contradictions`, `/graph/entity`, `/graph/subgraph` | ✅ |
 | UI `/ui/graph.html` con vis-network + panel contradicciones | ✅ |
 | Query rephrase ("jornada mínima") resuelta por el grafo | ✅ |
+| **3 puntos de acceso al grafo desde la app (banner / modal / sidebar)** | ✅ |
+| **Sync en vivo del grafo desde conflict_detector + /review + escalation** | ✅ |
+| **Polish visual: disputed rojo, superseded blanco outlined, CONTRADICTS rojo width 4** | ✅ |
+| **Fix LIMIT que truncaba CONTRADICTS en /graph/subgraph** | ✅ |
 
 ---
 
