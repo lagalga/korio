@@ -22,6 +22,47 @@ from typing import List, Optional, Dict, Any
 
 logger = logging.getLogger(__name__)
 
+# Grafo de conocimiento (opt-in vía KORIO_GRAPH_ENABLED=1, igual que en ingest.py)
+GRAPH_ENABLED = os.getenv("KORIO_GRAPH_ENABLED", "0") == "1"
+
+
+def _graph_update_chunk_status(tenant_id: str, chunk_id: int, status: str) -> None:
+    """Sincroniza el chunk_status en FalkorDB. Sin grafo activo, no hace nada."""
+    if not GRAPH_ENABLED:
+        return
+    try:
+        from graph_client import get_graph_client
+        gc = get_graph_client()
+        gc.update_chunk_status(int(chunk_id), tenant_id, status)
+    except Exception as e:
+        logger.warning(f"Grafo: no se pudo actualizar chunk_status {chunk_id}→{status}: {e}")
+
+
+def _graph_link_contradictions(
+    tenant_id: str,
+    new_chunk_id: int,
+    existing_chunk_id: int,
+    similarity: float,
+    review_id: Optional[str] = None,
+) -> None:
+    """Crea aristas CONTRADICTS en FalkorDB para claims del mismo predicate. Sin grafo activo, no hace nada."""
+    if not GRAPH_ENABLED:
+        return
+    try:
+        from graph_client import get_graph_client
+        gc = get_graph_client()
+        added = gc.link_contradictions_between_chunks(
+            tenant_id=tenant_id,
+            new_chunk_id=int(new_chunk_id),
+            existing_chunk_id=int(existing_chunk_id),
+            similarity=similarity,
+            review_id=review_id,
+        )
+        if added > 0:
+            logger.info(f"  ↪ Grafo: {added} aristas CONTRADICTS añadidas (chunks {new_chunk_id}↔{existing_chunk_id})")
+    except Exception as e:
+        logger.warning(f"Grafo: error vinculando contradicciones: {e}")
+
 # ─── Umbrales ────────────────────────────────────────────────────────────────
 
 CONFLICT_THRESHOLD     = 0.78  # Similitud mínima para considerar conflicto (nomic-embed-text)
@@ -286,6 +327,7 @@ def detect_conflicts(
                 if resolution == "auto_new_wins":
                     # El chunk existente queda superseded
                     db.update_chunk_status(existing_chunk_id, "superseded")
+                    _graph_update_chunk_status(tenant_id, existing_chunk_id, "superseded")
                     logger.info(
                         f"  ⚡ Auto-resolución: chunk {existing_chunk_id} superseded "
                         f"por {chunk_id} (sim={similarity:.2f}) — {reason}"
@@ -294,6 +336,7 @@ def detect_conflicts(
                 elif resolution == "auto_existing_wins":
                     # El nuevo chunk queda superseded
                     db.update_chunk_status(chunk_id, "superseded")
+                    _graph_update_chunk_status(tenant_id, chunk_id, "superseded")
                     logger.info(
                         f"  ⚡ Auto-resolución: nuevo chunk {chunk_id} superseded "
                         f"(sim={similarity:.2f}) — {reason}"
@@ -302,6 +345,7 @@ def detect_conflicts(
                 else:
                     # pending → marcar existente como disputed, crear revisión
                     db.update_chunk_status(existing_chunk_id, "disputed")
+                    _graph_update_chunk_status(tenant_id, existing_chunk_id, "disputed")
                     review_token = secrets.token_urlsafe(32)
                     review_record = db.create_conflict_review({
                         "tenant_id":             tenant_id,
@@ -322,6 +366,16 @@ def detect_conflicts(
                     })
                     if review_record:
                         review_id = review_record[0].get("id") if isinstance(review_record, list) else review_record.get("id")
+
+                    # Vincular en el grafo: aristas CONTRADICTS entre claims
+                    # de ambos chunks con mismo predicate y valor distinto
+                    _graph_link_contradictions(
+                        tenant_id=tenant_id,
+                        new_chunk_id=chunk_id,
+                        existing_chunk_id=existing_chunk_id,
+                        similarity=similarity,
+                        review_id=review_id,
+                    )
 
                     logger.info(
                         f"  ⚠️  Conflicto pendiente: chunk {chunk_id} vs {existing_chunk_id} "

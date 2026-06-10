@@ -273,6 +273,50 @@ class GraphClient:
             },
         )
 
+    def link_contradictions_between_chunks(
+        self,
+        tenant_id: str,
+        new_chunk_id: int,
+        existing_chunk_id: int,
+        similarity: float,
+        review_id: Optional[str] = None,
+    ) -> int:
+        """
+        Crea aristas CONTRADICTS entre claims de dos chunks que tengan
+        el MISMO predicate pero VALORES distintos.
+
+        Diseñado para llamarse on-the-fly desde conflict_detector cuando
+        se crea una review pending — refleja la contradicción en el grafo
+        sin esperar al backfill.
+
+        Returns:
+            Número de aristas CONTRADICTS creadas
+        """
+        try:
+            result = self.graph.query(
+                """
+                MATCH (cA:Claim {tenant_id: $tenant_id, chunk_id: $new_id}),
+                      (cB:Claim {tenant_id: $tenant_id, chunk_id: $existing_id})
+                WHERE cA.predicate = cB.predicate AND cA.value <> cB.value
+                MERGE (cA)-[r:CONTRADICTS]->(cB)
+                SET r.similarity = $similarity,
+                    r.review_id  = $review_id
+                RETURN count(r) AS added
+                """,
+                {
+                    "tenant_id":   tenant_id,
+                    "new_id":      new_chunk_id,
+                    "existing_id": existing_chunk_id,
+                    "similarity":  float(similarity),
+                    "review_id":   review_id or "",
+                },
+            )
+            if result.result_set and result.result_set[0]:
+                return int(result.result_set[0][0])
+        except Exception as e:
+            logger.warning(f"Error vinculando contradicciones en grafo: {e}")
+        return 0
+
     # ─── Update de estados (sincronización con Supabase) ──────────────────────
 
     def update_chunk_status(self, chunk_id: int, tenant_id: str, status: str) -> None:
