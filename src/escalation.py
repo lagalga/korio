@@ -41,8 +41,17 @@ REMINDER_DAYS = sorted([
 
 TIMEOUT_DAYS = int(os.getenv("ESCALATION_TIMEOUT_DAYS", "21"))
 
-HITL_WEBHOOK_URL = os.getenv("HITL_WEBHOOK_URL", "")
-KORIO_BASE_URL   = os.getenv("KORIO_BASE_URL", "https://korio.es")
+HITL_WEBHOOK_URL  = os.getenv("HITL_WEBHOOK_URL", "")
+HITL_WEBHOOK_USER = os.getenv("HITL_WEBHOOK_USER", "")
+HITL_WEBHOOK_PASS = os.getenv("HITL_WEBHOOK_PASS", "")
+KORIO_BASE_URL    = os.getenv("KORIO_BASE_URL", "https://korio.es")
+
+
+def _hitl_auth():
+    """Basic Auth tuple para el webhook HITL si está configurado, None si no."""
+    if HITL_WEBHOOK_USER and HITL_WEBHOOK_PASS:
+        return (HITL_WEBHOOK_USER, HITL_WEBHOOK_PASS)
+    return None
 
 
 # ─── Resultado ──────────────────────────────────────────────────────────────
@@ -340,7 +349,7 @@ def _dispatch_tenant_batch(
     }
 
     try:
-        resp = requests.post(HITL_WEBHOOK_URL, json=payload, timeout=30)
+        resp = requests.post(HITL_WEBHOOK_URL, json=payload, timeout=30, auth=_hitl_auth())
         resp.raise_for_status()
         logger.info(
             f"Tenant {tenant_name}: {len(conflicts_payload)} items disparados "
