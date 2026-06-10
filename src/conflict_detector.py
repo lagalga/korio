@@ -70,8 +70,17 @@ AUTO_DATE_DAYS         = 30    # Días de diferencia para auto-resolución por f
 AUTO_AUTHORITY_DELTA   = 3     # Puntos de diferencia para auto-resolución por autoridad
 
 # URL del webhook n8n para disparar emails HITL (opcional)
-HITL_WEBHOOK_URL = os.getenv("HITL_WEBHOOK_URL", "")
-KORIO_BASE_URL   = os.getenv("KORIO_BASE_URL", "https://korio.es")
+HITL_WEBHOOK_URL  = os.getenv("HITL_WEBHOOK_URL", "")
+HITL_WEBHOOK_USER = os.getenv("HITL_WEBHOOK_USER", "")
+HITL_WEBHOOK_PASS = os.getenv("HITL_WEBHOOK_PASS", "")
+KORIO_BASE_URL    = os.getenv("KORIO_BASE_URL", "https://korio.es")
+
+
+def _hitl_auth():
+    """Basic Auth tuple para el webhook HITL si está configurado, None si no."""
+    if HITL_WEBHOOK_USER and HITL_WEBHOOK_PASS:
+        return (HITL_WEBHOOK_USER, HITL_WEBHOOK_PASS)
+    return None
 
 
 # ─── Dataclasses de resultado ────────────────────────────────────────────────
@@ -506,7 +515,8 @@ def _trigger_hitl_email(
         resp = requests.post(
             HITL_WEBHOOK_URL,
             json=payload,
-            timeout=10
+            timeout=10,
+            auth=_hitl_auth(),
         )
         resp.raise_for_status()
         logger.info(f"✉️  HITL email disparado via n8n (webhook status: {resp.status_code})")
