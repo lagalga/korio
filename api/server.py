@@ -12,6 +12,7 @@ Autenticación: user_id en el body (para TFM — en producción sería JWT).
 import sys
 import os
 import time
+import json
 import logging
 import shutil
 import tempfile
@@ -321,15 +322,34 @@ async def upload_and_ingest(
     file: UploadFile,
     tenant_id: str = Form(...),
     space_id: str = Form(...),
-    anonymize: bool = Form(True)
+    anonymize: bool = Form(True),
+    source_type: str = Form("manual"),
+    source_metadata: Optional[str] = Form(None),
 ):
     """
     Sube un fichero y lo ingesta directamente en el knowledge base.
 
     Acepta multipart/form-data con el fichero + tenant_id + space_id.
     El fichero se guarda en un directorio temporal y se elimina tras la ingesta.
+
+    Para ingestas automáticas desde n8n u otros conectores se pueden enviar:
+      - source_type: 'email' | 'drive' | 'slack' | 'notion' | 'manual'
+      - source_metadata: JSON string con contexto del canal (message_id, from, etc.)
     """
-    logger.info(f"POST /upload — tenant: {tenant_id[:8]}... file: {file.filename}")
+    logger.info(f"POST /upload — tenant: {tenant_id[:8]}... file: {file.filename} src: {source_type}")
+
+    # Parsear source_metadata si llega (n8n lo enviará como string JSON en multipart)
+    parsed_metadata: Optional[dict] = None
+    if source_metadata:
+        try:
+            parsed_metadata = json.loads(source_metadata)
+            if not isinstance(parsed_metadata, dict):
+                raise ValueError("source_metadata debe ser un objeto JSON")
+        except (json.JSONDecodeError, ValueError) as e:
+            raise HTTPException(
+                status_code=400,
+                detail=f"source_metadata no es JSON válido: {e}"
+            )
 
     start_time = time.time()
     suffix = Path(file.filename).suffix if file.filename else ".tmp"
@@ -345,6 +365,8 @@ async def upload_and_ingest(
             space_id=space_id,
             anonymize=anonymize,
             display_filename=file.filename,  # nombre real del fichero subido
+            source_type=source_type,
+            source_metadata=parsed_metadata,
         )
         latency_ms = int((time.time() - start_time) * 1000)
         cr = result.get("conflict_report") or {}
