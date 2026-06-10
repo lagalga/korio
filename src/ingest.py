@@ -67,6 +67,7 @@ def ingest_document(
     authority_weight: int = 5,
     anonymize: bool = True,
     display_filename: Optional[str] = None,
+    source_metadata: Optional[dict] = None,
 ) -> dict:
     """
     Pipeline completo de ingesta de un documento.
@@ -79,6 +80,8 @@ def ingest_document(
         source_type:      Origen del documento (manual, drive, slack, email, notion)
         authority_weight: Peso de autoridad del documento (1-10, default 5)
         anonymize:        Si debe anonimizar PII (default: True)
+        source_metadata:  Contexto del canal de origen (ej: message_id Gmail, file_id Drive).
+                          Se guarda en documents.source_metadata (JSONB) sin transformar.
 
     Returns:
         dict: Resultado con estadísticas de ingesta (incluye conflict_report si hay conflictos)
@@ -167,7 +170,7 @@ def ingest_document(
             )
 
         # Crear documento (incluye authority_weight y version_ts para gobernanza)
-        doc_response = supabase.table("documents").insert({
+        doc_payload = {
             "id":               document_id,
             "tenant_id":        tenant_id,
             "space_id":         space_id,
@@ -176,8 +179,12 @@ def ingest_document(
             "content_hash":     content_hash,
             "authority_weight": authority_weight,
             "version_ts":       version_ts.isoformat(),
-            "status":           "active"
-        }).execute()
+            "status":           "active",
+        }
+        # source_metadata es opcional — solo lo enviamos si viene de un canal
+        if source_metadata:
+            doc_payload["source_metadata"] = source_metadata
+        doc_response = supabase.table("documents").insert(doc_payload).execute()
 
         if not doc_response.data:
             raise ValueError("Error creando documento en Supabase")
