@@ -4,13 +4,38 @@
 
 ---
 
-Hola. Continuamos con **Korio** (mi TFM del Máster IA Business & Innovation de Nuclio). El repo es `lagalga/korio`, branch `main`. Trabajamos siempre en el worktree:
+Hola. Arrancamos sesión nueva de **Korio** (mi TFM del Máster IA Business & Innovation de Nuclio). El repo es `lagalga/korio`, branch `main`. Trabajamos siempre en el worktree:
 
 ```
 /Users/berto/Claude Code/korio/.claude/worktrees/nifty-booth-0c25a5
 ```
 
 Configurado para que `git push` (sin args) publique directamente en `main`.
+
+## Lo primero que quiero que hagas (smoke check de 30s)
+
+Antes de discutir qué atacamos hoy, verifica que producción sigue viva tras lo que cerramos ayer:
+
+```bash
+ssh korio-vps "systemctl is-active korio-api && docker ps --format '{{.Names}}' | grep -E 'ollama|n8n|falkordb' && curl -s https://korio.es/health"
+```
+
+Si todo OK, dímelo en una línea. Si algo está raro, antes de tocar nada cuéntame qué ves.
+
+## Pasos manuales que pueden haber quedado pendientes de ayer
+
+1. **Despliegue en VPS** de los commits de ayer tarde (cierre Phase 7.2 + sesión 4):
+   ```bash
+   ssh korio-vps "cd /root/korio && git pull && systemctl restart korio-api"
+   ```
+2. **Cleanup de aristas CONTRADICTS falsas** en el grafo (one-off, solo si no lo hice ayer):
+   ```bash
+   ssh korio-vps "cd /root/korio && .venv/bin/python -c \"from src.graph_client import get_graph_client; get_graph_client().graph.query('MATCH ()-[r:CONTRADICTS]->() DELETE r')\""
+   ssh korio-vps "cd /root/korio && .venv/bin/python scripts/graph_backfill.py"
+   ```
+3. **Verificar memoria de chat** en `korio.es/ui` con dos preguntas encadenadas (ej: vacaciones con 10 años → y si llevo 15). Si la 2ª no usa contexto, hay que mirar logs del backend.
+
+Si todo eso está hecho, lo confirmo y pasamos a contenido. Si no, lo hacemos primero antes de cualquier otra cosa.
 
 ## Estado actual (al cierre de la última sesión · 10 jun 2026 · tarde · sesión 4)
 
@@ -50,9 +75,9 @@ Configurado para que `git push` (sin args) publique directamente en `main`.
 3. **`docs/MULTI-TENANT-INGESTION.md`** — diseño Phase 8 (post-TFM) para ingesta SaaS configurable
 4. **`docs/CHAT-PIPELINE-GUARDRAILS.md`** — diseño Phase 8 (post-TFM) para chat con guardrails n8n
 5. **Notion · Estado técnico para TFM** — https://app.notion.com/p/3792e8533b4481719aeddd9d2eb94b8a
-5. **Notion · Roadmap & Tareas** — https://app.notion.com/p/3792e8533b44814b8fa9cdc8de668533
-6. **Notion · Historial de Desarrollo** (Troubleshooting) — https://app.notion.com/p/3782e8533b4480a98142c8fedb52c9e1
-7. **Notion · Company brain proceso completo** — https://app.notion.com/p/3782e8533b448012bf1ecd77aee3c9c6
+6. **Notion · Roadmap & Tareas** — https://app.notion.com/p/3792e8533b44814b8fa9cdc8de668533
+7. **Notion · Historial de Desarrollo** (Troubleshooting) — https://app.notion.com/p/3782e8533b4480a98142c8fedb52c9e1
+8. **Notion · Company brain proceso completo** — https://app.notion.com/p/3782e8533b448012bf1ecd77aee3c9c6
 
 ## Reglas críticas que NUNCA debes saltar
 
@@ -91,7 +116,9 @@ Variables clave del `.env` del VPS (no las pongas en código, ya están en `/roo
   - **Slack API** (bot token `xoxb-...`) — para el bot `Korio-Delos`
 - 5 workflows activos (detalles arriba)
 
-## Próxima sesión — contenido TFM o Phase 7.3
+## Hoy quiero atacar — contenido TFM o Phase 7.3
+
+Faltan **~22 días para demo (2 jul)** y **~29 días para defensa (9 jul)**. El esfuerzo crítico es contenido TFM (memoria + slides + vídeo + QA). El código en producción ya cubre todo lo que necesitamos demostrar.
 
 Tienes dos caminos prioritarios y un opcional:
 
@@ -112,8 +139,19 @@ Tienes dos caminos prioritarios y un opcional:
 
 ## Pendiente antes de la defensa (2 jul demo, 9 jul defensa)
 
-- QA end-to-end: 10+ queries en ambos tenants (con casos multi-turn)
-- Benchmark formal de latencias (`scripts/benchmark.py`)
-- Slide deck (10–15 slides) + ensayo
-- Vídeo demo del ciclo completo: ingesta automática (Gmail/Drive/Slack) → gobernanza → grafo → consulta multi-turn
-- Memoria TFM: capítulos Phase 8 ya documentados en `docs/MULTI-TENANT-INGESTION.md` y `docs/CHAT-PIPELINE-GUARDRAILS.md`
+| Tarea | Estimación | Prioridad |
+|---|---|---|
+| QA end-to-end: 10+ queries en ambos tenants (con casos multi-turn) | 2-3h | 🔴 Alta |
+| Benchmark formal `scripts/benchmark.py` (p50/p95) | 1h | 🔴 Alta |
+| Vídeo demo del ciclo completo (ingesta Gmail/Drive/Slack → gobernanza → grafo → consulta multi-turn) | 3-4h | 🔴 Alta |
+| Slide deck (10-15 slides) + ensayo | 6-8h | 🔴 Alta |
+| Memoria TFM (capítulos Phase 8 ya en `docs/MULTI-TENANT-INGESTION.md` + `docs/CHAT-PIPELINE-GUARDRAILS.md`) | 20-30h | 🔴 Alta |
+| Phase 7.3 MCP Server | 1 sesión (~4h) | 🟢 Opcional |
+
+## Convenciones de la sesión
+
+- Responde **en español**. Comentarios y commits en español; código (variables, funciones, clases) en inglés.
+- Antes de cambios grandes, **valida conmigo el enfoque** — no implementes 4h de código sin checkpoint.
+- Si tocas algo en n8n, recuerda: **n8n.korio.es no es n8n.lagalga.es**. Lee la memoria local `feedback_n8n_instance.md` si dudas.
+- Cuando cierres una sub-tarea, **commitea atómicamente** con `Feat:` / `Fix:` / `Docs:` en inglés + descripción en español.
+- Si la sesión se va a alargar, **actualiza este `SESSION-STARTER.md`** y los docs locales al cierre para que mañana arranque limpio.
