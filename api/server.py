@@ -22,7 +22,8 @@ from typing import Optional
 # Añadir src/ al path para importar los módulos del pipeline
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
-from fastapi import FastAPI, HTTPException, UploadFile, Form, Query, Request
+from fastapi import FastAPI, HTTPException, UploadFile, Form, Query, Request, Depends, Security
+from fastapi.security import APIKeyHeader
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import RedirectResponse, HTMLResponse, FileResponse
@@ -696,9 +697,22 @@ async def graph_subgraph(tenant_id: str, user_id: str, limit: int = 200):
 
 KORIO_ADMIN_API_KEY = os.getenv("KORIO_ADMIN_API_KEY", "")
 
+# Esquema de seguridad para que Swagger UI muestre el botón "Authorize"
+# y un campo donde pegar la admin key. Auto-error desactivado: lo gestionamos
+# nosotros para devolver mensajes consistentes con el resto de la API.
+admin_key_header = APIKeyHeader(name="X-Korio-Admin-Key", auto_error=False)
 
-@app.post("/escalate-reviews", tags=["Gobernanza"])
-async def escalate_reviews(request: Request):
+
+def require_admin(key: Optional[str] = Security(admin_key_header)) -> None:
+    """Dependency: valida la admin key del header X-Korio-Admin-Key."""
+    if not KORIO_ADMIN_API_KEY:
+        raise HTTPException(status_code=500, detail="KORIO_ADMIN_API_KEY no configurada en el servidor")
+    if key != KORIO_ADMIN_API_KEY:
+        raise HTTPException(status_code=401, detail="Admin key inválida")
+
+
+@app.post("/escalate-reviews", tags=["Gobernanza"], dependencies=[Depends(require_admin)])
+async def escalate_reviews():
     """
     Ejecuta un ciclo de escalada sobre las revisiones HITL pendientes.
 
@@ -710,16 +724,6 @@ async def escalate_reviews(request: Request):
 
     Diseñado para ser llamado por un workflow n8n Schedule Trigger (cron diario).
     """
-    # Auth simple por header
-    if not KORIO_ADMIN_API_KEY:
-        raise HTTPException(
-            status_code=500,
-            detail="KORIO_ADMIN_API_KEY no configurada en el servidor"
-        )
-    provided = request.headers.get("X-Korio-Admin-Key", "")
-    if provided != KORIO_ADMIN_API_KEY:
-        raise HTTPException(status_code=401, detail="Admin key inválida")
-
     try:
         from db import get_supabase_client
         db = get_supabase_client()
@@ -734,8 +738,8 @@ async def escalate_reviews(request: Request):
 # ─── Endpoint admin: borrar documento ────────────────────────────────────────
 
 
-@app.delete("/document/{document_id}", tags=["Admin"])
-async def delete_document(document_id: str, request: Request):
+@app.delete("/document/{document_id}", tags=["Admin"], dependencies=[Depends(require_admin)])
+async def delete_document(document_id: str):
     """
     Elimina un documento del knowledge base.
 
@@ -749,14 +753,6 @@ async def delete_document(document_id: str, request: Request):
       space equivocado.
     - "Desingerir" un documento sin tener que abrir Supabase.
     """
-    if not KORIO_ADMIN_API_KEY:
-        raise HTTPException(
-            status_code=500,
-            detail="KORIO_ADMIN_API_KEY no configurada en el servidor"
-        )
-    if request.headers.get("X-Korio-Admin-Key", "") != KORIO_ADMIN_API_KEY:
-        raise HTTPException(status_code=401, detail="Admin key inválida")
-
     from db import get_supabase_client
     db = get_supabase_client()
 
