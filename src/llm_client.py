@@ -155,6 +155,73 @@ class LLMClient:
         except Exception as e:
             raise RuntimeError(f"Error generando con Ollama: {e}") from e
 
+    def reformulate_query(
+        self,
+        query: str,
+        history: list,
+        language: str = "es"
+    ) -> str:
+        """
+        Reformula una pregunta conversacional en una pregunta autónoma usando el historial.
+
+        Se usa antes del embedding RAG cuando el usuario hace preguntas que dependen
+        del contexto previo del chat. Ejemplo: tras preguntar "¿Cuántas vacaciones tengo
+        con 10 años?", la segunda pregunta "¿Y si llevo 15?" sería reformulada como
+        "¿Cuántas vacaciones tengo con 15 años de antigüedad?".
+
+        Args:
+            query: Pregunta actual del usuario (potencialmente dependiente del contexto)
+            history: Lista de turnos previos, formato [{"role": "user"|"assistant", "content": str}]
+            language: Idioma de la reformulación ("es" o "en")
+
+        Returns:
+            str: Pregunta autónoma. Si el LLM falla o el historial es vacío, devuelve la query original.
+        """
+        if not history:
+            return query
+
+        # Formatear historial — solo los últimos 6 turnos para mantener prompt corto
+        history_lines = []
+        for turn in history[-6:]:
+            role = turn.get("role", "user")
+            content = (turn.get("content") or "").strip()
+            if not content:
+                continue
+            label = "Usuario" if role == "user" else "Asistente"
+            history_lines.append(f"{label}: {content}")
+        history_text = "\n".join(history_lines)
+
+        system_prompt = (
+            "Eres un asistente que reformula preguntas conversacionales en preguntas autónomas. "
+            "Si la nueva pregunta depende del contexto anterior (usa pronombres, elipsis, "
+            "o referencias a turnos previos), reescríbela incluyendo todo el contexto necesario. "
+            "Si la nueva pregunta ya es autónoma, devuélvela sin cambios. "
+            "Responde SOLO con la pregunta reformulada, sin explicaciones, sin comillas, sin prefijos."
+        )
+        user_prompt = (
+            f"Historial de la conversación:\n{history_text}\n\n"
+            f"Nueva pregunta: {query}\n\n"
+            f"Pregunta autónoma:"
+        )
+
+        try:
+            reformulated = self.generate(
+                prompt=user_prompt,
+                system_prompt=system_prompt,
+                temperature=0.0,
+                max_tokens=200
+            )
+            # Sanity check: si por algún motivo devuelve algo vacío o demasiado raro, usar la original
+            reformulated = reformulated.strip().strip('"').strip("'")
+            if not reformulated or len(reformulated) > 1000:
+                logger.warning(f"Reformulación inválida (vacía o demasiado larga), uso query original")
+                return query
+            return reformulated
+        except Exception as e:
+            # No bloquear la búsqueda si falla la reformulación
+            logger.warning(f"Error reformulando query: {e} — uso query original")
+            return query
+
     def build_rag_prompt(
         self,
         query: str,

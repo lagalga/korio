@@ -117,7 +117,8 @@ def search(
     tenant_id: Optional[str] = None,
     limit: int = 5,
     threshold: float = 0.4,
-    language: str = "es"
+    language: str = "es",
+    history: Optional[List[dict]] = None
 ) -> dict:
     """
     Pipeline completo de búsqueda RAG con RLS.
@@ -129,15 +130,22 @@ def search(
         limit: Número máximo de chunks a recuperar (default: 5)
         threshold: Similitud mínima para incluir un chunk (0-1, default: 0.4)
         language: Idioma de la respuesta ("es" o "en")
+        history: Historial conversacional opcional (lista de turnos previos).
+                 Si se proporciona, la query se reformula como pregunta autónoma
+                 antes del embedding (chat multi-turn). Formato:
+                 [{"role": "user"|"assistant", "content": "..."}]
 
     Returns:
         dict: {
-            "answer": str,           # Respuesta generada
-            "sources": list,         # Documentos usados con similitud
-            "chunks_used": int,      # Número de chunks recuperados
-            "latency_ms": int,       # Latencia total en ms
-            "has_context": bool,     # Si se encontró contexto relevante
-            "model_used": str        # Modelo LLM usado
+            "answer": str,             # Respuesta generada
+            "sources": list,           # Documentos usados con similitud
+            "chunks_used": int,        # Número de chunks recuperados
+            "latency_ms": int,         # Latencia total en ms
+            "has_context": bool,       # Si se encontró contexto relevante
+            "model_used": str,         # Modelo LLM usado
+            "original_query": str,     # Query tal como llegó del usuario
+            "embedded_query": str,     # Query usada para el embed (reformulada o igual)
+            "query_reformulated": bool # True si se reformuló
         }
 
     Raises:
@@ -147,7 +155,24 @@ def search(
     start_time = time.time()
     logger.info(f"Búsqueda iniciada: '{query[:80]}...' (user: {user_id[:8]}...)")
 
-    # Step 1: Embed la query
+    original_query = query
+    query_reformulated = False
+
+    # Step 0.5: Reformulación si hay historial (chat multi-turn)
+    # Sin esto, queries como "¿y si llevo 15?" no recuperan chunks porque su
+    # embedding no captura el contexto de la pregunta anterior.
+    if history:
+        logger.info(f"Step 0/4: Reformulando query con historial ({len(history)} turnos)...")
+        llm = get_llm_client()
+        reformulated = llm.reformulate_query(query, history, language=language)
+        if reformulated and reformulated != query:
+            logger.info(f"  ✓ Query reformulada: '{reformulated[:80]}...'")
+            query = reformulated
+            query_reformulated = True
+        else:
+            logger.info("  ✓ Query ya era autónoma (sin reformulación)")
+
+    # Step 1: Embed la query (potencialmente reformulada)
     logger.info("Step 1/4: Generando embedding de la query...")
     embedder = get_embedder()
     try:
@@ -292,7 +317,11 @@ def search(
         "has_conflict": has_conflict,
         "disputed_chunks": len(disputed_chunks),
         "graph_contributed": bool(graph_block),
-        "model_used": llm.model
+        "model_used": llm.model,
+        # Trazabilidad de la reformulación (útil para debug y memoria TFM)
+        "original_query": original_query,
+        "embedded_query": query,
+        "query_reformulated": query_reformulated,
     }
 
     logger.info(f"✅ Búsqueda completada en {latency_ms}ms")

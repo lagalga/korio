@@ -49,9 +49,14 @@ const TENANTS = {
 const state = {
   tenantKey: 'delos',
   userIndex: 0,
-  history: [],
+  history: [],          // historial de queries (para el sidebar)
+  conversation: [],     // turnos de chat para multi-turn: [{role, content}, ...]
   selectedFile: null,
 }
+
+// Cuántos turnos del chat enviamos al backend (3 pares user/assistant = 6 turnos).
+// Más turnos = mejor reformulación pero más tokens al LLM reformulador.
+const CHAT_HISTORY_TURNS = 6
 
 // ─── DOM refs ─────────────────────────────────────────────────────────────────
 
@@ -285,6 +290,10 @@ const doSearch = async (query) => {
   const user   = currentUser()
   const tenant = currentTenant()
 
+  // Memoria de chat: enviamos los últimos N turnos para que el backend pueda
+  // reformular la query si depende del contexto (ej: "¿y si llevo 15?")
+  const history = state.conversation.slice(-CHAT_HISTORY_TURNS)
+
   const res = await fetch(`${API_BASE}/search`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -292,6 +301,7 @@ const doSearch = async (query) => {
       query,
       user_id: user.id,
       tenant_id: tenant.id,
+      history: history.length ? history : undefined,
     }),
   })
 
@@ -339,6 +349,16 @@ const sendQuery = async () => {
     const result = await doSearch(query)
     removeLoading()
     renderMessage(query, result)
+    // Guardar el turno en la conversación solo si la respuesta tuvo contexto
+    // (para no contaminar el historial con "no encontré información").
+    if (result.has_context && result.answer) {
+      state.conversation.push({ role: 'user', content: query })
+      state.conversation.push({ role: 'assistant', content: result.answer })
+      // Cap defensivo a 20 turnos en memoria para no crecer indefinidamente
+      if (state.conversation.length > 20) {
+        state.conversation = state.conversation.slice(-20)
+      }
+    }
   } catch (err) {
     removeLoading()
     const pair = document.createElement('div')
@@ -363,6 +383,7 @@ const sendQuery = async () => {
 
 const clearSession = () => {
   state.history = []
+  state.conversation = []
   renderHistory()
   chat.innerHTML = ''
   chat.appendChild(chatEmpty)
@@ -495,6 +516,8 @@ const updateSendBtn = () => {
 tenantSelect.addEventListener('change', () => {
   state.tenantKey = tenantSelect.value
   state.userIndex = 0
+  // Reset conversación al cambiar tenant: el contexto previo ya no aplica.
+  state.conversation = []
   renderUserSelect()
   renderSuggestions()
   renderIngestSpaces()
@@ -502,6 +525,8 @@ tenantSelect.addEventListener('change', () => {
 
 userSelect.addEventListener('change', () => {
   state.userIndex = parseInt(userSelect.value, 10)
+  // Reset conversación al cambiar usuario: distintos permisos RLS = distinto contexto.
+  state.conversation = []
   renderUserBadge()
 })
 

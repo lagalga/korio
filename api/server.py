@@ -60,6 +60,12 @@ app.add_middleware(
 
 # ─── Modelos de Request / Response ──────────────────────────────────────────
 
+class ChatTurn(BaseModel):
+    """Un turno de la conversación previa (para chat multi-turn)."""
+    role:    str = Field(..., pattern="^(user|assistant)$", description="Quién emitió el turno")
+    content: str = Field(..., min_length=1, max_length=4000, description="Contenido del turno")
+
+
 class SearchRequest(BaseModel):
     """Petición de búsqueda RAG."""
     query: str = Field(..., min_length=1, max_length=2000, description="Pregunta en lenguaje natural")
@@ -68,6 +74,16 @@ class SearchRequest(BaseModel):
     limit: int = Field(5, ge=1, le=20, description="Número máximo de chunks a recuperar")
     threshold: float = Field(0.4, ge=0.0, le=1.0, description="Similitud mínima (0-1)")
     language: str = Field("es", pattern="^(es|en)$", description="Idioma de la respuesta")
+    history: Optional[list[ChatTurn]] = Field(
+        None,
+        max_length=20,
+        description=(
+            "Historial conversacional opcional (últimos turnos del chat). "
+            "Si se proporciona, la query se reformula como pregunta autónoma antes "
+            "del embedding, lo que permite chat multi-turn. Solo los últimos 6 turnos "
+            "se usan para la reformulación."
+        )
+    )
 
     model_config = {
         "json_schema_extra": {
@@ -82,15 +98,19 @@ class SearchRequest(BaseModel):
 
 class SearchResponse(BaseModel):
     """Respuesta de búsqueda RAG."""
-    answer:           str
-    sources:          list
-    chunks_used:      int
-    latency_ms:       int
-    has_context:      bool
-    model_used:       str
-    has_conflict:     bool = False    # True si la respuesta tocó chunks en disputa
-    disputed_chunks:  int  = 0        # Número de chunks 'disputed' usados
-    graph_contributed: bool = False   # True si el grafo de conocimiento aportó contexto
+    answer:             str
+    sources:            list
+    chunks_used:        int
+    latency_ms:         int
+    has_context:        bool
+    model_used:         str
+    has_conflict:       bool = False    # True si la respuesta tocó chunks en disputa
+    disputed_chunks:    int  = 0        # Número de chunks 'disputed' usados
+    graph_contributed:  bool = False    # True si el grafo de conocimiento aportó contexto
+    # Trazabilidad de chat multi-turn
+    original_query:     Optional[str] = None
+    embedded_query:     Optional[str] = None
+    query_reformulated: bool = False
 
 
 class IngestRequest(BaseModel):
@@ -227,7 +247,17 @@ async def search_knowledge_base(request: SearchRequest):
 
     El usuario SOLO puede ver documentos de sus espacios asignados.
     """
-    logger.info(f"POST /search — user: {request.user_id[:8]}... query: '{request.query[:50]}...'")
+    history_count = len(request.history) if request.history else 0
+    logger.info(
+        f"POST /search — user: {request.user_id[:8]}... "
+        f"query: '{request.query[:50]}...' history: {history_count} turnos"
+    )
+
+    # Convertir history a la forma que espera search.py (lista de dicts)
+    history_payload = (
+        [{"role": t.role, "content": t.content} for t in request.history]
+        if request.history else None
+    )
 
     try:
         result = run_search(
@@ -236,7 +266,8 @@ async def search_knowledge_base(request: SearchRequest):
             tenant_id=request.tenant_id,
             limit=request.limit,
             threshold=request.threshold,
-            language=request.language
+            language=request.language,
+            history=history_payload,
         )
         return result
 
