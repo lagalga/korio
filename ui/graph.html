@@ -239,10 +239,23 @@ const renderGraph = async () => {
     const sub = await subRes.json()
     const contras = contraRes.ok ? await contraRes.json() : { contradictions: [] }
 
-    if (!sub.nodes || sub.nodes.length === 0) {
-      statusText.textContent = 'No hay nodos en el grafo todavía'
+    const nodeCount = (sub.nodes || []).length
+    const edgeCount = (sub.edges || []).length
+
+    // Limpiar el canvas si quedaba algo del render anterior
+    if (network) { network.destroy(); network = null }
+
+    if (nodeCount === 0) {
+      statusText.textContent = `${TENANTS[tenantSelect.value].name} · sin datos en el grafo`
+      statsBox.innerHTML = `<strong>0</strong> nodos · <strong>0</strong> aristas · <strong>0</strong> contradicciones`
+      contraBox.innerHTML = '<div class="empty">Este usuario no tiene acceso a ningún nodo del grafo</div>'
+      // Mensaje en el canvas en lugar de dejarlo en blanco
+      $('network').innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#94a3b8;font-size:14px;text-align:center;padding:32px;">Este usuario aún no tiene acceso a ningún nodo del grafo en este tenant.<br><br>Prueba con otro usuario o ingiere un documento.</div>'
       return
     }
+
+    // Limpiar contenido HTML previo en el div del network (si lo había)
+    $('network').innerHTML = ''
 
     // Render network
     const data = {
@@ -282,7 +295,6 @@ const renderGraph = async () => {
       },
       layout: { improvedLayout: false },  // mucho más rápido con 200+ nodos
     }
-    if (network) { network.destroy(); network = null }
     network = new vis.Network($('network'), data, options)
 
     // Cuando termina la simulación física, encuadra el viewport
