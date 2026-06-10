@@ -599,6 +599,21 @@ async def graph_subgraph(tenant_id: str, user_id: str, limit: int = 200):
             limit=limit,
         )
         # Transformar al formato esperado por vis-network
+        # Paleta:
+        #   Documento → azul oscuro (#161632)
+        #   Chunk     → gris medio (#94a3b8) [active], blanco+borde gris [superseded], rojo [disputed]
+        #   Entidad   → azul Korio (#5B6AF5)
+        #   Claim     → ámbar (#f59e0b) [active], blanco+borde gris [superseded], rojo [disputed]
+        #   Arista CONTRADICTS → rojo grueso
+        BASE_COLORS = {
+            "Document": "#161632",
+            "Chunk":    "#94a3b8",
+            "Entity":   "#5B6AF5",
+            "Claim":    "#f59e0b",
+        }
+        DISPUTED_COLOR    = {"background": "#dc2626", "border": "#991b1b"}  # rojo
+        SUPERSEDED_COLOR  = {"background": "#ffffff", "border": "#cbd5e1"}  # blanco con borde gris
+
         vis_nodes = []
         for n in sg["nodes"]:
             label = (
@@ -608,18 +623,19 @@ async def graph_subgraph(tenant_id: str, user_id: str, limit: int = 200):
                 or str(n.get("node_id", ""))[:8]
             )
             kind = n.get("kind") or "Unknown"
-            # Color por tipo de nodo
-            color_map = {
-                "Document": "#161632",
-                "Chunk":    "#94a3b8",
-                "Entity":   "#5B6AF5",
-                "Claim":    "#f59e0b",
-            }
-            color = color_map.get(kind, "#cbd5e1")
-            if n.get("chunk_status") == "superseded":
-                color = "#cbd5e1"  # gris claro
-            elif n.get("chunk_status") == "disputed":
-                color = "#fb923c"  # naranja
+            chunk_status = n.get("chunk_status")
+
+            # Decidir color según tipo y estado
+            if kind in ("Chunk", "Claim"):
+                if chunk_status == "disputed":
+                    color = DISPUTED_COLOR
+                elif chunk_status == "superseded":
+                    color = SUPERSEDED_COLOR
+                else:
+                    color = BASE_COLORS[kind]
+            else:
+                color = BASE_COLORS.get(kind, "#cbd5e1")
+
             vis_nodes.append({
                 "id":    n["internal_id"],
                 "label": str(label)[:40],
@@ -630,13 +646,14 @@ async def graph_subgraph(tenant_id: str, user_id: str, limit: int = 200):
         vis_edges = []
         for e in sg["edges"]:
             ekind = e.get("kind", "")
-            color = "#fb923c" if ekind == "CONTRADICTS" else "#cbd5e1"
-            width = 3 if ekind == "CONTRADICTS" else 1
+            is_contradiction = (ekind == "CONTRADICTS")
+            color = "#dc2626" if is_contradiction else "#cbd5e1"
+            width = 4 if is_contradiction else 1
             vis_edges.append({
                 "from":  e["source"],
                 "to":    e["target"],
                 "label": ekind,
-                "color": {"color": color},
+                "color": {"color": color, "highlight": "#dc2626"},
                 "width": width,
                 "arrows": "to",
             })
