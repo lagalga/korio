@@ -77,6 +77,24 @@ def _graph_context(query: str, tenant_id: str, allowed_space_ids: List[str]) -> 
         )
         if not claims:
             return ""
+
+        # Rerank por relevancia: predicate match vale más que value, y value
+        # más que subject. Sin esto, keywords genéricas ("política") saturan
+        # el resultado con claims sobre el subject equivocado y los claims
+        # informativos (ej. value="35 horas/semana") quedan fuera del top-8.
+        def _score(c):
+            score = 0
+            pred = (c.get("predicate") or "").lower()
+            subj = (c.get("subject") or "").lower()
+            val  = (c.get("value") or "").lower()
+            for kw in keywords:
+                if kw in pred: score += 3
+                if kw in val:  score += 2
+                if kw in subj: score += 1
+            return score
+
+        claims.sort(key=_score, reverse=True)
+
         lines = []
         seen_keys = set()
         for c in claims:
