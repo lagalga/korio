@@ -12,7 +12,7 @@ Korio permite a una organización consultar en lenguaje natural el conocimiento 
 - **Grafo de conocimiento** en FalkorDB con entidades + claims atómicos extraídos por LLM. Search híbrido vector + grafo rescata datos cuando la query está semánticamente reformulada respecto al texto fuente.
 - **Ingesta automática multi-canal** vía n8n: Gmail (label vigilada), Drive (carpeta vigilada), Slack (`/korio ¿pregunta?` con respuesta en thread). Cada documento lleva `source_metadata` (JSONB) con el contexto del canal de origen.
 
-**Estado:** Phases 1–7.2 completadas · Producción en [korio.es](https://korio.es) · Demo TFM 2 julio 2026 · Defensa 9 julio 2026
+**Estado:** Phases 1–7.3 completadas · **v0.3.0** · Producción en [korio.es](https://korio.es) · Demo TFM 2 julio 2026 · Defensa 9 julio 2026
 
 ---
 
@@ -24,7 +24,8 @@ Korio permite a una organización consultar en lenguaje natural el conocimiento 
 | [korio.es/ui](https://korio.es/ui) | App de chat (RAG + ingesta + gobernanza) |
 | [korio.es/ui/graph.html](https://korio.es/ui/graph.html) | **Visualización del grafo de conocimiento** |
 | [korio.es/docs](https://korio.es/docs) | Swagger UI (FastAPI) con Authorize para endpoints admin |
-| [n8n.korio.es](https://n8n.korio.es) | Editor de workflows (5 activos: HITL + Cron + Gmail + Drive + Slack) |
+| [korio.es/mcp/sse](https://korio.es/mcp/sse) | **Servidor MCP HTTP+SSE (Phase 7.3)** — 3 tools (`search_knowledge_base`, `list_pending_conflicts`, `list_spaces`), auth `X-Korio-MCP-Key` |
+| [n8n.korio.es](https://n8n.korio.es) | Editor de workflows (**6 activos**: Pipeline event bus + HITL + Cron + Gmail + Drive + Slack) |
 
 ---
 
@@ -188,7 +189,7 @@ Los conflictos sin resolver reciben recordatorios automáticos por email:
 | 3 | Recordatorio Nº 1 |
 | 7 | Recordatorio Nº 2 |
 | 14 | Recordatorio Nº 3 urgente |
-| 21 | Auto-cierre como `timeout_kept_both` (ambos documentos activos) |
+| 21 | Auto-cierre como `timeout_inconclusive` (ambos chunks excluidos del RAG hasta revisión manual) |
 
 Disparado por workflow n8n Schedule Trigger diario a las 09:00 Madrid que llama a `POST /escalate-reviews`. Cadencia parametrizable vía `.env`.
 
@@ -268,9 +269,15 @@ Usuarios:
 ## Tests
 
 ```bash
-python -m pytest tests/ -v                  # 20/20 ✅ (~21s)
-python -m pytest tests/test_rls.py -v       # 10/10 RLS ✅ (~1s)
-python -m pytest tests/test_search.py -v    # 10/10 RAG ✅ (~20s)
+python -m pytest tests/ -v    # 28/28 ✅ (~25s)
+
+# Por suite:
+# test_rls.py                        10/10 ✅  RLS multi-tenant
+# test_search.py                     10/10 ✅  RAG vectorial
+# test_atomic_ingest.py               3/3  ✅  Transaccionalidad ACID (incluye rollback demostrado)
+# test_pipeline_agentic.py            2/2  ✅  Fachada agéntica (5 roles del Entregable 3)
+# test_query_time_detection.py        1/1  ✅  Caso extremo E4: conflictos silenciosos query-time
+# test_inconclusive_and_policies.py   2/2  ✅  Estado inconclusive + política reutilizable
 ```
 
 ---
@@ -280,6 +287,10 @@ python -m pytest tests/test_search.py -v    # 10/10 RAG ✅ (~20s)
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — Sistema, modelo de datos, RLS
 - [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) — Setup en Hetzner desde cero
 - [`docs/ROADMAP.md`](docs/ROADMAP.md) — Fases pasadas + futuras
+- [`docs/AGENTIC-INGESTION.md`](docs/AGENTIC-INGESTION.md) — Pipeline ACID + 6 reglas Entregable 3 + comparativa E4 vs Korio
+- [`docs/MCP-SERVER.md`](docs/MCP-SERVER.md) — Phase 7.3: arquitectura MCP HTTP+SSE, Claude Desktop
+- [`docs/MULTI-TENANT-INGESTION.md`](docs/MULTI-TENANT-INGESTION.md) — Diseño Phase 8: OAuth multi-tenant configurable
+- [`docs/CHAT-PIPELINE-GUARDRAILS.md`](docs/CHAT-PIPELINE-GUARDRAILS.md) — Diseño Phase 8: guardrails n8n + Lakera/Presidio
 - [`CLAUDE.md`](CLAUDE.md) — Memoria del proyecto para Claude Code
 
 ---
@@ -288,15 +299,18 @@ python -m pytest tests/test_search.py -v    # 10/10 RAG ✅ (~20s)
 
 | Métrica | Valor |
 |---|---|
-| Tests | 20/20 ✅ |
+| Versión | **v0.3.0** (11 junio 2026) |
+| Tests | **28/28 ✅** (20 RLS+RAG + 8 agéntica/ACID) |
 | Latencia RAG vector-puro | ~1.0–3.3s |
 | Latencia RAG híbrido (vector + grafo) | ~1.0s |
 | Latencia embedding | ~0.8s |
+| Latencia detección query-time | ~0.1s adicional (RPC SQL par a par) |
+| Umbral conflicto silencioso (query-time) | 0.85 (configurable `KORIO_QUERY_TIME_CONFLICT_THRESHOLD`) |
 | Tiempo backfill grafo (9 docs → 233 claims) | 107s |
-| Phases completadas | 1 · 2 · 3 · 4 · 5 · 6 · 7.1 |
-| Nodos en grafo de producción | 238 |
-| Aristas en grafo de producción | 300 |
-| Contradicciones detectadas | 3 |
+| Phases completadas | 1 · 2 · 3 · 4 · 5 · 6 · 7.1 · 7.2 · 7.3 |
+| Migraciones SQL aplicadas | 13 |
+| Workflows n8n activos | 6 |
+| MCP server | korio.es/mcp/sse — Claude Desktop conectado |
 | Producción | korio.es + grafo en vivo |
 
 ---
@@ -306,22 +320,33 @@ python -m pytest tests/test_search.py -v    # 10/10 RAG ✅ (~20s)
 ```
 korio/
 ├── api/
-│   └── server.py             # FastAPI: /search, /ingest, /upload, /review,
-│                             #          /waitlist, /escalate-reviews,
-│                             #          /graph/contradictions, /graph/entity/{name},
-│                             #          /graph/subgraph, /health
+│   ├── server.py             # FastAPI: /search, /ingest, /upload, /review,
+│   │                         #          /waitlist, /escalate-reviews,
+│   │                         #          /graph/*, /health, DELETE /document/{id}
+│   │                         #          /mcp/* (sub-app SSE con MCPAuthASGI)
+│   └── mcp_server.py         # FastMCP: 3 tools (Phase 7.3)
 ├── src/
-│   ├── search.py             # Orquestador RAG híbrido vector + grafo
-│   ├── ingest.py             # Orquestador ingesta + dedup + conflictos + grafo
-│   ├── conflict_detector.py  # Detección + auto-resolución + HITL
-│   ├── escalation.py         # Cron de escalada HITL
-│   ├── graph_client.py       # Wrapper FalkorDB (Phase 7.1)
+│   ├── search.py             # RAG híbrido vector + grafo + detección query-time (Step 2.5)
+│   ├── ingest.py             # Pipeline ACID: IO → dedupe → RPC atómico → grafo → conflictos
+│   ├── conflict_detector.py  # Detección + auto-resolución + policies + HITL
+│   ├── escalation.py         # Cron HITL: recordatorios + timeout → inconclusive
+│   ├── policies.py           # Políticas reutilizables (Regla 4 del E3)
+│   ├── graph_client.py       # Wrapper FalkorDB multi-tenant (Phase 7.1)
 │   ├── entity_extractor.py   # Mistral structured JSON (Phase 7.1)
 │   ├── embedder.py           # Wrapper Ollama nomic-embed-text
 │   ├── chunker.py            # RecursiveTextSplitter
 │   ├── preprocessor.py       # MarkItDown + Presidio (es_core_news_lg)
 │   ├── llm_client.py         # Mistral API + Ollama fallback + prompt RAG
-│   └── db.py                 # Supabase client + RLS + conflict_reviews
+│   ├── db.py                 # Supabase client + RLS + conflict_reviews
+│   └── agents/               # Fachada agéntica (Phase 7.2+ / E3)
+│       ├── base.py           #   BaseAgent con PEAS docstring
+│       ├── ingestor.py       #   Rol Ingestor
+│       ├── detector.py       #   Rol Detector
+│       ├── arbitrator.py     #   Rol Árbitro
+│       ├── supervisor.py     #   Rol Supervisor HITL
+│       ├── curator.py        #   Rol Curador
+│       ├── pipeline.py       #   Orquestador Pipeline(tenant_id).run_ingest()
+│       └── events.py         #   emit() → pipeline_events + webhook async n8n
 ├── ui/
 │   ├── index.html            # App chat
 │   ├── graph.html            # Visualización grafo (vis-network)
@@ -329,16 +354,45 @@ korio/
 │   └── js/main.js
 ├── landing/                  # Landing teaser de korio.es
 ├── tests/
-│   ├── test_rls.py           # 10 tests RLS ✅
-│   └── test_search.py        # 10 tests RAG ✅
-├── supabase/migrations/      # 8 migraciones SQL
-├── docs/                     # ARCHITECTURE, DEPLOYMENT, ROADMAP
+│   ├── test_rls.py                      # 10/10 ✅ RLS multi-tenant
+│   ├── test_search.py                   # 10/10 ✅ RAG vectorial
+│   ├── test_atomic_ingest.py            #  3/3  ✅ Transaccionalidad ACID
+│   ├── test_pipeline_agentic.py         #  2/2  ✅ Fachada agéntica
+│   ├── test_query_time_detection.py     #  1/1  ✅ Caso extremo E4
+│   └── test_inconclusive_and_policies.py #  2/2  ✅ inconclusive + policy reuse
+├── supabase/migrations/      # 13 migraciones SQL (001–013)
+├── docs/                     # ARCHITECTURE, DEPLOYMENT, ROADMAP, AGENTIC-INGESTION,
+│                             # MCP-SERVER, MULTI-TENANT-INGESTION, CHAT-PIPELINE-GUARDRAILS
 ├── deploy/                   # systemd, nginx, setup.sh, refresh-landing.sh
 ├── scripts/
-│   ├── benchmark.py
-│   └── graph_backfill.py     # Pobla el grafo con todos los chunks existentes
+│   ├── benchmark.py          # Latencias p50/p95 por escenario
+│   ├── graph_backfill.py     # Pobla el grafo con todos los chunks existentes
+│   └── mcp_create_key.py     # CLI create/list/revoke de MCP API keys
 └── data-synthetic/           # Documentos de prueba (en .gitignore)
 ```
+
+---
+
+## Memoria TFM
+
+La memoria se redacta en un **Claude Chat Project separado** (para no mezclar el contexto de implementación con el de escritura académica). Este README es el punto de referencia técnica para ese proyecto.
+
+- **Google Doc:** https://docs.google.com/document/d/1RN53jKdePExVhgR2AHE8sGQCbwSSJ1rnH57giQtKhok/edit
+- **Plantilla:** Nuclio Digital School — 7 capítulos + anexos
+- **Estado a 11 junio 2026:** Capítulos 1–3 completos, 4–7 pendientes
+
+| Capítulo | Contenido | Estado |
+|---|---|---|
+| 1. Introducción | Caso de negocio + objetivos + KPIs | ✅ Completo |
+| 2. Contexto | Sector, benchmarking (Glean, Guru, Hyper, Monora…) | ✅ Completo |
+| 3. Metodología | Enfoque, stack, proyecciones ROI | ✅ Completo |
+| 4. Desarrollo y resultados | Prototipo funcional + casos de uso | 🔲 Pendiente |
+| 5. Conclusiones | Hallazgos, limitaciones, líneas futuras | 🔲 Pendiente |
+| 6. Bibliografía | 24 referencias [F01–F24b] | ✅ Base completa |
+| 7. Anexos | Materiales complementarios | 🔲 Pendiente |
+
+Los docs técnicos en `docs/` son la base de los capítulos pendientes:
+`AGENTIC-INGESTION.md` → cap. 4.1 · `MCP-SERVER.md` → cap. 4.2 · `MULTI-TENANT-INGESTION.md` + `CHAT-PIPELINE-GUARDRAILS.md` → cap. 5.5
 
 ---
 
