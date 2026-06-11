@@ -34,8 +34,26 @@ from typing import Optional, Tuple
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 from mcp.server.fastmcp import FastMCP
+from mcp.server.transport_security import TransportSecuritySettings
 
 logger = logging.getLogger(__name__)
+
+
+# Hosts permitidos en el header `Host` del request HTTP. El SDK MCP trae
+# protección anti-DNS-rebinding que por defecto solo acepta localhost; en
+# producción detrás de nginx el Host llega como `korio.es`, así que hay que
+# declararlo. Se puede ampliar vía env `KORIO_MCP_ALLOWED_HOSTS` (coma-separado).
+_default_allowed_hosts = ["korio.es", "www.korio.es", "127.0.0.1", "localhost"]
+_env_hosts = os.getenv("KORIO_MCP_ALLOWED_HOSTS", "")
+_allowed_hosts = [h.strip() for h in _env_hosts.split(",") if h.strip()] or _default_allowed_hosts
+
+# `allowed_origins` aplica solo si el cliente envía `Origin` (navegadores).
+# Para Claude Desktop / curl no es relevante, pero lo dejamos coherente.
+_transport_security = TransportSecuritySettings(
+    enable_dns_rebinding_protection=True,
+    allowed_hosts=_allowed_hosts,
+    allowed_origins=[f"https://{h}" for h in _allowed_hosts if "." in h],
+)
 
 
 # ─── Identidad del request (contextvars) ────────────────────────────────────
@@ -124,6 +142,7 @@ def resolve_mcp_key(plaintext: str) -> Optional[Tuple[str, str]]:
 
 mcp = FastMCP(
     name="Korio",
+    transport_security=_transport_security,
     instructions=(
         "Korio es el cerebro corporativo (RAG multi-tenant) de la empresa. "
         "Usa `search_knowledge_base` para responder preguntas en lenguaje "
