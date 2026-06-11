@@ -595,6 +595,46 @@ async def review_conflict(
 
         logger.info(f"HITL resuelto: review_id={review_id} action={action}")
 
+        # Persistir la decisión como política reutilizable (Regla 4 del E3).
+        # Conflictos similares posteriores se resolverán automáticamente sin
+        # crear un nuevo HITL. Best-effort: no romper el flow si falla.
+        try:
+            from policies import save_policy_from_review
+            # Para construir el subject_pattern necesitamos el texto del chunk
+            # nuevo que estaba en disputa. Lo leemos de embeddings.
+            chunk_row = db.client.table("embeddings").select("chunk_text") \
+                .eq("id", int(new_chunk_id)).execute() if new_chunk_id else None
+            new_chunk_text = (chunk_row.data or [{}])[0].get("chunk_text", "") if chunk_row else ""
+            if new_chunk_text:
+                policy_id = save_policy_from_review(
+                    db,
+                    review_id=review_id,
+                    action=action,
+                    new_chunk_text=new_chunk_text,
+                    reason=f"Aprendida del HITL action={action}",
+                )
+                if policy_id:
+                    logger.info(f"📚 Policy persistida desde HITL {review_id[:8]}… → policy_id={policy_id}")
+        except Exception:
+            logger.exception("Error persistiendo policy desde HITL (no crítico)")
+
+        # Emitir USER_DECISION al bus de eventos (Supervisor → Curator)
+        try:
+            from agents.events import emit, EventType, Agent, new_operation_id
+            emit(
+                EventType.USER_DECISION,
+                source_agent=Agent.SUPERVISOR,
+                tenant_id=tenant_id,
+                operation_id=new_operation_id(),
+                payload={
+                    "review_id":  review_id,
+                    "resolution": action,
+                    "applied_by": "human",
+                },
+            )
+        except Exception:
+            pass
+
         # Respuesta HTML amigable para el revisor
         html = f"""<!DOCTYPE html>
 <html lang="es">
