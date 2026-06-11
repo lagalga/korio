@@ -223,24 +223,37 @@ def run_escalation(db) -> EscalationResult:
 
 def _apply_timeout(db, review: dict, now: datetime) -> None:
     """
-    Aplica el auto-cierre por timeout: ambos chunks vuelven a active, resolution
-    queda como 'timeout_kept_both'. La respuesta del RAG seguirá mostrando ambas
-    versiones (banner ⚠️) pero ya no aparecerá como pending en futuros ciclos.
+    Aplica el auto-cierre por timeout: ambos chunks pasan a estado
+    `inconclusive` (excluidos del RAG hasta intervención manual). Cumple la
+    Regla 5 del Entregable 3 — "Reactivación manual obligatoria": el sistema
+    NO toma decisiones por inacción del Supervisor.
+
+    Resolution queda como `timeout_inconclusive`. Comparado con la versión
+    previa (`timeout_kept_both` que dejaba ambos en `active` y el RAG seguía
+    presentando ambas versiones), este comportamiento es más conservador:
+    si el humano no responde en 21 días, el contenido controvertido sale
+    del corpus consultable hasta que un admin lo reactive.
+
+    Comportamiento opcional via env (KORIO_TIMEOUT_KEEP_BOTH=1) para
+    mantener la lógica antigua si algún tenant lo necesita.
     """
+    keep_both_legacy = os.getenv("KORIO_TIMEOUT_KEEP_BOTH", "0") == "1"
+    resolution = "timeout_kept_both" if keep_both_legacy else "timeout_inconclusive"
+    new_status = "active"            if keep_both_legacy else "inconclusive"
+
     db.client.table("conflict_reviews").update({
-        "resolution": "timeout_kept_both",
+        "resolution": resolution,
         "timeout_at": now.isoformat(),
         "reviewed_at": now.isoformat(),
     }).eq("id", review["id"]).execute()
 
-    # Ambos chunks vuelven a active (estaban: existing=disputed, new=active)
     existing_chunk_id = review.get("existing_chunk_id")
     new_chunk_id      = review.get("new_chunk_id")
     tenant_id         = review.get("tenant_id")
     if existing_chunk_id:
-        db.update_chunk_status(int(existing_chunk_id), "active")
+        db.update_chunk_status(int(existing_chunk_id), new_status)
     if new_chunk_id:
-        db.update_chunk_status(int(new_chunk_id), "active")
+        db.update_chunk_status(int(new_chunk_id), new_status)
 
     # Sincronizar el grafo (opt-in via env)
     if os.getenv("KORIO_GRAPH_ENABLED", "0") == "1":
@@ -248,13 +261,35 @@ def _apply_timeout(db, review: dict, now: datetime) -> None:
             from graph_client import get_graph_client
             gc = get_graph_client()
             if existing_chunk_id:
-                gc.update_chunk_status(int(existing_chunk_id), tenant_id, "active")
+                gc.update_chunk_status(int(existing_chunk_id), tenant_id, new_status)
             if new_chunk_id:
-                gc.update_chunk_status(int(new_chunk_id), tenant_id, "active")
+                gc.update_chunk_status(int(new_chunk_id), tenant_id, new_status)
         except Exception as e:
             logger.warning(f"Grafo: error sincronizando timeout {review['id']}: {e}")
 
-    logger.info(f"Review {review['id']} cerrada por timeout ({TIMEOUT_DAYS} días)")
+    # Emitir evento al bus de eventos (Supervisor → Curator)
+    try:
+        from agents.events import emit, EventType, Agent, new_operation_id
+        emit(
+            EventType.USER_DECISION,
+            source_agent=Agent.SUPERVISOR,
+            tenant_id=tenant_id,
+            operation_id=new_operation_id(),
+            document_id=str(review.get("new_document_id") or "") or None,
+            payload={
+                "review_id":   str(review["id"]),
+                "resolution":  resolution,
+                "applied_by":  "timeout",
+                "timeout_days": TIMEOUT_DAYS,
+            },
+        )
+    except Exception:
+        pass
+
+    logger.info(
+        f"Review {review['id']} cerrada por timeout ({TIMEOUT_DAYS} días) → "
+        f"resolution={resolution}, chunks→{new_status}"
+    )
 
 
 def _dispatch_tenant_batch(

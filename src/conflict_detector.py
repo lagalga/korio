@@ -136,11 +136,12 @@ class ConflictReport:
         hitl_email_sent:  True si el webhook HITL respondió OK (email enviado)
         conflicts:        Lista de conflictos individuales
     """
-    total_conflicts:  int = 0
-    auto_resolved:    int = 0
-    pending_review:   int = 0
-    hitl_email_sent:  bool = False
-    conflicts:        List[ConflictItem] = field(default_factory=list)
+    total_conflicts:    int = 0
+    auto_resolved:      int = 0
+    policy_resolved:    int = 0    # Resueltos automáticamente por policy aprendida
+    pending_review:     int = 0
+    hitl_email_sent:    bool = False
+    conflicts:          List[ConflictItem] = field(default_factory=list)
 
     @property
     def has_conflicts(self) -> bool:
@@ -157,6 +158,7 @@ class ConflictReport:
         return {
             "total_conflicts": self.total_conflicts,
             "auto_resolved":   self.auto_resolved,
+            "policy_resolved": self.policy_resolved,
             "pending_review":  self.pending_review,
             "has_conflicts":   self.has_conflicts,
             "has_pending":     self.has_pending,
@@ -320,34 +322,89 @@ def detect_conflicts(
             else:
                 existing_version_ts = datetime.now(timezone.utc)
 
-            # Decidir resolución
-            resolution, reason = _decide_resolution(
-                new_authority=new_doc_authority,
-                existing_authority=existing_authority,
-                new_version_ts=new_doc_version_ts,
-                existing_version_ts=existing_version_ts,
-            )
+            # 1) Regla 4 del E3 — prevalencia de políticas sobre reglas base.
+            # Consultar `policies` activas antes de razonar fecha/autoridad.
+            policy_applied = None
+            try:
+                from policies import find_applicable_policy, increment_policy_applied
+                policy_applied = find_applicable_policy(
+                    db,
+                    tenant_id=tenant_id,
+                    space_id=space_id,
+                    new_chunk_text=chunk_text,
+                )
+            except Exception as e:
+                logger.warning(f"Error consultando policies: {e}")
+
+            if policy_applied:
+                # La política reemplaza al Árbitro. Mapeamos su decisión a la
+                # acción concreta sobre los chunks.
+                policy_decision = policy_applied["decision"]
+                resolution = policy_decision  # ej: 'policy_new_wins'
+                reason = (
+                    f"Política aplicada (policy_id={policy_applied['id']}, "
+                    f"patrón='{policy_applied['subject_pattern'][:30]}…')"
+                )
+                logger.info(
+                    f"  📚 Política {policy_applied['id']} aplicada → {policy_decision} — "
+                    f"chunk {chunk_id} vs {existing_chunk_id} (sim={similarity:.2f})"
+                )
+                try:
+                    increment_policy_applied(db, policy_applied["id"])
+                except Exception:
+                    pass
+            else:
+                # Sin política: flujo clásico (fecha → autoridad → pending).
+                resolution, reason = _decide_resolution(
+                    new_authority=new_doc_authority,
+                    existing_authority=existing_authority,
+                    new_version_ts=new_doc_version_ts,
+                    existing_version_ts=existing_version_ts,
+                )
 
             review_id    = None
             review_token = None
 
             # Aplicar resolución en base de datos
             try:
-                if resolution == "auto_new_wins":
+                if resolution in ("auto_new_wins", "policy_new_wins"):
                     # El chunk existente queda superseded
                     db.update_chunk_status(existing_chunk_id, "superseded")
                     _graph_update_chunk_status(tenant_id, existing_chunk_id, "superseded")
+                    tag = "📚 Policy" if resolution.startswith("policy_") else "⚡ Auto"
                     logger.info(
-                        f"  ⚡ Auto-resolución: chunk {existing_chunk_id} superseded "
+                        f"  {tag}: chunk {existing_chunk_id} superseded "
                         f"por {chunk_id} (sim={similarity:.2f}) — {reason}"
                     )
 
-                elif resolution == "auto_existing_wins":
+                elif resolution in ("auto_existing_wins", "policy_existing_wins"):
                     # El nuevo chunk queda superseded
                     db.update_chunk_status(chunk_id, "superseded")
                     _graph_update_chunk_status(tenant_id, chunk_id, "superseded")
+                    tag = "📚 Policy" if resolution.startswith("policy_") else "⚡ Auto"
                     logger.info(
-                        f"  ⚡ Auto-resolución: nuevo chunk {chunk_id} superseded "
+                        f"  {tag}: nuevo chunk {chunk_id} superseded "
+                        f"(sim={similarity:.2f}) — {reason}"
+                    )
+
+                elif resolution == "policy_kept_both":
+                    # La política dice mantener ambos visibles.
+                    db.update_chunk_status(existing_chunk_id, "active")
+                    db.update_chunk_status(chunk_id, "active")
+                    logger.info(
+                        f"  📚 Policy: ambos chunks mantenidos active "
+                        f"(sim={similarity:.2f}) — {reason}"
+                    )
+
+                elif resolution == "policy_inconclusive":
+                    # La política dice no decidir: ambos a inconclusive
+                    # (excluidos del RAG, requieren intervención manual).
+                    db.update_chunk_status(existing_chunk_id, "inconclusive")
+                    db.update_chunk_status(chunk_id, "inconclusive")
+                    _graph_update_chunk_status(tenant_id, existing_chunk_id, "inconclusive")
+                    _graph_update_chunk_status(tenant_id, chunk_id, "inconclusive")
+                    logger.info(
+                        f"  📚 Policy: ambos chunks a inconclusive "
                         f"(sim={similarity:.2f}) — {reason}"
                     )
 
@@ -419,6 +476,8 @@ def detect_conflicts(
             report.total_conflicts += 1
             if resolution == "pending":
                 report.pending_review += 1
+            elif resolution.startswith("policy_"):
+                report.policy_resolved += 1
             else:
                 report.auto_resolved += 1
 
@@ -432,6 +491,7 @@ def detect_conflicts(
         logger.info(
             f"Gobernanza: {report.total_conflicts} conflictos — "
             f"{report.auto_resolved} auto-resueltos, "
+            f"{report.policy_resolved} resueltos por policy, "
             f"{report.pending_review} pendientes HITL"
         )
 
