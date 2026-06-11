@@ -152,7 +152,16 @@ mcp = FastMCP(
         "Usa `list_spaces` para descubrir qué áreas de conocimiento "
         "(departamentos) están disponibles. Todas las llamadas heredan el "
         "(user_id, tenant_id) de la API key del cliente — el aislamiento "
-        "multi-tenant y por departamento (RLS) se aplica automáticamente."
+        "multi-tenant y por departamento (RLS) se aplica automáticamente.\n\n"
+        "IMPORTANTE — Cuando uses `search_knowledge_base`, SIEMPRE menciona "
+        "las fuentes consultadas al final de tu respuesta al usuario, citando "
+        "los `filename` que vienen en el campo `sources` del resultado. "
+        "Formato sugerido: una sección `**Fuentes:**` con bullets por "
+        "documento y, si está disponible, la similitud entre paréntesis "
+        "(ej. `delos_politica_rrhh.md (0.82)`). Si algún chunk tiene "
+        "`is_disputed: true`, avisa al usuario de que hay una contradicción "
+        "sin resolver en esa fuente. La trazabilidad es un requisito del "
+        "producto, no un extra."
     ),
 )
 
@@ -162,8 +171,14 @@ def search_knowledge_base(query: str, limit: int = 5) -> dict:
     """
     Pregunta al knowledge base de la empresa en lenguaje natural.
 
-    Devuelve respuesta sintetizada por el LLM más las fuentes (documentos +
-    similitud). El RLS por departamento se aplica al user_id autenticado.
+    Devuelve `answer` sintetizado por el LLM y `sources` con los documentos
+    consultados (filename + similitud + is_disputed). El RLS por departamento
+    se aplica al user_id autenticado.
+
+    TRAZABILIDAD OBLIGATORIA — Cuando muestres la respuesta al usuario, cita
+    SIEMPRE los `sources` al final usando los nombres de fichero. Si alguna
+    fuente tiene `is_disputed: true`, indícalo expresamente: significa que la
+    gobernanza activa detectó una contradicción aún no resuelta en ese chunk.
 
     Args:
         query: pregunta en español o inglés.
@@ -215,12 +230,18 @@ def list_pending_conflicts() -> dict:
 
 
 @mcp.tool()
-def list_spaces() -> dict:
+def list_spaces(include_inactive: bool = False) -> dict:
     """
     Devuelve los espacios (departamentos) accesibles al usuario autenticado.
     Es el "índice" que el cliente puede usar para razonar sobre qué dominios
     puede consultar antes de llamar a search_knowledge_base.
+
+    Args:
+        include_inactive: reservado para futuras versiones (Phase 8). Actualmente
+            ignorado — solo está declarado para que el schema MCP tenga al menos
+            un parámetro y validate `arguments: {}` sin error -32602.
     """
+    _ = include_inactive  # silenciar linter; ver docstring
     user_id, tenant_id = _require_principal()
     from db import get_supabase_client
 
