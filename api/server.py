@@ -67,36 +67,57 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ─── Auth middleware del servidor MCP (Phase 7.3) ───────────────────────────
+# ─── Auth ASGI wrapper para el sub-app MCP (Phase 7.3) ──────────────────────
 #
-# Toda petición a /mcp/* debe traer el header `X-Korio-MCP-Key`. Resolvemos la
-# key a (user_id, tenant_id) y dejamos esos valores en contextvars para que
-# las tools del MCP server los lean (ver api/mcp_server.py).
+# IMPORTANTE: NO usamos @app.middleware("http") aquí. Ese decorador envuelve
+# todo en Starlette BaseHTTPMiddleware, que bufferea la respuesta y se rompe
+# con streams SSE (lanza AssertionError sobre 'http.response.start' inesperado).
+#
+# En su lugar, envolvemos solo el sub-app `/mcp` con una middleware ASGI pura
+# que pasa los eventos `send`/`receive` sin tocar el cuerpo de la respuesta.
+# Así el streaming SSE funciona y la auth solo afecta a /mcp/*.
 
-@app.middleware("http")
-async def mcp_auth_middleware(request: Request, call_next):
-    if not request.url.path.startswith("/mcp"):
-        return await call_next(request)
-    if not MCP_AVAILABLE:
-        return JSONResponse(
-            {"detail": "Servidor MCP no disponible (falta dependencia `mcp`)"},
-            status_code=503,
-        )
-    key = request.headers.get("X-Korio-MCP-Key")
-    if not key:
-        return JSONResponse(
-            {"detail": "Falta header X-Korio-MCP-Key"},
-            status_code=401,
-        )
-    resolved = resolve_mcp_key(key)
-    if not resolved:
-        return JSONResponse(
-            {"detail": "MCP key inválida o revocada"},
-            status_code=401,
-        )
-    user_id, tenant_id = resolved
-    set_current_principal(user_id, tenant_id)
-    return await call_next(request)
+class MCPAuthASGI:
+    """ASGI middleware que valida X-Korio-MCP-Key antes de delegar al sub-app SSE."""
+
+    def __init__(self, sub_app):
+        self.sub_app = sub_app
+
+    async def __call__(self, scope, receive, send):
+        # WebSocket / lifespan: pasar tal cual
+        if scope.get("type") != "http":
+            await self.sub_app(scope, receive, send)
+            return
+
+        # Leer header X-Korio-MCP-Key (case-insensitive)
+        headers = {k.decode().lower(): v.decode() for k, v in scope.get("headers", [])}
+        key = headers.get("x-korio-mcp-key")
+
+        if not key:
+            await self._send_json(send, 401, {"detail": "Falta header X-Korio-MCP-Key"})
+            return
+
+        resolved = resolve_mcp_key(key)
+        if not resolved:
+            await self._send_json(send, 401, {"detail": "MCP key inválida o revocada"})
+            return
+
+        user_id, tenant_id = resolved
+        set_current_principal(user_id, tenant_id)
+        await self.sub_app(scope, receive, send)
+
+    @staticmethod
+    async def _send_json(send, status: int, payload: dict) -> None:
+        body = json.dumps(payload).encode("utf-8")
+        await send({
+            "type": "http.response.start",
+            "status": status,
+            "headers": [
+                (b"content-type",   b"application/json"),
+                (b"content-length", str(len(body)).encode()),
+            ],
+        })
+        await send({"type": "http.response.body", "body": body})
 
 
 # ─── Modelos de Request / Response ──────────────────────────────────────────
@@ -920,8 +941,10 @@ async def waitlist_signup(payload: WaitlistRequest, request: Request):
 # El middleware mcp_auth_middleware ya valida la API key antes de delegar.
 
 if MCP_AVAILABLE:
-    app.mount("/mcp", mcp_sse_app)
-    logger.info("MCP server montado en /mcp (transporte SSE)")
+    # Envolvemos el SSE sub-app con la middleware ASGI de auth (ver MCPAuthASGI
+    # arriba). NO usar @app.middleware("http") porque rompe el streaming SSE.
+    app.mount("/mcp", MCPAuthASGI(mcp_sse_app))
+    logger.info("MCP server montado en /mcp (transporte SSE, auth ASGI)")
 else:
     logger.warning(
         "MCP server NO disponible: %s",
