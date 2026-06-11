@@ -161,7 +161,14 @@ mcp = FastMCP(
         "(ej. `delos_politica_rrhh.md (0.82)`). Si algún chunk tiene "
         "`is_disputed: true`, avisa al usuario de que hay una contradicción "
         "sin resolver en esa fuente. La trazabilidad es un requisito del "
-        "producto, no un extra."
+        "producto, no un extra.\n\n"
+        "Si el campo `has_silent_conflict` es `true`, la gobernanza activa "
+        "detectó que entre las fuentes hay documentos con contenido muy "
+        "similar que no fueron revisados como conflicto en ingesta. En ese "
+        "caso, añade un párrafo al final que empiece por '⚠️ Aviso de la "
+        "gobernanza:' indicando que existen documentos potencialmente "
+        "contradictorios pendientes de revisión administrativa. Lista los "
+        "pares del campo `silent_conflicts` con su similitud."
     ),
 )
 
@@ -194,12 +201,16 @@ def search_knowledge_base(query: str, limit: int = 5) -> dict:
     )
     # Filtramos campos pesados/internos para no inflar la respuesta MCP.
     return {
-        "answer":      result.get("answer"),
-        "sources":     result.get("sources", []),
-        "chunks_used": result.get("chunks_used", 0),
-        "has_context": result.get("has_context", False),
-        "latency_ms":  result.get("latency_ms"),
-        "model_used":  result.get("model_used"),
+        "answer":             result.get("answer"),
+        "sources":            result.get("sources", []),
+        "chunks_used":        result.get("chunks_used", 0),
+        "has_context":        result.get("has_context", False),
+        "latency_ms":         result.get("latency_ms"),
+        "model_used":         result.get("model_used"),
+        # Avisos de gobernanza para que el cliente MCP los muestre al usuario
+        "has_conflict":         result.get("has_conflict", False),
+        "has_silent_conflict":  result.get("has_silent_conflict", False),
+        "silent_conflicts":     result.get("silent_conflicts", []),
     }
 
 

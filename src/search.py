@@ -26,9 +26,15 @@ from typing import Optional, List
 from embedder import get_embedder
 from db import get_supabase_client
 from llm_client import get_llm_client
+from agents.events import emit, new_operation_id, EventType, Agent
 
 # Grafo de conocimiento (opt-in)
 GRAPH_ENABLED = os.getenv("KORIO_GRAPH_ENABLED", "0") == "1"
+
+# Detección de conflictos silenciosos en query-time (Phase 8 candidate cerrado
+# en sesión 7: cubre el "Caso extremo" del Entregable 4 del TFM).
+QUERY_TIME_CONFLICT_ENABLED   = os.getenv("KORIO_QUERY_TIME_CONFLICT_ENABLED", "1") == "1"
+QUERY_TIME_CONFLICT_THRESHOLD = float(os.getenv("KORIO_QUERY_TIME_CONFLICT_THRESHOLD", "0.85"))
 
 # Stopwords castellano (mínimas, suficientes para queries cortas tipo RAG)
 _QUERY_STOPWORDS = {
@@ -231,6 +237,59 @@ def search(
             f"se presentarán ambas versiones del contenido en conflicto"
         )
 
+    # Step 2.5: Detección de conflictos silenciosos en query-time (Phase 8 / sesión 7)
+    # Cubre el "Caso extremo" del Entregable 4: dos docs activos sin disputa
+    # que el RAG recupera juntos para una misma query. Si el par tiene
+    # similitud entre sí >= QUERY_TIME_CONFLICT_THRESHOLD, hay sospecha de
+    # conflicto silencioso → avisamos al usuario y emitimos CONFLICT_DETECTED.
+    silent_conflicts: list = []
+    if QUERY_TIME_CONFLICT_ENABLED and tenant_id and len(raw_chunks) >= 2:
+        try:
+            # search_embeddings_rls devuelve la PK del chunk como "id", no "chunk_id"
+            chunk_ids = [c["id"] for c in raw_chunks if c.get("id") is not None]
+            unique_doc_ids = {c["document_id"] for c in raw_chunks}
+            if len(chunk_ids) >= 2 and len(unique_doc_ids) >= 2:
+                rpc = db.client.rpc(
+                    "detect_silent_conflicts_among_chunks",
+                    {
+                        "p_chunk_ids": chunk_ids,
+                        "p_threshold": QUERY_TIME_CONFLICT_THRESHOLD,
+                    },
+                ).execute()
+                silent_conflicts = rpc.data or []
+                if silent_conflicts:
+                    logger.warning(
+                        f"  ⚠️ {len(silent_conflicts)} conflicto(s) silencioso(s) "
+                        f"detectado(s) en query-time (umbral {QUERY_TIME_CONFLICT_THRESHOLD})"
+                    )
+                    # Emisión al bus de eventos: el Detector actúa retroactivamente.
+                    # Generamos un operation_id propio para este ciclo de query-time.
+                    op_id = new_operation_id()
+                    emit(
+                        EventType.CONFLICT_DETECTED,
+                        source_agent=Agent.DETECTOR,
+                        tenant_id=tenant_id,
+                        operation_id=op_id,
+                        payload={
+                            "triggered_by":          "query_time",
+                            "query":                 query[:200],
+                            "threshold":             QUERY_TIME_CONFLICT_THRESHOLD,
+                            "pairs":                 len(silent_conflicts),
+                            "max_similarity":        max(
+                                float(p["similarity"]) for p in silent_conflicts
+                            ),
+                            "documents_involved":    list({
+                                str(p["doc_a_id"]) for p in silent_conflicts
+                            } | {
+                                str(p["doc_b_id"]) for p in silent_conflicts
+                            }),
+                        },
+                    )
+        except Exception as e:
+            # Detección silenciosa es best-effort: no debe romper la query.
+            logger.warning(f"Detección query-time falló (no crítico): {e}")
+            silent_conflicts = []
+
     # Enriquecer cada chunk con el filename del documento (para citas legibles en el LLM)
     if raw_chunks:
         unique_doc_ids = set(c["document_id"] for c in raw_chunks)
@@ -287,6 +346,37 @@ def search(
             )
             system_prompt = system_prompt + conflict_notice
 
+        # Aviso adicional: conflicto silencioso detectado en query-time.
+        # Sucede cuando ≥2 chunks recuperados, de documentos distintos, tienen
+        # similitud entre sí >= umbral (default 0.85). Indica que en su día NO
+        # se identificó el conflicto en ingesta pero el RAG los está usando
+        # juntos ahora.
+        if silent_conflicts:
+            pairs_lines = "\n".join(
+                f"  - {p['filename_a']} vs {p['filename_b']} (similitud {float(p['similarity']):.2f})"
+                for p in silent_conflicts[:5]
+            )
+            silent_notice = (
+                f"\n\nIMPORTANTE: La gobernanza activa ha detectado que entre las "
+                f"fuentes que vas a usar hay documentos con contenido muy similar "
+                f"(≥{QUERY_TIME_CONFLICT_THRESHOLD:.2f}) que NO han sido revisados como "
+                f"conflicto. Es posible que la respuesta dependa de cuál de ellos "
+                f"prevalezca. Avisa explícitamente al usuario al final de tu respuesta "
+                f"con un párrafo que comience por '⚠️ Aviso de la gobernanza:' indicando "
+                f"que existen documentos potencialmente contradictorios pendientes de "
+                f"revisión, y lista los pares siguientes:\n{pairs_lines}\n"
+                "Si las dos fuentes coinciden en la respuesta concreta a la pregunta, "
+                "puedes responderla con seguridad pero igualmente avisa de la potencial "
+                "contradicción para revisión administrativa."
+                if language == "es" else
+                f"\n\nIMPORTANT: Active governance has detected that two or more of the "
+                f"sources you are about to use are highly similar (≥{QUERY_TIME_CONFLICT_THRESHOLD:.2f}) "
+                f"and were not flagged as conflict in ingestion. Warn the user at the end "
+                f"of your answer with a paragraph starting with '⚠️ Governance notice:' "
+                f"and list the pairs:\n{pairs_lines}"
+            )
+            system_prompt = system_prompt + silent_notice
+
         answer = llm.generate(
             prompt=user_prompt,
             system_prompt=system_prompt,
@@ -341,6 +431,10 @@ def search(
         "original_query": original_query,
         "embedded_query": query,
         "query_reformulated": query_reformulated,
+        # Detección query-time (Caso extremo del E4 cerrado)
+        "silent_conflicts":           silent_conflicts,
+        "has_silent_conflict":        bool(silent_conflicts),
+        "query_time_threshold":       QUERY_TIME_CONFLICT_THRESHOLD,
     }
 
     logger.info(f"✅ Búsqueda completada en {latency_ms}ms")

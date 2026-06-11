@@ -173,6 +173,10 @@ class SearchResponse(BaseModel):
     original_query:     Optional[str] = None
     embedded_query:     Optional[str] = None
     query_reformulated: bool = False
+    # Detección de conflictos silenciosos en query-time (Caso extremo del E4)
+    has_silent_conflict:  bool = False  # Hay docs muy similares no flagged en ingesta
+    silent_conflicts:     list = []     # Lista de pares con sim >= umbral
+    query_time_threshold: float = 0.85  # Umbral usado para la detección query-time
 
 
 class IngestRequest(BaseModel):
