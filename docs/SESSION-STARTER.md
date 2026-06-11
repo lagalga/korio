@@ -43,7 +43,7 @@ Sesión 5 (11 jun) quedó **todo desplegado y verificado** — no hay pendientes
 - `https://korio.es/ui/graph.html` — grafo de conocimiento vivo (FalkorDB) con vis-network, panel de contradicciones rojas en tiempo real
 - `https://korio.es/docs` — Swagger (con botón Authorize para los endpoints admin)
 - `https://korio.es/mcp/sse` — **servidor MCP HTTP+SSE (Phase 7.3)**: 3 tools (`search_knowledge_base`, `list_pending_conflicts`, `list_spaces`). Auth con header `X-Korio-MCP-Key`. Conectado a Claude Desktop vía `mcp-remote` por npx (Node 20+ requerido).
-- `https://n8n.korio.es` — **5 workflows activos**:
+- `https://n8n.korio.es` — **6 workflows activos**:
   - HITL email (gobernanza) — webhook protegido con Basic Auth
   - Cron escalada diaria 09:00 Madrid
   - **Gmail → /upload** (Phase 7.2): vigila label `korio/ingesta` en `contacto@lagalga.es`, ingiere adjuntos PDF/DOCX
@@ -145,37 +145,80 @@ Variables clave del `.env` del VPS (no las pongas en código, ya están en `/roo
   - **Gmail OAuth2** (lectura) — para Gmail Trigger del workflow de ingesta
   - **Google Drive OAuth2** — para Drive Trigger del workflow de ingesta
   - **Slack API** (bot token `xoxb-...`) — para el bot `Korio-Delos`
-- 5 workflows activos (detalles arriba)
+- 6 workflows activos (detalles arriba)
 
-## Próxima sesión — **contenido TFM (todo el código demostrable está cerrado)**
+## Próxima sesión — **sesión 10 · QA E2E + Benchmark + mejoras menores**
 
-Faltan **~21 días para demo (2 jul)** y **~28 días para defensa (9 jul)**. El código está al 100% del scope defendible: Phases 1-7.3 + v0.3.0 con las **6 reglas del Entregable 3** materializadas + cierre explícito del **feedback del profesor del E4** (transaccionalidad ACID) y del **Caso extremo del E4** (detección query-time).
+Faltan **~21 días para demo (2 jul)** y **~28 días para defensa (9 jul)**. El código está al 100% del scope defendible. Mañana es sesión de calidad y validación, no de nuevas features.
 
-**Único camino prioritario**
-- **QA E2E**: 10+ queries en ambos tenants vía `korio.es/ui` + Claude Desktop con MCP (multi-turn + conflictos)
-- **Benchmark formal** `scripts/benchmark.py` para p50/p95
-- **Vídeo demo (3-4 min)**: correo llega → 30s después consultable → multi-turn → conflicto → email HITL → grafo → cierre con MCP en Claude Desktop. En pantalla paralela enseñar el flow `Korio · Pipeline event bus` en `n8n.korio.es` con eventos llegando en vivo
-- **Slide deck (10-15)**. Una slide central debería ser la tabla "Cumplimiento de las 6 reglas del E3" de `docs/AGENTIC-INGESTION.md`
-- **Memoria TFM** — capítulos ya listos como base:
-  - `docs/AGENTIC-INGESTION.md` — feedback profesor + 6 reglas del E3
-  - `docs/MCP-SERVER.md` — Phase 7.3
-  - `docs/MULTI-TENANT-INGESTION.md` + `docs/CHAT-PIPELINE-GUARDRAILS.md` — Phase 8 post-TFM
+**Agenda de la sesión (en este orden)**
 
-**Mejoras opcionales (post-defensa o si sobra tiempo)**
-- Rerank semántico del grafo con embedding de la query (hoy lexical)
-- OAuth 2.1 + rate limit + audit log en el servidor MCP
-- Sticky sessions o streamable_http_app para escalar a >1 worker uvicorn
+### 1. QA E2E — `korio.es/ui` + Claude Desktop MCP (2-3h)
+
+Ejecutar al menos 10 queries cubriendo todos los escenarios relevantes para la demo:
+
+| Escenario | Qué verificar |
+|---|---|
+| Query directa vectorial (Delos RRHH) | Respuesta correcta + fuente citada |
+| Query rephrasada (jornada mínima / 35 horas) | Grafo aporta la respuesta, no el vectorial |
+| Multi-turn (turno 1 → turno 2 con pronombre) | Query reformulation funciona, respuesta coherente |
+| Aislamiento RLS: lawyer García no ve Delos | 0 resultados de Delos para usuario del tenant García |
+| Chunk `disputed` visible con banner ⚠️ | Badge "EN DISPUTA" en source chips |
+| Detección query-time (`has_silent_conflict=true`) | Aviso de la gobernanza en la respuesta |
+| MCP en Claude Desktop: misma query que en UI | Respuesta equivalente + cita de fuente |
+| MCP `list_pending_conflicts` | Lista los reviews pendientes |
+| Ingesta vía Gmail/Drive (adjunto de prueba) | Documento aparece en `/search` ~30s después |
+| Bus de eventos en n8n.korio.es | 3-4 ejecuciones visibles por ingesta |
+
+**Registrar** latencias observadas (para contrastar con benchmark) y cualquier bug o regresión encontrada. Si algo está roto, arreglarlo antes de continuar.
+
+### 2. Benchmark formal (1h)
+
+```bash
+ssh korio-vps
+cd /root/korio && source .venv/bin/activate
+python scripts/benchmark.py -n 10 -o bench_$(date +%Y%m%d).json
+```
+
+Métricas que necesitamos para la defensa:
+- p50 y p95 por escenario (vector-puro, híbrido, MCP)
+- Comparar con las métricas manuales actuales (~1.0–3.3s)
+- Guardar el JSON de resultados en `scripts/` (ya en .gitignore si tiene datos reales)
+
+### 3. Validación semántica en aristas CONTRADICTS (2-3h)
+
+**Problema actual**: el backfill crea aristas CONTRADICTS entre claims con mismo `predicate` pero valores que no son realmente contradictorios (ej. dos políticas de RRHH que hablan de "jornada" pero en contextos diferentes). El fix en sesión 4 resolvió el caso de `subject` distinto, pero los falsos positivos por valores semánticamente compatibles siguen generando ruido visual en el grafo.
+
+**Solución propuesta**: antes de crear/mantener una arista CONTRADICTS, verificar con Mistral que los dos values son realmente incompatibles. Punto de inserción: `graph_client.link_contradictions_between_chunks()` (live, en ingesta) y `scripts/graph_backfill.py` (batch). Presupuesto: ~1 llamada Mistral extra por par potencial de claims.
+
+Pasos:
+1. Inspeccionar aristas CONTRADICTS existentes en producción para ver el alcance real del problema
+2. Añadir validación semántica en `graph_client.py` (live) + `graph_backfill.py` (batch)
+3. Limpiar aristas falsas: `MATCH ()-[r:CONTRADICTS]->() DELETE r` y relanzar backfill
+4. Verificar en `korio.es/ui/graph.html` que el grafo queda más limpio
+
+### 4. Bajar threshold recall 0.4 → 0.35 (30 min, si da tiempo)
+
+En `src/search.py`, el parámetro `threshold` por defecto es 0.4. Bajarlo a 0.35 aumenta recall en queries abiertas.
+
+```python
+# src/search.py — buscar el parámetro threshold por defecto
+threshold: float = 0.35  # era 0.4
+```
+
+Verificar con 3-4 queries que no hay regresiones evidentes en precisión.
 
 ## Pendiente antes de la defensa (2 jul demo, 9 jul defensa)
 
-| Tarea | Estimación | Prioridad |
+| Tarea | Estimación | Estado |
 |---|---|---|
-| QA end-to-end: 10+ queries en ambos tenants (multi-turn + MCP en Claude Desktop) | 2-3h | 🔴 Alta |
-| Benchmark formal `scripts/benchmark.py` (p50/p95 + comparativa con MCP) | 1h | 🔴 Alta |
-| Vídeo demo del ciclo completo (Gmail/Drive/Slack → gobernanza → grafo → MCP en Claude Desktop) | 3-4h | 🔴 Alta |
-| Slide deck (10-15 slides) + ensayo | 6-8h | 🔴 Alta |
-| Memoria TFM (capítulos Phase 7.3 `MCP-SERVER.md` + Phase 8 `MULTI-TENANT-INGESTION.md` + `CHAT-PIPELINE-GUARDRAILS.md`) | 20-30h | 🔴 Alta |
-| ~~Phase 7.3 MCP Server~~ | ✅ Hecho sesión 5 |   |
+| **QA E2E** (10+ queries, ambos tenants, MCP, bus eventos) | 2-3h | 🔲 Sesión 10 |
+| **Benchmark formal** `scripts/benchmark.py` (p50/p95) | 1h | 🔲 Sesión 10 |
+| **Validación semántica CONTRADICTS** (grafo más limpio) | 2-3h | 🔲 Sesión 10 |
+| **Bajar threshold** recall 0.4 → 0.35 | 30 min | 🔲 Sesión 10 (si da tiempo) |
+| **Vídeo demo** (3-4 min): ciclo completo con n8n event bus en vivo | 3-4h | 🔲 Semana que viene |
+| **Slide deck** (10-15 slides) + ensayo | 6-8h | 🔲 Semana que viene |
+| **Memoria TFM** (capítulos 4-7) | 20-30h | 🔲 Semana que viene |
 
 ## Convenciones de la sesión
 
