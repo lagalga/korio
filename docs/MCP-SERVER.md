@@ -97,23 +97,35 @@ python scripts/mcp_create_key.py revoke --hash-prefix a1b2c3
 
 ## Cómo conectar Claude Desktop
 
+Claude Desktop (a fecha de junio 2026) **no soporta MCP por SSE/HTTP directamente** en su `claude_desktop_config.json` — solo stdio. Para conectar un servidor remoto se usa el puente `mcp-remote` (npm), que arranca un proceso local stdio y traduce a SSE contra `korio.es`.
+
 `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS):
 
 ```json
 {
   "mcpServers": {
     "korio": {
-      "transport": "sse",
-      "url": "https://korio.es/mcp/sse",
-      "headers": {
-        "X-Korio-MCP-Key": "korio_<tu_token>"
-      }
+      "command": "npx",
+      "args": [
+        "-y",
+        "mcp-remote",
+        "https://korio.es/mcp/sse",
+        "--header",
+        "X-Korio-MCP-Key:korio_<tu_token>"
+      ]
     }
   }
 }
 ```
 
-Reiniciar Claude Desktop. En el chat, las tools `search_knowledge_base`, `list_pending_conflicts` y `list_spaces` aparecen como botones de "tools disponibles" y el modelo decide cuándo invocarlas.
+Detalles:
+- El header va **sin espacio** tras los dos puntos: `X-Korio-MCP-Key:korio_...`. Si se pone con espacio, npx puede partirlo mal al parsear `argv`.
+- Requiere Node.js instalado en el equipo.
+- La primera vez `npx` descarga `mcp-remote` (~5 s).
+
+Reiniciar Claude Desktop completamente (⌘Q en macOS). En *Settings → Developer → Local MCP servers* debe aparecer `korio` con estado verde, y en el chat las tools `search_knowledge_base`, `list_pending_conflicts` y `list_spaces` quedan disponibles como botones.
+
+Cuando Claude Desktop publique soporte nativo de remote MCP servers (vía Connectors con OAuth), Phase 8 sustituirá `mcp-remote` por el flow OAuth 2.1 sin necesidad de proceso local.
 
 ## Cómo invocar desde curl (debug)
 

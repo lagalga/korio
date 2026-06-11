@@ -24,27 +24,25 @@ Si todo OK, dímelo en una línea. Si algo está raro, antes de tocar nada cuén
 
 ## Pasos manuales que pueden haber quedado pendientes de ayer
 
-1. **Despliegue en VPS** de los commits de ayer tarde (cierre Phase 7.2 + sesión 4):
+Sesión 5 (11 jun) quedó **todo desplegado y verificado** — no hay pendientes operativos. Si quieres ir sobre seguro antes de tocar contenido:
+
+1. **Smoke check del MCP en Claude Desktop** con la query del hito:
+   `usa korio para responder: ¿cuántas horas semanales mínimas exige la política de RRHH?`
+   Debe responder *"35 horas semanales"* con fuentes citadas y el aviso ⚠️ de contradicciones pendientes en los PDFs antiguos.
+2. **MCP key**: las keys viven en Supabase (`mcp_api_keys`). La de Claude Desktop laptop de berto está activa. Para crear una nueva:
    ```bash
-   ssh korio-vps "cd /root/korio && git pull && systemctl restart korio-api"
+   ssh korio-vps "cd /root/korio && .venv/bin/python scripts/mcp_create_key.py create --user-id <uuid> --tenant-id <uuid> --name '<alias>'"
    ```
-2. **Cleanup de aristas CONTRADICTS falsas** en el grafo (one-off, solo si no lo hice ayer):
-   ```bash
-   ssh korio-vps "cd /root/korio && .venv/bin/python -c \"from src.graph_client import get_graph_client; get_graph_client().graph.query('MATCH ()-[r:CONTRADICTS]->() DELETE r')\""
-   ssh korio-vps "cd /root/korio && .venv/bin/python scripts/graph_backfill.py"
-   ```
-3. **Verificar memoria de chat** en `korio.es/ui` con dos preguntas encadenadas (ej: vacaciones con 10 años → y si llevo 15). Si la 2ª no usa contexto, hay que mirar logs del backend.
 
-Si todo eso está hecho, lo confirmo y pasamos a contenido. Si no, lo hacemos primero antes de cualquier otra cosa.
+## Estado actual (al cierre de la última sesión · 11 jun 2026 · sesión 5)
 
-## Estado actual (al cierre de la última sesión · 10 jun 2026 · tarde · sesión 4)
-
-✅ **Phases 1–7.2 completadas + memoria de chat + fix CONTRADICTS**. En producción:
+✅ **Phases 1–7.3 completadas + 4 fixes encadenados del RAG híbrido**. En producción:
 
 - `https://korio.es` — landing teaser
 - `https://korio.es/ui` — chat RAG multi-tenant con gobernanza activa, banner ⚠️ de contradicciones y 3 puntos de acceso al grafo
 - `https://korio.es/ui/graph.html` — grafo de conocimiento vivo (FalkorDB) con vis-network, panel de contradicciones rojas en tiempo real
 - `https://korio.es/docs` — Swagger (con botón Authorize para los endpoints admin)
+- `https://korio.es/mcp/sse` — **servidor MCP HTTP+SSE (Phase 7.3)**: 3 tools (`search_knowledge_base`, `list_pending_conflicts`, `list_spaces`). Auth con header `X-Korio-MCP-Key`. Conectado a Claude Desktop vía `mcp-remote` por npx (Node 20+ requerido).
 - `https://n8n.korio.es` — **5 workflows activos**:
   - HITL email (gobernanza) — webhook protegido con Basic Auth
   - Cron escalada diaria 09:00 Madrid
@@ -67,6 +65,14 @@ Si todo eso está hecho, lo confirmo y pasamos a contenido. Si no, lo hacemos pr
 ✅ **Fix CONTRADICTS falsos positivos (sesión 4)**: el grafo creaba aristas rojas entre claims con mismo `predicate` pero `subject` totalmente distinto (ej. "responsable" de RRHH vs de limpieza). Ahora el Cypher exige `subject` igual o substring containment en cualquier dirección. Aplicado en `graph_client.link_contradictions_between_chunks` (live) y `scripts/graph_backfill.py` (batch). Para limpiar las aristas falsas existentes: `MATCH ()-[r:CONTRADICTS]->() DELETE r` + relanzar backfill.
 
 ✅ **Documento de seguridad** `docs/CHAT-PIPELINE-GUARDRAILS.md` (sesión 4) — diseño Phase 8 para n8n + ingress/egress guardrails (Lakera/Rebuff + Presidio + rate limit). Capítulo de la memoria TFM "Seguridad del chat como producto SaaS".
+
+✅ **Phase 7.3 MCP Server (sesión 5)** — Korio expuesto como servidor MCP HTTP+SSE para Claude Desktop / ChatGPT / n8n. 3 tools (`search_knowledge_base`, `list_pending_conflicts`, `list_spaces`). API key por usuario (SHA-256 en `mcp_api_keys`). Auth via `MCPAuthASGI` puro (NO BaseHTTPMiddleware: rompe streams SSE). Doc completo en `docs/MCP-SERVER.md`. Conectado a Claude Desktop vía `mcp-remote` por npx (Node 20+).
+
+✅ **Fix encadenado del RAG híbrido (sesión 5)** — cuando el grafo debía aportar la respuesta (caso TFM "35 horas semanales mínimas"):
+  1. **Prompt RAG ignoraba el grafo**: el bloque `[CONOCIMIENTO ESTRUCTURADO DEL GRAFO]` iba FUERA del `CONTEXTO:`. Mistral, literal, lo descartaba. Solución: `build_rag_prompt(graph_context=...)` lo inyecta DENTRO + system_prompt declara que ambas fuentes son válidas.
+  2. **Retrieval saturado por subject genérico**: keyword "política" capturaba `LIMIT 20` de claims con subject "política vacaciones", expulsando los claims con value "35 horas/semana". Solución: LIMIT 50 + rerank en Python (`score = 3·predicate + 2·value + 1·subject` por keyword).
+  3. **Citación de fuentes en MCP**: docstring + `instructions` del FastMCP server obligan al cliente a citar `filename` y avisar de `is_disputed`.
+  4. **list_spaces -32602**: añadido parámetro `include_inactive` dummy para que FastMCP serialice el schema con ≥1 param.
 
 ## Fuentes de verdad (léelas si necesitas contexto)
 
@@ -116,37 +122,34 @@ Variables clave del `.env` del VPS (no las pongas en código, ya están en `/roo
   - **Slack API** (bot token `xoxb-...`) — para el bot `Korio-Delos`
 - 5 workflows activos (detalles arriba)
 
-## Hoy quiero atacar — contenido TFM o Phase 7.3
+## Hoy quiero atacar — contenido TFM
 
-Faltan **~22 días para demo (2 jul)** y **~29 días para defensa (9 jul)**. El esfuerzo crítico es contenido TFM (memoria + slides + vídeo + QA). El código en producción ya cubre todo lo que necesitamos demostrar.
-
-Tienes dos caminos prioritarios y un opcional:
+Faltan **~21 días para demo (2 jul)** y **~28 días para defensa (9 jul)**. El esfuerzo crítico ahora es contenido TFM. El código en producción está al 100% del scope demostrable (Phases 1–7.3 cerradas).
 
 **Camino A · Contenido TFM (recomendado, lo crítico)**
-- QA E2E: ronda de 10+ queries en ambos tenants vía `korio.es/ui` (algunas usando memoria de chat para demostrar el multi-turn)
+- QA E2E: ronda de 10+ queries en ambos tenants vía `korio.es/ui` Y vía MCP en Claude Desktop (demuestra que el RAG es conectable al ecosistema agéntico)
 - Ejecutar `scripts/benchmark.py` para sacar p50/p95 formales
-- Grabar vídeo demo (2-3 min): correo llega → ~30s después consultable → multi-turn → conflicto → email HITL → grafo
+- Grabar vídeo demo (3-4 min): correo llega → 30s después consultable → multi-turn → conflicto → email HITL → grafo → cierra con la query del hito desde Claude Desktop (MCP)
 - Empezar slide deck (10-15 slides)
 
 **Camino B · Memoria TFM**
-- Escribir capítulos con los docs de diseño ya listos: `MULTI-TENANT-INGESTION.md` (post-TFM) y `CHAT-PIPELINE-GUARDRAILS.md` (post-TFM)
-- Sección de decisiones de diseño (graf+RAG híbrido, FalkorDB vs Neo4j, query reformulation vs context-in-prompt, etc.)
+- Escribir capítulos con los docs de diseño ya listos: `MULTI-TENANT-INGESTION.md`, `CHAT-PIPELINE-GUARDRAILS.md`, `MCP-SERVER.md` (todos = capítulos Phase 8 / 7.3)
+- Sección de decisiones de diseño: grafo+RAG híbrido, FalkorDB vs Neo4j, query reformulation vs context-in-prompt, **MCP HTTP+SSE vs OAuth (Phase 8)**, **ASGI puro vs BaseHTTPMiddleware** (anécdota del bug de SSE)
 
-**Camino C · Phase 7.3 MCP Server (opcional, bonus)**
-- Exponer Korio como servidor MCP para Claude Desktop / ChatGPT / n8n
-- Tools: `search_knowledge_base`, `ingest_document`, `list_pending_conflicts`, `list_spaces`
-- Stack probable: FastAPI MCP endpoint
+**Camino C · Mejoras opcionales del RAG** (post-defensa o si sobra tiempo)
+- Rerank semántico del grafo con embedding de la query (en lugar del scoring lexical actual)
+- Sistema agéntico de inmunidad de conocimiento (5 agentes + cron) que tengo pendiente de contar — aplicación a la ingesta con HITL
 
 ## Pendiente antes de la defensa (2 jul demo, 9 jul defensa)
 
 | Tarea | Estimación | Prioridad |
 |---|---|---|
-| QA end-to-end: 10+ queries en ambos tenants (con casos multi-turn) | 2-3h | 🔴 Alta |
-| Benchmark formal `scripts/benchmark.py` (p50/p95) | 1h | 🔴 Alta |
-| Vídeo demo del ciclo completo (ingesta Gmail/Drive/Slack → gobernanza → grafo → consulta multi-turn) | 3-4h | 🔴 Alta |
+| QA end-to-end: 10+ queries en ambos tenants (multi-turn + MCP en Claude Desktop) | 2-3h | 🔴 Alta |
+| Benchmark formal `scripts/benchmark.py` (p50/p95 + comparativa con MCP) | 1h | 🔴 Alta |
+| Vídeo demo del ciclo completo (Gmail/Drive/Slack → gobernanza → grafo → MCP en Claude Desktop) | 3-4h | 🔴 Alta |
 | Slide deck (10-15 slides) + ensayo | 6-8h | 🔴 Alta |
-| Memoria TFM (capítulos Phase 8 ya en `docs/MULTI-TENANT-INGESTION.md` + `docs/CHAT-PIPELINE-GUARDRAILS.md`) | 20-30h | 🔴 Alta |
-| Phase 7.3 MCP Server | 1 sesión (~4h) | 🟢 Opcional |
+| Memoria TFM (capítulos Phase 7.3 `MCP-SERVER.md` + Phase 8 `MULTI-TENANT-INGESTION.md` + `CHAT-PIPELINE-GUARDRAILS.md`) | 20-30h | 🔴 Alta |
+| ~~Phase 7.3 MCP Server~~ | ✅ Hecho sesión 5 |   |
 
 ## Convenciones de la sesión
 

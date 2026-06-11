@@ -1,6 +1,6 @@
 # Korio — Roadmap
 
-> Estado actual: **Phases 1–7.2 completadas · ingesta automática multi-canal + grafo en producción** · Demo TFM: 2 julio 2026 · Defensa: 9 julio 2026
+> Estado actual: **Phases 1–7.3 completadas · ingesta automática multi-canal + grafo + servidor MCP en producción** · Demo TFM: 2 julio 2026 · Defensa: 9 julio 2026
 
 ---
 
@@ -166,10 +166,27 @@
 | **Fix CONTRADICTS falsos positivos** | ✅ | Cypher exige `subject` igual o substring containment + diff `value` para crear arista. Aplicado en `graph_client` (live) y `graph_backfill.py` (batch). Limpiar aristas falsas existentes con `MATCH ()-[r:CONTRADICTS]->() DELETE r` + relink. |
 | **Sync local docs** | ✅ | CLAUDE.md, ROADMAP.md, ARCHITECTURE.md, DEPLOYMENT.md, README.md actualizados. |
 
-### Opcional para defensa
-| Tarea | Prioridad | Notas |
+### Phase 7.3 — MCP Server (sesión 5, 11 jun 2026) ✅ CERRADA
+
+| Feature | Estado |
+|---|---|
+| Migración 010 `mcp_api_keys` (SHA-256, FK users+tenants, soft revoke) | ✅ |
+| `api/mcp_server.py` FastMCP con 3 tools | ✅ |
+| `MCPAuthASGI` puro (NO BaseHTTPMiddleware, compat con SSE) | ✅ |
+| `TransportSecuritySettings` con `allowed_hosts=[korio.es,...]` | ✅ |
+| `scripts/mcp_create_key.py` CLI create/list/revoke | ✅ |
+| `docs/MCP-SERVER.md` (capítulo memoria TFM) | ✅ |
+| Despliegue con `--workers 1` (sessions SSE in-memory por proceso) | ✅ |
+| Conectado Claude Desktop vía `mcp-remote` por npx (Node 20+) | ✅ |
+| Caso TFM "35 horas semanales" verificado vía MCP | ✅ |
+
+### Fixes encadenados del RAG híbrido (sesión 5) ✅ CERRADOS
+| Fix | Estado | Notas |
 |---|---|---|
-| Phase 7.3 — MCP Server | 🟢 Baja | Bonus si queda tiempo después del contenido TFM |
+| **Grafo dentro del CONTEXTO del prompt** | ✅ | El bloque `[CONOCIMIENTO ESTRUCTURADO DEL GRAFO]` se inyectaba FUERA y Mistral lo descartaba. `build_rag_prompt(graph_context=...)` lo mete DENTRO; system_prompt actualizado para reconocer ambas fuentes. |
+| **Rerank de claims por relevancia** | ✅ | `find_claims_by_predicate` LIMIT 20 → 50 + rerank en Python (`3·predicate + 2·value + 1·subject` por keyword). Evita que keywords genéricas saturen el top-8. |
+| **Citación de fuentes en MCP** | ✅ | Docstring + `instructions` del FastMCP obligan al cliente a citar `filename` y avisar de `is_disputed`. |
+| **list_spaces -32602** | ✅ | Param `include_inactive` dummy para que FastMCP serialice el schema. |
 
 ---
 
@@ -198,7 +215,7 @@
 | Conectores nativos configurables | Drive, Slack, Notion, Gmail con OAuth multi-tenant (ver Phase 8) |
 | API keys por tenant | Para integrar Korio desde otras apps |
 | Límites de plan | Chunks máximos, queries/mes, usuarios |
-| **MCP Server** | Exponer Korio a Claude Desktop, n8n, ChatGPT (Phase 7.3) |
+| **MCP Server OAuth + rate limit + audit** | Sustituir API keys (Phase 7.3) por OAuth 2.1 + token bucket por key + `mcp_audit_log` con PII-redaction |
 | Persistencia de chat por usuario | Conversaciones multi-sesión cross-device |
 | Reflejo de chat Slack ↔ chat web | Identidad compartida, conversaciones cross-canal |
 
@@ -216,4 +233,4 @@
 
 ---
 
-*Actualizado: 10 junio 2026 (tarde · sesión 4) — Phases 1–7.2 completadas, ingesta multi-canal + memoria de chat multi-turn + fix CONTRADICTS en producción. Quedan: QA E2E, benchmark, vídeo, slides, memoria TFM.*
+*Actualizado: 11 junio 2026 (sesión 5) — Phases 1–7.3 completadas, ingesta multi-canal + memoria de chat multi-turn + grafo+RAG híbrido refinado + MCP server productivo en `korio.es/mcp/sse` con cliente vivo en Claude Desktop. Quedan: QA E2E, benchmark, vídeo, slides, memoria TFM.*
