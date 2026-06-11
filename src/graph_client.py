@@ -420,6 +420,9 @@ class GraphClient:
         if only_active:
             cypher += " AND cl.chunk_status = 'active'"
 
+        # Subimos el LIMIT a 50 para que el reranking en Python (ver
+        # _graph_context en search.py) tenga material suficiente cuando una
+        # keyword genérica como "política" satura el match por subject.
         cypher += """
         RETURN cl.subject AS subject,
                cl.predicate AS predicate,
@@ -427,7 +430,7 @@ class GraphClient:
                cl.chunk_status AS status,
                cl.chunk_id AS chunk_id,
                c.document_id AS document_id
-        LIMIT 20
+        LIMIT 50
         """
         result = self.graph.query(cypher, params)
         return self._rows_to_dicts(result)
