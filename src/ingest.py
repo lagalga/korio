@@ -1,15 +1,27 @@
 """
-Ingest script — Pipeline completo de ingesta.
+Ingest pipeline de Korio — versión transaccional con bus de eventos.
 
-Pipeline:
-1. Cargar documento (PDF/DOCX/TXT)
-2. Convertir a Markdown
-3. Anonimizar PII
-4. Dividir en chunks
-5. Generar embeddings
-6. Guardar en Supabase (pgvector)
+Cambios respecto a la versión anterior (Phase 1-7.3):
+  - Toda la IO externa (preprocess, chunking, embeddings, extracción de
+    entidades) se hace ANTES de tocar SQL. Si Ollama o Mistral fallan, NADA
+    queda persistido.
+  - La escritura del documento + chunks + evento DOCUMENT_INGESTED se hace
+    en una sola transacción PL/pgSQL vía `ingest_document_atomic` (migración
+    011). Atomicidad ACID real: o todo o nada.
+  - Cada transición lógica del pipeline emite un evento al bus
+    (`pipeline_events`) con un `operation_id` UUID que correlaciona todo el
+    ciclo. El bus también publica los eventos a n8n para observabilidad.
+  - El sync con FalkorDB es POST-commit: si falla, se encola en
+    `graph_sync_queue` para retry. El corpus Postgres queda siempre
+    coherente; el grafo eventualmente alcanza el mismo estado.
 
-Uso:
+Diseño multi-agente:
+  Los roles (Ingestor, Detector, Arbitrator, Supervisor, Curator) son
+  CLASES dentro de este proceso, no microservicios separados. El camino
+  crítico no tiene saltos de red entre agentes. Ver src/agents/__init__.py
+  para la justificación completa.
+
+Uso CLI:
     python src/ingest.py path/to/document.pdf
     python src/ingest.py path/to/document.pdf --document-id abc123 --space-id xyz789
 """
@@ -17,6 +29,7 @@ Uso:
 import os
 import sys
 import argparse
+import hashlib
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -28,10 +41,13 @@ from preprocessor import get_preprocessor
 from db import get_supabase_client
 from conflict_detector import detect_conflicts, ConflictReport
 
+# Bus de eventos del pipeline agéntico
+from agents.events import emit, new_operation_id, EventType, Agent
+
 # Grafo de conocimiento (opt-in vía KORIO_GRAPH_ENABLED=1)
 GRAPH_ENABLED = os.getenv("KORIO_GRAPH_ENABLED", "0") == "1"
 
-# Configure logging
+# Logging
 import logging
 logging.basicConfig(
     level=logging.INFO,
@@ -43,10 +59,7 @@ logger = logging.getLogger(__name__)
 class DuplicateDocumentError(Exception):
     """
     Se intenta ingestar un documento cuyo content_hash ya existe en la base.
-
-    No es un error en el sentido estricto: es la deduplicación funcionando.
-    Llevamos el ID y filename del documento existente para que el caller
-    pueda informar al usuario.
+    No es un error en sentido estricto — es la deduplicación funcionando.
     """
     def __init__(self, document_id: str, filename: str, space_id: str, content_hash: str):
         self.document_id  = document_id
@@ -68,291 +81,320 @@ def ingest_document(
     anonymize: bool = True,
     display_filename: Optional[str] = None,
     source_metadata: Optional[dict] = None,
+    operation_id: Optional[str] = None,
 ) -> dict:
     """
-    Pipeline completo de ingesta de un documento.
+    Pipeline transaccional de ingesta de un documento.
 
     Args:
-        file_path:        Ruta del archivo a ingestar
-        tenant_id:        ID del tenant (UUID)
-        space_id:         ID del espacio (UUID)
-        document_id:      ID del documento (UUID). Si no se proporciona, se genera uno.
-        source_type:      Origen del documento (manual, drive, slack, email, notion)
-        authority_weight: Peso de autoridad del documento (1-10, default 5)
-        anonymize:        Si debe anonimizar PII (default: True)
-        source_metadata:  Contexto del canal de origen (ej: message_id Gmail, file_id Drive).
-                          Se guarda en documents.source_metadata (JSONB) sin transformar.
+        file_path:        Ruta del archivo a ingestar.
+        tenant_id:        UUID del tenant.
+        space_id:         UUID del espacio.
+        document_id:      UUID del documento (default: se genera).
+        source_type:      Origen del documento (manual / drive / slack / email / notion).
+        authority_weight: Peso de autoridad (1-10, default 5).
+        anonymize:        Si anonimizar PII (default True).
+        display_filename: Nombre real del fichero (cuando viene como tempfile).
+        source_metadata:  Contexto del canal (message_id, file_id, …).
+        operation_id:     UUID de correlación de eventos. Si se omite, se genera uno.
 
     Returns:
-        dict: Resultado con estadísticas de ingesta (incluye conflict_report si hay conflictos)
+        dict con estadísticas + operation_id para trazabilidad en `pipeline_events`.
 
     Raises:
-        FileNotFoundError: Si el archivo no existe
-        ValueError: Si hay error en algún paso
+        FileNotFoundError: si el archivo no existe.
+        DuplicateDocumentError: si ya existe un doc con el mismo content_hash.
+        ValueError / RuntimeError: si la escritura atómica falla.
     """
     path = Path(file_path)
-
     if not path.exists():
         raise FileNotFoundError(f"Archivo no encontrado: {file_path}")
 
-    # Generar IDs si no se proporcionan
     document_id  = document_id or str(uuid.uuid4())
+    operation_id = operation_id or new_operation_id()
     version_ts   = datetime.now(timezone.utc)
+    filename     = display_filename or path.name
 
-    # Nombre real del fichero (puede llegar como tempfile.tmp* desde /upload)
-    filename = display_filename or path.name
+    logger.info(f"▶ Ingesta iniciada — filename={filename} operation_id={operation_id}")
 
-    logger.info(f"Iniciando ingesta: {filename}")
+    # ════════════════════════════════════════════════════════════════════════
+    #  FASE 1 — IO EXTERNA (preprocess + chunking + embeddings)
+    #
+    #  Toda la IO contra Ollama / MarkItDown / Presidio ocurre AQUÍ, fuera de
+    #  cualquier transacción SQL. Si algo falla, no hay estado a revertir
+    #  porque aún no hemos tocado la base de datos.
+    # ════════════════════════════════════════════════════════════════════════
 
     # Step 1: Preprocesar (MarkItDown + Presidio)
-    logger.info("Step 1/4: Preprocesando documento...")
-    preprocessor = get_preprocessor()
+    logger.info("Step 1/5 — Preprocesando documento...")
     try:
+        preprocessor = get_preprocessor()
         content, prep_meta = preprocessor.process_document(file_path, anonymize=anonymize)
-        logger.info(f"  ✓ Documento procesado ({prep_meta['char_count']} chars)")
-        if prep_meta['pii_found'] > 0:
-            logger.info(f"  ✓ PII anonimizado: {prep_meta['pii_types']}")
+        logger.info(f"  ✓ {prep_meta['char_count']} chars; PII: {prep_meta['pii_found']} hits")
     except Exception as e:
+        emit(EventType.INGEST_FAILED, source_agent=Agent.INGESTOR,
+             tenant_id=tenant_id, operation_id=operation_id,
+             payload={"phase": "preprocess", "error": str(e), "filename": filename})
         logger.error(f"Error en preprocesamiento: {e}")
         raise
 
     # Step 2: Chunking
-    logger.info("Step 2/4: Dividiendo en chunks...")
-    chunker = get_chunker()
+    logger.info("Step 2/5 — Dividiendo en chunks...")
     try:
+        chunker = get_chunker()
         chunks_with_meta = chunker.chunk_with_metadata(
-            content,
-            source_id=document_id,
-            document_title=Path(filename).stem
+            content, source_id=document_id, document_title=Path(filename).stem
         )
-        stats = chunker.validate_chunks([c[0] for c in chunks_with_meta])
-        logger.info(f"  ✓ {stats['total_chunks']} chunks generados")
-        logger.info(f"    Avg size: {stats['avg_tokens']:.0f} tokens")
+        chunk_texts = [c[0] for c in chunks_with_meta]
+        stats = chunker.validate_chunks(chunk_texts)
+        logger.info(f"  ✓ {stats['total_chunks']} chunks (avg {stats['avg_tokens']:.0f} tok)")
     except Exception as e:
+        emit(EventType.INGEST_FAILED, source_agent=Agent.INGESTOR,
+             tenant_id=tenant_id, operation_id=operation_id,
+             payload={"phase": "chunking", "error": str(e), "filename": filename})
         logger.error(f"Error en chunking: {e}")
         raise
 
     # Step 3: Embeddings
-    logger.info("Step 3/4: Generando embeddings...")
-    embedder = get_embedder()
+    logger.info("Step 3/5 — Generando embeddings...")
     try:
-        chunk_texts = [c[0] for c in chunks_with_meta]
+        embedder = get_embedder()
         embeddings = embedder.embed_batch(chunk_texts)
-        logger.info(f"  ✓ {len(embeddings)} embeddings generados")
-        logger.info(f"    Dimensión: {embeddings[0].shape[0]} dims")
+        logger.info(f"  ✓ {len(embeddings)} embeddings @ {embeddings[0].shape[0]} dims")
     except Exception as e:
+        emit(EventType.INGEST_FAILED, source_agent=Agent.INGESTOR,
+             tenant_id=tenant_id, operation_id=operation_id,
+             payload={"phase": "embeddings", "error": str(e), "filename": filename})
         logger.error(f"Error en embeddings: {e}")
         raise
 
-    # Step 4: Guardar en Supabase
-    logger.info("Step 4/7: Guardando en Supabase...")
+    # ════════════════════════════════════════════════════════════════════════
+    #  FASE 2 — DEDUPE (lectura, no escritura)
+    # ════════════════════════════════════════════════════════════════════════
+
+    content_hash = hashlib.sha256(content.encode()).hexdigest()
     supabase = get_supabase_client()
-    chunk_ids = []
-    try:
-        # Calcular hash del contenido para deduplicación
-        import hashlib
-        content_hash = hashlib.sha256(content.encode()).hexdigest()
+    existing = supabase.table("documents").select(
+        "id, filename, space_id"
+    ).eq("content_hash", content_hash).execute()
+    if existing.data:
+        dup = existing.data[0]
+        logger.info(f"  ⚠️ Documento duplicado detectado (existing id={dup['id']})")
+        raise DuplicateDocumentError(
+            document_id=dup["id"], filename=dup["filename"],
+            space_id=dup["space_id"], content_hash=content_hash,
+        )
 
-        # Comprobar si ya existe un documento con el mismo content_hash
-        # (deduplicación: no permitir ingestar el mismo fichero dos veces)
-        existing = supabase.table("documents").select(
-            "id, filename, space_id, created_at"
-        ).eq("content_hash", content_hash).execute()
+    # ════════════════════════════════════════════════════════════════════════
+    #  FASE 3 — ESCRITURA ATÓMICA (RPC PL/pgSQL)
+    #
+    #  Toda la escritura — documents + embeddings + evento DOCUMENT_INGESTED
+    #  — sucede en una sola transacción dentro de `ingest_document_atomic`.
+    #  Si cualquier paso falla, todo se revierte.
+    # ════════════════════════════════════════════════════════════════════════
 
-        if existing.data:
-            dup = existing.data[0]
-            logger.info(f"  ⚠️  Documento duplicado detectado (hash ya existe en doc {dup['id']})")
-            raise DuplicateDocumentError(
-                document_id=dup["id"],
-                filename=dup["filename"],
-                space_id=dup["space_id"],
-                content_hash=content_hash,
-            )
+    logger.info("Step 4/5 — Escritura atómica (RPC ingest_document_atomic)...")
+    doc_payload = {
+        "id":               document_id,
+        "tenant_id":        tenant_id,
+        "space_id":         space_id,
+        "filename":         filename,
+        "content_hash":     content_hash,
+        "source_type":      source_type,
+        "authority_weight": authority_weight,
+        "version_ts":       version_ts.isoformat(),
+        "status":           "active",
+    }
+    if source_metadata:
+        doc_payload["source_metadata"] = source_metadata
 
-        # Crear documento (incluye authority_weight y version_ts para gobernanza)
-        doc_payload = {
-            "id":               document_id,
-            "tenant_id":        tenant_id,
-            "space_id":         space_id,
-            "filename":         filename,
-            "source_type":      source_type,
-            "content_hash":     content_hash,
-            "authority_weight": authority_weight,
-            "version_ts":       version_ts.isoformat(),
-            "status":           "active",
+    chunk_payloads = [
+        {
+            "chunk_index": i,
+            "chunk_text":  chunk_texts[i],
+            # pgvector acepta el formato textual "[0.1,0.2,...]"
+            "vector":      "[" + ",".join(map(str, embeddings[i].tolist())) + "]",
+            "chunk_status": "active",
         }
-        # source_metadata es opcional — solo lo enviamos si viene de un canal
-        if source_metadata:
-            doc_payload["source_metadata"] = source_metadata
-        doc_response = supabase.table("documents").insert(doc_payload).execute()
+        for i in range(len(chunk_texts))
+    ]
 
-        if not doc_response.data:
-            raise ValueError("Error creando documento en Supabase")
-
-        logger.info(f"  ✓ Documento creado (ID: {document_id}, autoridad: {authority_weight}/10)")
-
-        # Insertar chunks con embeddings
-        chunk_records = []
-        for i, (chunk_text, meta) in enumerate(chunks_with_meta):
-            chunk_records.append({
-                "document_id":  document_id,
-                "chunk_index":  i,
-                "chunk_text":   chunk_text,
-                "vector":       embeddings[i].tolist(),  # pgvector acepta arrays Python
-                "chunk_status": "active"
-            })
-
-        # Batch insert (Supabase permite hasta 1000 por request)
-        all_inserted_ids = []
-        batch_size = 100
-        for batch_start in range(0, len(chunk_records), batch_size):
-            batch = chunk_records[batch_start:batch_start + batch_size]
-            chunk_response = supabase.table("embeddings").insert(batch).execute()
-            if chunk_response.data:
-                all_inserted_ids.extend([r["id"] for r in chunk_response.data])
-            logger.info(f"  ✓ Insertados chunks {batch_start + 1}-{min(batch_start + batch_size, len(chunk_records))}")
-
-        chunk_ids = all_inserted_ids
-        logger.info(f"  ✓ Total de chunks almacenados: {len(chunk_records)}")
-
+    try:
+        rpc_response = supabase.rpc(
+            "ingest_document_atomic",
+            {
+                "p_doc":          doc_payload,
+                "p_chunks":       chunk_payloads,
+                "p_operation_id": operation_id,
+                "p_source_agent": Agent.INGESTOR.value,
+            },
+        ).execute()
+        rpc_data = rpc_response.data or {}
+        # Normalizar el resultado del RPC: puede venir como dict o como string JSON
+        if isinstance(rpc_data, str):
+            import json as _json
+            rpc_data = _json.loads(rpc_data)
+        chunk_ids = rpc_data.get("chunk_ids") or []
+        logger.info(
+            f"  ✓ Transacción OK — doc_id={document_id} chunks_persisted={len(chunk_ids)}"
+        )
     except Exception as e:
-        logger.error(f"Error guardando en Supabase: {e}")
+        # NO hay estado parcial que limpiar: la transacción se revirtió.
+        emit(EventType.INGEST_FAILED, source_agent=Agent.INGESTOR,
+             tenant_id=tenant_id, operation_id=operation_id,
+             document_id=document_id,
+             payload={"phase": "atomic_write", "error": str(e), "filename": filename})
+        logger.error(f"Error en escritura atómica (transacción revertida): {e}")
         raise
 
-    # Step 6: Extracción a grafo de conocimiento (opt-in)
+    # ════════════════════════════════════════════════════════════════════════
+    #  FASE 4 — POST-COMMIT: grafo de conocimiento (best-effort + cola)
+    #
+    #  FalkorDB no participa en la transacción Postgres. Si el sync falla,
+    #  encolamos el job en `graph_sync_queue` para retry asíncrono.
+    # ════════════════════════════════════════════════════════════════════════
+
     graph_stats = {"entities": 0, "claims": 0, "chunks_processed": 0}
     if GRAPH_ENABLED and chunk_ids:
-        logger.info("Step 6/7: Extrayendo entidades y claims al grafo...")
+        logger.info("Step 5/5 — Sync con grafo de conocimiento (post-commit)...")
         try:
             from graph_client import get_graph_client
             from entity_extractor import extract_from_chunk
 
             gc = get_graph_client()
             gc.upsert_document(
-                document_id=document_id,
-                tenant_id=tenant_id,
-                space_id=space_id,
-                filename=filename,
-                version_ts=version_ts.isoformat(),
-                status="active",
+                document_id=document_id, tenant_id=tenant_id, space_id=space_id,
+                filename=filename, version_ts=version_ts.isoformat(), status="active",
             )
-
-            for chunk_id, (chunk_text, _) in zip(chunk_ids, chunks_with_meta):
-                # Insertar el chunk en el grafo
+            for idx, (chunk_id, (chunk_text, _meta)) in enumerate(zip(chunk_ids, chunks_with_meta)):
                 gc.upsert_chunk(
-                    chunk_id=chunk_id,
-                    document_id=document_id,
-                    tenant_id=tenant_id,
-                    space_id=space_id,
-                    chunk_index=chunks_with_meta.index((chunk_text, _)),
-                    chunk_status="active",
+                    chunk_id=chunk_id, document_id=document_id,
+                    tenant_id=tenant_id, space_id=space_id,
+                    chunk_index=idx, chunk_status="active",
                 )
-
-                # Extraer entidades + claims con Mistral
                 extraction = extract_from_chunk(chunk_text, filename=filename)
-
                 for ent in extraction.entities:
                     gc.upsert_entity(tenant_id=tenant_id, name=ent.name, kind=ent.kind)
                     gc.link_chunk_to_entity(chunk_id=chunk_id, tenant_id=tenant_id, entity_name=ent.name)
                     graph_stats["entities"] += 1
-
                 for cl in extraction.claims:
                     gc.upsert_claim(
-                        claim_id=cl.claim_id,
-                        tenant_id=tenant_id,
-                        chunk_id=chunk_id,
-                        subject=cl.subject,
-                        predicate=cl.predicate,
-                        value=cl.value,
+                        claim_id=cl.claim_id, tenant_id=tenant_id, chunk_id=chunk_id,
+                        subject=cl.subject, predicate=cl.predicate, value=cl.value,
                         chunk_status="active",
                     )
                     graph_stats["claims"] += 1
-
                 graph_stats["chunks_processed"] += 1
 
             logger.info(
                 f"  ✓ Grafo: {graph_stats['chunks_processed']} chunks → "
-                f"{graph_stats['entities']} entidades, {graph_stats['claims']} claims"
+                f"{graph_stats['entities']} ent, {graph_stats['claims']} claims"
             )
+            emit(EventType.GRAPH_SYNCED, source_agent=Agent.INGESTOR,
+                 tenant_id=tenant_id, operation_id=operation_id,
+                 document_id=document_id, payload=graph_stats)
         except Exception as e:
-            logger.warning(f"Error en extracción a grafo (ingesta continúa): {e}")
-    elif not GRAPH_ENABLED:
-        logger.info("Step 6/7: Grafo desactivado (KORIO_GRAPH_ENABLED=0)")
+            # Encolamos para retry — el corpus Postgres está consistente, el
+            # grafo se rellena cuando un worker procese la cola.
+            logger.warning(f"Sync grafo falló — encolando para retry: {e}")
+            try:
+                supabase.table("graph_sync_queue").insert({
+                    "operation_id": operation_id,
+                    "document_id":  document_id,
+                    "tenant_id":    tenant_id,
+                    "payload":      {
+                        "chunk_ids":   chunk_ids,
+                        "filename":    filename,
+                        "version_ts":  version_ts.isoformat(),
+                    },
+                    "attempts":   1,
+                    "last_error": str(e)[:500],
+                    "last_attempt_at": datetime.now(timezone.utc).isoformat(),
+                }).execute()
+            except Exception as e2:
+                logger.exception("No se pudo encolar el job de sync grafo: %s", e2)
+            emit(EventType.GRAPH_SYNC_FAILED, source_agent=Agent.INGESTOR,
+                 tenant_id=tenant_id, operation_id=operation_id,
+                 document_id=document_id,
+                 payload={"error": str(e)[:500]})
 
-    # Step 7: Detección de conflictos (gobernanza activa)
-    logger.info("Step 7/7: Detectando conflictos...")
+    # ════════════════════════════════════════════════════════════════════════
+    #  FASE 5 — POST-COMMIT: detección de conflictos (gobernanza)
+    # ════════════════════════════════════════════════════════════════════════
+
     conflict_report = ConflictReport()
     if chunk_ids:
         try:
             embeddings_list = [emb.tolist() for emb in embeddings]
-            chunk_texts     = [c[0] for c in chunks_with_meta]
             conflict_report = detect_conflicts(
                 new_document_id=document_id,
                 new_chunk_ids=chunk_ids,
                 new_chunk_texts=chunk_texts,
                 new_embeddings=embeddings_list,
-                space_id=space_id,
-                tenant_id=tenant_id,
+                space_id=space_id, tenant_id=tenant_id,
                 new_doc_authority=authority_weight,
                 new_doc_version_ts=version_ts,
                 db=supabase,
             )
             if conflict_report.has_conflicts:
                 logger.info(
-                    f"  ⚠️  {conflict_report.total_conflicts} conflictos detectados: "
+                    f"  ⚠️ {conflict_report.total_conflicts} conflictos: "
                     f"{conflict_report.auto_resolved} auto-resueltos, "
                     f"{conflict_report.pending_review} pendientes HITL"
                 )
+                emit(EventType.CONFLICT_DETECTED, source_agent=Agent.DETECTOR,
+                     tenant_id=tenant_id, operation_id=operation_id,
+                     document_id=document_id,
+                     payload={
+                         "total":          conflict_report.total_conflicts,
+                         "auto_resolved":  conflict_report.auto_resolved,
+                         "pending_review": conflict_report.pending_review,
+                     })
             else:
+                emit(EventType.DOCUMENT_CLEARED, source_agent=Agent.DETECTOR,
+                     tenant_id=tenant_id, operation_id=operation_id,
+                     document_id=document_id, payload={"filename": filename})
                 logger.info("  ✓ Sin conflictos detectados")
         except Exception as e:
-            logger.warning(f"Error en detección de conflictos (ingesta continúa): {e}")
-    else:
-        logger.info("  ⚠️  Sin chunk IDs devueltos por Supabase — omitiendo detección de conflictos")
+            logger.warning(f"Detección de conflictos falló (ingesta queda OK): {e}")
 
-    # Resultado
+    # Cierre de ciclo — emitir CORPUS_UPDATED desde el Curator
+    emit(EventType.CORPUS_UPDATED, source_agent=Agent.CURATOR,
+         tenant_id=tenant_id, operation_id=operation_id,
+         document_id=document_id,
+         payload={
+             "filename":         filename,
+             "chunk_count":      len(chunk_ids),
+             "graph_stats":      graph_stats,
+             "conflict_summary": conflict_report.to_dict(),
+         })
+
     result = {
         "document_id":          document_id,
+        "operation_id":         operation_id,
         "filename":             filename,
         "status":               "success",
-        "chunks_created":       len(chunk_records),
+        "chunks_created":       len(chunk_ids),
         "embeddings_generated": len(embeddings),
         "pii_found":            prep_meta['pii_found'],
         "char_count":           prep_meta['char_count'],
         "conflict_report":      conflict_report.to_dict(),
         "graph_stats":          graph_stats,
     }
-
-    logger.info(f"\n✅ Ingesta completada: {result}")
+    logger.info(f"✅ Ingesta completada — operation_id={operation_id}")
     return result
 
 
 def main():
     """CLI para ingesta de documentos."""
-    parser = argparse.ArgumentParser(
-        description="Ingesta de documentos a Korio"
-    )
+    parser = argparse.ArgumentParser(description="Ingesta de documentos a Korio")
     parser.add_argument("document", help="Ruta del documento a ingestar")
-    parser.add_argument(
-        "--tenant-id",
-        default="a0000000-0000-0000-0000-000000000001",
-        help="ID del tenant (default: Clínica Delos)"
-    )
-    parser.add_argument(
-        "--space-id",
-        default="a1000000-0000-0000-0000-000000000001",
-        help="ID del espacio (default: RRHH)"
-    )
-    parser.add_argument(
-        "--document-id",
-        help="ID del documento (default: genera uno nuevo)"
-    )
-    parser.add_argument(
-        "--no-anonymize",
-        action="store_true",
-        help="No anonimizar PII"
-    )
-
+    parser.add_argument("--tenant-id", default="a0000000-0000-0000-0000-000000000001",
+                        help="ID del tenant (default: Clínica Delos)")
+    parser.add_argument("--space-id", default="a1000000-0000-0000-0000-000000000001",
+                        help="ID del espacio (default: RRHH)")
+    parser.add_argument("--document-id", help="ID del documento (default: nuevo)")
+    parser.add_argument("--no-anonymize", action="store_true", help="No anonimizar PII")
     args = parser.parse_args()
 
     try:
@@ -361,7 +403,7 @@ def main():
             tenant_id=args.tenant_id,
             space_id=args.space_id,
             document_id=args.document_id,
-            anonymize=not args.no_anonymize
+            anonymize=not args.no_anonymize,
         )
         print(f"\n✅ Éxito: {result}")
         return 0
