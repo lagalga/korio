@@ -226,7 +226,8 @@ class LLMClient:
         self,
         query: str,
         context_chunks: list,
-        language: str = "es"
+        language: str = "es",
+        graph_context: str = ""
     ) -> tuple[str, str]:
         """
         Construye el prompt RAG con contexto y la query del usuario.
@@ -235,6 +236,10 @@ class LLMClient:
             query: Pregunta del usuario
             context_chunks: Lista de chunks recuperados (dicts con chunk_text, document_id, similarity)
             language: Idioma de la respuesta ("es" o "en")
+            graph_context: Bloque opcional con claims del grafo de conocimiento.
+                Se inyecta DENTRO del CONTEXTO como fuente equivalente a los
+                chunks vectoriales, para que el LLM no lo descarte por estar
+                fuera del bloque marcado como CONTEXTO.
 
         Returns:
             tuple[str, str]: (system_prompt, user_prompt)
@@ -243,19 +248,30 @@ class LLMClient:
         system_prompt = (
             "Eres un asistente corporativo especializado. "
             "RESPONDE ÚNICAMENTE con información que aparezca en el CONTEXTO proporcionado. "
-            "Si la respuesta no está en el contexto, di exactamente: "
+            "El CONTEXTO puede contener dos tipos de fuentes, AMBAS válidas y autoritativas: "
+            "(1) fragmentos de documentos (chunks vectoriales con [nombre_doc · relevancia X.XX]) "
+            "y (2) un bloque opcional [CONOCIMIENTO ESTRUCTURADO DEL GRAFO] con afirmaciones "
+            "extraídas previamente del knowledge base por análisis semántico. "
+            "Si la respuesta aparece en CUALQUIERA de las dos fuentes, contéstala con confianza. "
+            "Si la respuesta no está en ninguna, di exactamente: "
             "'No encuentro información sobre esto en los documentos disponibles.' "
             "NUNCA inventes datos, fechas, nombres o cifras. "
             "Cita la fuente al final de cada afirmación relevante usando el nombre del documento "
             "entre corchetes tal como aparece en el contexto (por ejemplo: [politica_vacaciones.pdf]). "
+            "Cuando una afirmación venga del bloque del grafo, cita los documentos de los chunks "
+            "relacionados si están presentes; no menciones el grafo explícitamente. "
             f"Responde en {'español' if language == 'es' else 'inglés'}."
         )
 
         # Formatear contexto — preferir filename real para que las citas sean legibles
-        if not context_chunks:
+        if not context_chunks and not graph_context:
             context_text = "No hay documentos disponibles para responder esta pregunta."
         else:
             context_parts = []
+            # El grafo va PRIMERO dentro del CONTEXTO: claims estructurados suelen
+            # ser más concisos y precisos cuando aplican.
+            if graph_context:
+                context_parts.append(graph_context)
             for i, chunk in enumerate(context_chunks, 1):
                 doc_id     = chunk.get("document_id", "desconocido")
                 filename   = chunk.get("filename") or f"Documento {i}"

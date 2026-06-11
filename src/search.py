@@ -241,14 +241,15 @@ def search(
     logger.info("Step 3/4: Generando respuesta con LLM...")
     llm = get_llm_client()
     try:
+        # El grafo se inyecta DENTRO del CONTEXTO (como fuente equivalente a
+        # los chunks vectoriales). Si va fuera, el LLM lo descarta porque el
+        # system_prompt obliga a responder solo desde el CONTEXTO.
         system_prompt, user_prompt = llm.build_rag_prompt(
             query=query,
             context_chunks=raw_chunks,
-            language=language
+            language=language,
+            graph_context=graph_block,
         )
-        # Inyectar contexto del grafo al user_prompt
-        if graph_block:
-            user_prompt = graph_block + "\n\n---\n\n" + user_prompt
 
         # Inyectar aviso de conflicto en el prompt cuando proceda
         if has_conflict:
