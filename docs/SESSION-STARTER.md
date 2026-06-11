@@ -34,9 +34,9 @@ Sesión 5 (11 jun) quedó **todo desplegado y verificado** — no hay pendientes
    ssh korio-vps "cd /root/korio && .venv/bin/python scripts/mcp_create_key.py create --user-id <uuid> --tenant-id <uuid> --name '<alias>'"
    ```
 
-## Estado actual (al cierre de la última sesión · 11 jun 2026 · sesión 5)
+## Estado actual (al cierre de la última sesión · 11 jun 2026 · sesiones 6-9 · v0.3.0)
 
-✅ **Phases 1–7.3 completadas + 4 fixes encadenados del RAG híbrido**. En producción:
+✅ **Phases 1–7.3 + v0.3.0 con las 6 reglas del Entregable 3 cumplidas**. En producción:
 
 - `https://korio.es` — landing teaser
 - `https://korio.es/ui` — chat RAG multi-tenant con gobernanza activa, banner ⚠️ de contradicciones y 3 puntos de acceso al grafo
@@ -73,6 +73,31 @@ Sesión 5 (11 jun) quedó **todo desplegado y verificado** — no hay pendientes
   2. **Retrieval saturado por subject genérico**: keyword "política" capturaba `LIMIT 20` de claims con subject "política vacaciones", expulsando los claims con value "35 horas/semana". Solución: LIMIT 50 + rerank en Python (`score = 3·predicate + 2·value + 1·subject` por keyword).
   3. **Citación de fuentes en MCP**: docstring + `instructions` del FastMCP server obligan al cliente a citar `filename` y avisar de `is_disputed`.
   4. **list_spaces -32602**: añadido parámetro `include_inactive` dummy para que FastMCP serialice el schema con ≥1 param.
+
+✅ **Sesión 6 (v0.2.0) — Pipeline transaccional ACID + bus de eventos agéntico**:
+  - Migración 011: `pipeline_events` (operation_id UUID + event_type + source_agent + payload) y RPC PL/pgSQL `ingest_document_atomic` que escribe documento + chunks + evento en una sola transacción. Si cualquier paso falla, TODO se revierte.
+  - `src/agents/events.py`: `emit()` con doble efecto (audit en pipeline_events + webhook a n8n best-effort), enums EventType + Agent.
+  - Refactor de `src/ingest.py` en 5 fases (IO externa → dedupe → RPC atómico → grafo post-commit con cola → conflictos).
+  - Doc `docs/AGENTIC-INGESTION.md` (capítulo memoria TFM). **Tests 3/3 verdes** incluyendo rollback ACID demostrado.
+  - **Cierra el feedback explícito del profesor en el Entregable 4** sobre transaccionalidad SQL.
+
+✅ **Sesión 7 — observabilidad + fachada agéntica explícita**:
+  - Workflow n8n `Korio · Pipeline event bus` activo en `n8n.korio.es` (id `ymewhJheuvUgUCyt`). Cada `emit()` produce una ejecución visible con emoji (`📥 Ingestor → DOCUMENT_INGESTED (op …)`).
+  - `src/agents/{base, ingestor, detector, arbitrator, supervisor, curator, pipeline}.py` — los 5 roles del Entregable 3 como clases con docstring PEAS. `Pipeline(tenant_id).run_ingest()` entry point. **2/2 tests verdes**.
+
+✅ **Sesión 8 — detección de conflictos en query-time (Caso extremo del E4)**:
+  - Migración 012: RPC `detect_silent_conflicts_among_chunks(BIGINT[], FLOAT)` — calcula similitud par a par entre chunks recuperados dentro de Postgres.
+  - `src/search.py` Step 2.5: si encuentra pares ≥0.85 entre docs distintos, emite `CONFLICT_DETECTED` con `triggered_by: query_time` + avisa al usuario.
+  - MCP server propaga `has_silent_conflict` + `silent_conflicts[]` a Claude Desktop con instrucción de añadir "⚠️ Aviso de la gobernanza:".
+  - **1 test E2E verde** que reproduce literalmente el Caso extremo del E4 (dos docs vía RPC atómico saltándose el detector → query los pilla).
+
+✅ **Sesión 9 — Reglas 4 y 5 del Entregable 3**:
+  - Migración 013: estado terminal `inconclusive` en `chunk_status` + tabla `policies`.
+  - `src/policies.py`: cada decisión HITL del admin se persiste como policy reutilizable; el Detector consulta `find_applicable_policy()` antes de evaluar fecha/autoridad.
+  - `_apply_timeout` en `escalation.py` ahora marca chunks como `inconclusive` (excluidos del RAG hasta intervención manual). Comportamiento legacy disponible con `KORIO_TIMEOUT_KEEP_BOTH=1`.
+  - `ConflictReport.policy_resolved`, logs distinguen 📚 Policy vs ⚡ Auto.
+  - **2 tests verdes**: timeout → inconclusive y policy intercepta segundo conflicto.
+  - **Las 6 reglas del E3 están materializadas en producción** (tabla detallada en `docs/AGENTIC-INGESTION.md`).
 
 ## Fuentes de verdad (léelas si necesitas contexto)
 
@@ -122,23 +147,24 @@ Variables clave del `.env` del VPS (no las pongas en código, ya están en `/roo
   - **Slack API** (bot token `xoxb-...`) — para el bot `Korio-Delos`
 - 5 workflows activos (detalles arriba)
 
-## Hoy quiero atacar — contenido TFM
+## Próxima sesión — **contenido TFM (todo el código demostrable está cerrado)**
 
-Faltan **~21 días para demo (2 jul)** y **~28 días para defensa (9 jul)**. El esfuerzo crítico ahora es contenido TFM. El código en producción está al 100% del scope demostrable (Phases 1–7.3 cerradas).
+Faltan **~21 días para demo (2 jul)** y **~28 días para defensa (9 jul)**. El código está al 100% del scope defendible: Phases 1-7.3 + v0.3.0 con las **6 reglas del Entregable 3** materializadas + cierre explícito del **feedback del profesor del E4** (transaccionalidad ACID) y del **Caso extremo del E4** (detección query-time).
 
-**Camino A · Contenido TFM (recomendado, lo crítico)**
-- QA E2E: ronda de 10+ queries en ambos tenants vía `korio.es/ui` Y vía MCP en Claude Desktop (demuestra que el RAG es conectable al ecosistema agéntico)
-- Ejecutar `scripts/benchmark.py` para sacar p50/p95 formales
-- Grabar vídeo demo (3-4 min): correo llega → 30s después consultable → multi-turn → conflicto → email HITL → grafo → cierra con la query del hito desde Claude Desktop (MCP)
-- Empezar slide deck (10-15 slides)
+**Único camino prioritario**
+- **QA E2E**: 10+ queries en ambos tenants vía `korio.es/ui` + Claude Desktop con MCP (multi-turn + conflictos)
+- **Benchmark formal** `scripts/benchmark.py` para p50/p95
+- **Vídeo demo (3-4 min)**: correo llega → 30s después consultable → multi-turn → conflicto → email HITL → grafo → cierre con MCP en Claude Desktop. En pantalla paralela enseñar el flow `Korio · Pipeline event bus` en `n8n.korio.es` con eventos llegando en vivo
+- **Slide deck (10-15)**. Una slide central debería ser la tabla "Cumplimiento de las 6 reglas del E3" de `docs/AGENTIC-INGESTION.md`
+- **Memoria TFM** — capítulos ya listos como base:
+  - `docs/AGENTIC-INGESTION.md` — feedback profesor + 6 reglas del E3
+  - `docs/MCP-SERVER.md` — Phase 7.3
+  - `docs/MULTI-TENANT-INGESTION.md` + `docs/CHAT-PIPELINE-GUARDRAILS.md` — Phase 8 post-TFM
 
-**Camino B · Memoria TFM**
-- Escribir capítulos con los docs de diseño ya listos: `MULTI-TENANT-INGESTION.md`, `CHAT-PIPELINE-GUARDRAILS.md`, `MCP-SERVER.md` (todos = capítulos Phase 8 / 7.3)
-- Sección de decisiones de diseño: grafo+RAG híbrido, FalkorDB vs Neo4j, query reformulation vs context-in-prompt, **MCP HTTP+SSE vs OAuth (Phase 8)**, **ASGI puro vs BaseHTTPMiddleware** (anécdota del bug de SSE)
-
-**Camino C · Mejoras opcionales del RAG** (post-defensa o si sobra tiempo)
-- Rerank semántico del grafo con embedding de la query (en lugar del scoring lexical actual)
-- Sistema agéntico de inmunidad de conocimiento (5 agentes + cron) que tengo pendiente de contar — aplicación a la ingesta con HITL
+**Mejoras opcionales (post-defensa o si sobra tiempo)**
+- Rerank semántico del grafo con embedding de la query (hoy lexical)
+- OAuth 2.1 + rate limit + audit log en el servidor MCP
+- Sticky sessions o streamable_http_app para escalar a >1 worker uvicorn
 
 ## Pendiente antes de la defensa (2 jul demo, 9 jul defensa)
 

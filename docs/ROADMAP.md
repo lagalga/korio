@@ -1,6 +1,6 @@
 # Korio — Roadmap
 
-> Estado actual: **Phases 1–7.3 completadas · ingesta automática multi-canal + grafo + servidor MCP en producción** · Demo TFM: 2 julio 2026 · Defensa: 9 julio 2026
+> Estado actual: **v0.3.0 · Phases 1–7.3 + las 6 reglas del Entregable 3 cumplidas · feedback profesor del E4 cerrado · Caso extremo del E4 cubierto** · Demo TFM: 2 julio 2026 · Defensa: 9 julio 2026
 
 ---
 
@@ -233,4 +233,16 @@
 
 ---
 
-*Actualizado: 11 junio 2026 (sesión 5) — Phases 1–7.3 completadas, ingesta multi-canal + memoria de chat multi-turn + grafo+RAG híbrido refinado + MCP server productivo en `korio.es/mcp/sse` con cliente vivo en Claude Desktop. Quedan: QA E2E, benchmark, vídeo, slides, memoria TFM.*
+### Sesiones 6-9 (11 jun · v0.3.0) ✅ CERRADAS — Cumplimiento E3/E4 completo
+| Sesión | Cierre principal | Tests |
+|---|---|---|
+| Sesión 6 | Transaccionalidad ACID — RPC `ingest_document_atomic` (migr. 011). Bus de eventos `pipeline_events` con `operation_id` UUID y webhook a n8n. **Cierra feedback profesor E4** | 3/3 atomicidad |
+| Sesión 7 | Workflow n8n `Korio · Pipeline event bus` + fachada agéntica `src/agents/{base,ingestor,detector,arbitrator,supervisor,curator,pipeline}.py` con docstring PEAS de los 5 roles del E3 | 2/2 agentic |
+| Sesión 8 | Migr. 012: RPC `detect_silent_conflicts_among_chunks`. search.py Step 2.5 con aviso al usuario y emisión de `CONFLICT_DETECTED triggered_by=query_time`. **Cierra Caso extremo del E4** | 1/1 query-time |
+| Sesión 9 | Migr. 013: estado `inconclusive` + tabla `policies`. `_apply_timeout` → `inconclusive` (Regla 5). `find_applicable_policy()` antes de `_decide_resolution` (Regla 4). Persistencia de policy desde `/review`. | 2/2 inconclusive+policies |
+
+**Las 6 reglas del Entregable 3 están materializadas en producción** (tabla detallada en `docs/AGENTIC-INGESTION.md` §"Cumplimiento de las 6 Reglas del E3").
+
+---
+
+*Actualizado: 11 junio 2026 (sesiones 6-9, v0.3.0) — Phases 1-7.3 + transaccionalidad ACID + bus de eventos agéntico + fachada `src/agents/*` + detección query-time + estado `inconclusive` post-timeout + políticas reutilizables. 8/8 tests verdes. Cierre explícito del feedback del profesor (Entregable 4) y del Caso extremo del E4. Quedan: QA E2E, benchmark, vídeo, slides, memoria TFM.*

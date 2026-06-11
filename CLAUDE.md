@@ -11,9 +11,9 @@
 
 ---
 
-## Estado actual (11 junio 2026 · sesión 6)
+## Estado actual (11 junio 2026 · sesiones 6-9 · v0.3.0)
 
-### ✅ Completado — Phases 1–7.3 + v0.2.0 (ingesta agéntica + ACID)
+### ✅ Completado — Phases 1–7.3 + v0.3.0 (las 6 reglas del E3 cumplidas)
 
 **Phases 1–4** — pipeline ingesta, RAG vectorial, multi-tenancy con RLS, docs técnicos, chat UI con upload, benchmark script.
 
@@ -415,4 +415,33 @@ Pendiente sesión 7 (Phase 8 candidatos): detección query-time, estado `inconcl
 
 ---
 
-*Actualizado: 11 junio 2026 (sesión 6) — v0.2.0 ingesta agéntica + ACID. Pipeline transaccional con bus de eventos respondiendo al feedback del profesor del Entregable 4. 3/3 tests verdes incluyendo rollback ACID. Pendiente para defensa: QA E2E, benchmark, vídeo demo, slides, memoria TFM.*
+**Sesiones 7-8-9 (11 jun · tarde-noche)** — v0.3.0 cierre del mapeo E3/E4:
+
+**Sesión 7 — observabilidad y fachada agéntica**:
+- **Workflow n8n `Korio · Pipeline event bus`** (id `ymewhJheuvUgUCyt`) en `n8n.korio.es`. `KORIO_EVENT_WEBHOOK_URL=https://n8n.korio.es/webhook/korio-events` en `/root/korio/.env`. Cada evento del backend dispara una ejecución visible con emoji + summary.
+- **`src/agents/{base, ingestor, detector, arbitrator, supervisor, curator, pipeline}.py`** — fachada que refleja 1:1 los 5 roles del E3 con documentación PEAS por agente. `Pipeline(tenant_id).run_ingest()` es el entry point de alto nivel.
+
+**Sesión 8 — detección query-time (Caso extremo del E4)**:
+- **Migración 012** — RPC `detect_silent_conflicts_among_chunks(BIGINT[], FLOAT)` calcula similitud par a par dentro de Postgres (una sola query, O(N²/2) sobre N=chunks recuperados, pequeño).
+- **`src/search.py` Step 2.5** — tras la búsqueda vectorial, llama al RPC. Si hay pares ≥0.85 entre docs distintos, emite `CONFLICT_DETECTED` con `triggered_by: query_time` + añade aviso al system_prompt + `silent_conflicts[]` al response.
+- **`api/mcp_server.py`** — instructions actualizadas para que Claude Desktop muestre "⚠️ Aviso de la gobernanza:" cuando `has_silent_conflict=true`.
+- Env vars: `KORIO_QUERY_TIME_CONFLICT_ENABLED=1`, `KORIO_QUERY_TIME_CONFLICT_THRESHOLD=0.85`.
+
+**Sesión 9 — Reglas 4 y 5 del E3**:
+- **Migración 013** — estado terminal `inconclusive` en `chunk_status` + nueva tabla `policies` (subject_pattern, decision, source_review_id, times_applied, last_applied_at, active).
+- **`src/policies.py`** — `find_applicable_policy()` y `save_policy_from_review()`. Cada decisión HITL del admin se persiste como policy reutilizable que el Detector consulta antes de evaluar fecha/autoridad.
+- **`src/escalation.py`** — `_apply_timeout` ahora marca chunks como `inconclusive` (excluidos del RAG hasta intervención manual) en lugar de devolver ambos a `active`. Legacy disponible con `KORIO_TIMEOUT_KEEP_BOTH=1`.
+- **`src/conflict_detector.py`** — `ConflictReport.policy_resolved`. Logs distinguen `📚 Policy` vs `⚡ Auto`.
+- **`api/server.py`** — `/review/{id}` persiste la policy automáticamente tras action HITL.
+
+**Tests sesiones 6-9** (8/8 verdes acumulados):
+- 3 atomicidad ACID (test_atomic_ingest.py)
+- 2 fachada agéntica + Pipeline (test_pipeline_agentic.py)
+- 1 query-time E2E reproduciendo el Caso extremo del E4 (test_query_time_detection.py)
+- 2 inconclusive + policy reuse (test_inconclusive_and_policies.py)
+
+**Las 6 reglas del E3 están materializadas en producción** (tabla detallada en `docs/AGENTIC-INGESTION.md` §"Cumplimiento de las 6 reglas del Entregable 3").
+
+---
+
+*Actualizado: 11 junio 2026 (sesiones 6-9) — v0.3.0. Korio cierra el feedback del profesor (transaccionalidad ACID), el Caso extremo del E4 (detección query-time), y las 6 reglas del E3 (`inconclusive` + `policies`). 8/8 tests verdes. Suite agéntica observable en n8n.korio.es. Pendiente para defensa: QA E2E, benchmark, vídeo demo, slides, memoria TFM.*
