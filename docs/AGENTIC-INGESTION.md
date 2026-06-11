@@ -200,14 +200,40 @@ tests/test_atomic_ingest.py::test_rpc_atomico_rollback_si_falla_mid_transaction 
 5. **Workflow n8n `korio:event-bus`** consumiendo los webhooks de `emit()`
    para visualización en vivo durante la defensa. **1–2 h**.
 
+## Cumplimiento de las 6 reglas del Entregable 3 (Korio v0.3.0)
+
+El Entregable 3 enumera 6 "leyes físicas y reglas del entorno" que el sistema
+multiagente debe respetar. La siguiente tabla mapea cada una a su mecanismo
+en Korio en producción:
+
+| Regla del E3 | Mecanismo en Korio (v0.3.0) | Evidencia |
+|---|---|---|
+| **R1 — Estado único por documento** (entrada / en_revisión / activo / archivado / no_concluyente) | Korio diferencia estado a nivel **chunk** (más granular): `active` / `superseded` / `disputed` / `inconclusive`. El documento agregado tiene `active` / `archived` / `superseded`. Combinado cubre los 5 estados del E3 | `embeddings.chunk_status` (migración 013), `documents.status` |
+| **R2 — Cuarentena de fragmentos en conflicto** | Chunks en `disputed` y `inconclusive` se **excluyen del RAG** automáticamente | RPC `search_with_disputed` filtra; sesión 9 añade `inconclusive` |
+| **R3 — Inmutabilidad del log de auditoría** | `audit_log` (queries) y `pipeline_events` (transiciones agénticas) son **append-only por diseño** — solo se hacen INSERT, nunca UPDATE ni DELETE | `pipeline_events` (sesión 6) reconstruye cualquier ciclo con `SELECT … WHERE operation_id = ?` |
+| **R4 — Prevalencia de políticas sobre reglas base** | Tabla `policies` con `subject_pattern` + `decision`. El Detector llama `find_applicable_policy()` **antes** de `_decide_resolution`. Si match → decisión policy directa, sin fecha ni autoridad | `src/policies.py`, sesión 9 |
+| **R5 — Reactivación manual obligatoria** | Tras `ESCALATION_TIMEOUT_DAYS` sin respuesta HITL, `_apply_timeout` marca chunks como `inconclusive` (no `active`). Quedan excluidos del RAG hasta que un admin los reactive manualmente | `src/escalation.py` (sesión 9), test `test_timeout_pasa_chunks_a_inconclusive` |
+| **R6 — Trazabilidad de toda resolución** | Cada decisión (auto, policy, HITL, timeout) emite un evento con `operation_id` que se persiste en `pipeline_events` y se difunde por webhook a `n8n.korio.es`. `times_applied` por policy mide cuántas intervenciones humanas se ahorraron | Sesión 6 + 7, workflow `Korio · Pipeline event bus` |
+
+**De las 6 reglas, las 6 están materializadas en producción.**
+
 ## Mensaje para la memoria TFM
 
-> Korio v0.2 cierra explícitamente el feedback del Entregable 4 (transaccionalidad
-> SQL) y aplica al producto de producción el patrón conceptual del diseño
-> agéntico del Entregable 3, adaptándolo a la realidad SaaS multi-tenant: los
-> agentes son **roles lógicos en un mismo proceso** que se comunican vía bus
-> de eventos persistente (`pipeline_events`) y observable en directo vía n8n.
-> Esta arquitectura preserva la latencia del camino crítico (un microservicio
-> por agente añadiría +1.5–3 s) y, sobre todo, **hace posible la
-> transaccionalidad ACID que era imposible en LangFlow** porque allí cada
-> nodo era un servicio independiente con su propio canal de escritura.
+> Korio v0.3.0 cierra explícitamente:
+> - el **feedback del profesor en el Entregable 4** sobre transaccionalidad SQL
+>   (sesión 6 — RPC PL/pgSQL atómico con test de rollback);
+> - el **"Caso extremo"** que el propio Entregable 4 dejaba como línea futura
+>   en su §4 — detección de conflictos silenciosos en query-time
+>   (sesión 8 — RPC `detect_silent_conflicts_among_chunks` + aviso al usuario);
+> - las **6 reglas del Entregable 3** en producción, incluida la regla 4
+>   (prevalencia de políticas sobre reglas base, con `times_applied` como
+>   métrica de aprendizaje del sistema) y la regla 5 (reactivación manual
+>   obligatoria tras timeout, con estado terminal `inconclusive`).
+>
+> El patrón "agentes como roles lógicos en un proceso con bus de eventos"
+> mantiene la latencia del camino crítico (sin saltos de red entre nodos)
+> y, sobre todo, **hace posible la transaccionalidad ACID que era imposible
+> en LangFlow** (allí cada nodo era un microservicio con su propio canal de
+> escritura). La observabilidad equivalente al editor LangFlow se obtiene
+> consumiendo `pipeline_events` desde un workflow n8n que se enseña en vivo
+> durante la defensa.

@@ -10,6 +10,48 @@ semántico [SemVer](https://semver.org/lang/es/).
 
 ## [Unreleased]
 
+## [0.3.0] — 2026-06-11 · sesiones 7-9
+### Added
+- **Workflow n8n `Korio · Pipeline event bus`** (sesión 7) consumiendo
+  `KORIO_EVENT_WEBHOOK_URL`. Cada `emit()` del backend produce una ejecución
+  visible con emoji + summary (`📥 Ingestor → DOCUMENT_INGESTED (op …)`).
+  Activo en `n8n.korio.es`.
+- **Fachada agéntica `src/agents/{base, ingestor, detector, arbitrator,
+  supervisor, curator, pipeline}.py`** (sesión 7). Refleja 1:1 los 5 roles
+  del Entregable 3 con documentación PEAS por agente. `Pipeline(tenant_id)
+  .run_ingest(...)` es el punto de entrada de alto nivel.
+- **Detección de conflictos en query-time** (sesión 8). Migración 012 con
+  función `detect_silent_conflicts_among_chunks(BIGINT[], FLOAT)`. Cuando
+  `/search` recupera ≥2 chunks de docs distintos con sim ≥0.85 (env
+  `KORIO_QUERY_TIME_CONFLICT_THRESHOLD`), emite `CONFLICT_DETECTED` con
+  `triggered_by: query_time` y avisa al usuario en la respuesta.
+- **Estado terminal `inconclusive`** (sesión 9). Migración 013. Tras
+  timeout HITL (21 días sin respuesta), los chunks pasan a `inconclusive`,
+  excluidos del RAG hasta intervención manual. Más conservador que el
+  comportamiento previo (`timeout_kept_both`). Cumple Regla 5 del E3.
+- **Políticas reutilizables** (sesión 9). Tabla `policies` con
+  `subject_pattern`, `decision`, `times_applied`. Cada decisión HITL del
+  admin se persiste como policy reutilizable. El detector consulta
+  `policies` ANTES de evaluar fecha/autoridad. Cumple Regla 4 del E3.
+
+### Changed
+- `_apply_timeout` (escalation.py) → `timeout_inconclusive` por defecto.
+  Comportamiento legacy disponible con env `KORIO_TIMEOUT_KEEP_BOTH=1`.
+- `ConflictReport` añade contador `policy_resolved`.
+- `SearchResponse` añade `has_silent_conflict`, `silent_conflicts`,
+  `query_time_threshold`. El servidor MCP también los propaga; las
+  `instructions` de FastMCP instruyen a Claude Desktop a añadir un párrafo
+  "⚠️ Aviso de la gobernanza:" cuando aplique.
+- `version` API 0.2.0 → 0.3.0.
+
+### Documentation
+- `docs/AGENTIC-INGESTION.md` actualizado con sección "Cumplimiento de las
+  6 Reglas del E3" — argumenta para defensa que las 6 están materializadas.
+
+### Tests
+- 8/8 verdes acumulados: 3 atomicidad ACID + 2 fachada agéntica + 1
+  query-time E2E + 2 inconclusive/policies.
+
 ## [0.2.0] — 2026-06-11 · sesión 6
 ### Added
 - **Bus de eventos del pipeline multi-agente** (`pipeline_events`, migración 011).
