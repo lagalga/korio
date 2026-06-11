@@ -220,7 +220,7 @@ def ingest_document(
     ]
 
     try:
-        rpc_response = supabase.rpc(
+        rpc_response = supabase.client.rpc(
             "ingest_document_atomic",
             {
                 "p_doc":          doc_payload,
@@ -240,10 +240,16 @@ def ingest_document(
         )
     except Exception as e:
         # NO hay estado parcial que limpiar: la transacción se revirtió.
+        # No pasamos document_id porque el documento no llegó a persistirse
+        # (la FK de pipeline_events.document_id fallaría).
         emit(EventType.INGEST_FAILED, source_agent=Agent.INGESTOR,
              tenant_id=tenant_id, operation_id=operation_id,
-             document_id=document_id,
-             payload={"phase": "atomic_write", "error": str(e), "filename": filename})
+             payload={
+                 "phase":          "atomic_write",
+                 "error":          str(e),
+                 "filename":       filename,
+                 "attempted_doc_id": document_id,
+             })
         logger.error(f"Error en escritura atómica (transacción revertida): {e}")
         raise
 
