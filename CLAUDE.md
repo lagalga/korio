@@ -11,9 +11,9 @@
 
 ---
 
-## Estado actual (10 junio 2026 · tarde · sesión 4)
+## Estado actual (11 junio 2026 · sesión 5)
 
-### ✅ Completado — Phases 1–7.2 CERRADAS + mejoras de sesión 4
+### ✅ Completado — Phases 1–7.3 CERRADAS + fixes RAG críticos
 
 **Phases 1–4** — pipeline ingesta, RAG vectorial, multi-tenancy con RLS, docs técnicos, chat UI con upload, benchmark script.
 
@@ -35,30 +35,45 @@
 - **UI polish**: filenames de fuentes ya no se truncan; eliminado marcador `[grafo]` confuso de las respuestas.
 - **Documento de diseño** `docs/MULTI-TENANT-INGESTION.md` — Phase 8 post-TFM (OAuth multi-tenant, vault de tokens, ingestion_rules, onboarding UX). Sirve como capítulo de la memoria TFM "Arquitectura objetivo SaaS post-defensa".
 
-**Sesión 4 (tarde · post-Phase 7.2)** — mejoras técnicas + docs:
-- **Memoria de chat multi-turn**: `state.conversation` en el frontend guarda los últimos turnos y los envía a `/search`. Si llega `history`, `search.py` invoca `llm_client.reformulate_query()` con un prompt en español que reescribe la pregunta como autónoma antes del embedding. Latencia +1s. Reset automático al cambiar tenant/usuario. Solo se guardan turnos con `has_context=true` para no contaminar el historial con "no encontré información". La respuesta expone `original_query`, `embedded_query`, `query_reformulated` para trazabilidad.
-- **Fix CONTRADICTS falsos positivos en el grafo**: el Cypher original juntaba claims con mismo `predicate` y distinto `value` aunque el `subject` fuera totalmente distinto (ej: "responsable" de RRHH vs de limpieza). Ahora exige `cA.subject = cB.subject` o substring containment en cualquier dirección. Aplicado en `graph_client.link_contradictions_between_chunks` (live) y `scripts/graph_backfill.py` (batch). Para limpiar las aristas falsas existentes: `MATCH ()-[r:CONTRADICTS]->() DELETE r` + relanzar backfill.
-- **Documento de seguridad** `docs/CHAT-PIPELINE-GUARDRAILS.md` — diseño Phase 8 con n8n + Lakera/Rebuff (ingress) + Presidio (egress) + rate limit + compliance por tenant. Capítulo memoria TFM "Seguridad del chat como producto SaaS".
-- **Sync local docs**: CLAUDE.md, ROADMAP.md, ARCHITECTURE.md, DEPLOYMENT.md, README.md alineados con estado real (sesiones 3 + 4).
+**Sesión 4 (10 jun · tarde)** — memoria de chat + fix CONTRADICTS:
+- **Memoria de chat multi-turn**: `state.conversation` guarda últimos 6 turnos en el frontend. `search.py` reformula la query como autónoma vía LLM (`reformulate_query`) antes del embedding. Latencia +1s. Solo se guardan turnos con `has_context=true`. Respuesta expone `original_query`, `embedded_query`, `query_reformulated`.
+- **Fix CONTRADICTS falsos positivos en el grafo**: Cypher exige `subject` igual o substring containment, en `link_contradictions_between_chunks` (live) y `scripts/graph_backfill.py` (batch).
+- **Documento de seguridad** `docs/CHAT-PIPELINE-GUARDRAILS.md` — Phase 8 con n8n + Lakera/Rebuff (ingress) + Presidio (egress) + rate limit.
+
+**Sesión 5 (11 jun · mañana)** — Phase 7.3 + 4 fixes encadenados del RAG híbrido:
+
+**Phase 7.3 — MCP Server** ✅ EN PRODUCCIÓN:
+- **Migración 010**: tabla `mcp_api_keys` (key_hash SHA-256, user_id, tenant_id, name, last_used_at, revoked_at). FK a `users` y `tenants`.
+- **`api/mcp_server.py`**: FastMCP con 3 tools — `search_knowledge_base`, `list_pending_conflicts`, `list_spaces`. Identidad propagada vía `ContextVar` desde el header `X-Korio-MCP-Key`. Reaprovecha el early binding de RLS del backend sin duplicar nada.
+- **`api/server.py`**: middleware ASGI puro `MCPAuthASGI` que envuelve solo el sub-app `/mcp`. NO se usa `@app.middleware("http")` porque `BaseHTTPMiddleware` bufferea la respuesta y rompe SSE.
+- **Transport security**: `TransportSecuritySettings` con `allowed_hosts=[korio.es,...]` para que el anti-DNS-rebinding del SDK MCP acepte el Host de nginx.
+- **`scripts/mcp_create_key.py`**: CLI create/list/revoke. Plaintext mostrado UNA sola vez. Prefijo `korio_`.
+- **Doc** `docs/MCP-SERVER.md` — capítulo memoria TFM con arquitectura, conexión a Claude Desktop (vía `mcp-remote` por npx, requiere Node 20+), limitaciones y Phase 8 (OAuth 2.1, rate limit, audit log).
+- **Decisiones críticas del despliegue** documentadas: 1 worker uvicorn (las sesiones SSE son in-memory por proceso); en Phase 8 → streamable_http_app stateless o sticky sessions en nginx.
+
+**Fix encadenado del RAG cuando el grafo debía aportar** (caso TFM `"35 horas semanales mínimas"`):
+
+1. **Fix SSE + middleware** — `BaseHTTPMiddleware` rompía streams SSE con `AssertionError: Unexpected message: http.response.start, content-length=0`. Sustituido por `MCPAuthASGI` puro.
+2. **Fix citación de fuentes** — docstring + `instructions` del MCP server obligan al modelo cliente a citar siempre los `filename` y avisar de `is_disputed`.
+3. **Fix `list_spaces` -32602** — FastMCP requiere ≥1 parámetro declarado para validar `arguments:{}`. Añadido `include_inactive: bool = False` (no usado, placeholder Phase 8).
+4. **Fix grafo ignorado por el LLM** — el bloque `[CONOCIMIENTO ESTRUCTURADO DEL GRAFO]` se prepend-eaba al `user_prompt` **fuera** del bloque `CONTEXTO:`. El system_prompt obliga a "RESPONDER ÚNICAMENTE con información del CONTEXTO" → Mistral, literal, lo descartaba. Solución: `build_rag_prompt(graph_context=...)` lo inyecta DENTRO del CONTEXTO; system_prompt declara explícitamente que ambas fuentes (chunks + grafo) son válidas.
+5. **Fix retrieval del grafo saturado por subject genérico** — `find_claims_by_predicate` con `LIMIT 20` se llenaba con matches por subject "política vacaciones" (keyword "política") y los claims con value "35 horas/semana" caían fuera. LIMIT subido a 50 + rerank en Python: `score = 3·predicate_match + 2·value_match + 1·subject_match` por cada keyword. Los claims informativos suben al top-8.
+
+Resultado verificado en producción y vía Claude Desktop:
+- `"¿cuántas horas semanales mínimas exige la política de RRHH?"` → *"La política de RRHH exige una jornada mínima de 35 horas semanales para los empleados asalariados [pca_politica_vacaciones_actualizada.md]"* con `graph_contributed: True` y latencia ~1.3s.
+- Citación de fuentes ✅ con marcadores ✅/⚠️ por estado disputed.
+- Aviso explícito de contradicciones pendientes en respuestas que tocan chunks `disputed`.
 
 ### 🔲 Pendiente antes del 2 julio (demo) + 9 julio (defensa)
 
-- **QA end-to-end**: 10+ queries en ambos tenants
-- **Benchmark formal** de latencias (`scripts/benchmark.py`) — métricas p50/p95
-- **Vídeo demo** del ciclo completo (Gmail llega → 30s después consultable → conflicto → email HITL → grafo)
+- **QA end-to-end**: 10+ queries en ambos tenants vía `korio.es/ui` + Claude Desktop con MCP
+- **Benchmark formal** de latencias (`scripts/benchmark.py`) — métricas p50/p95 + comparar con MCP
+- **Vídeo demo** del ciclo completo (Gmail llega → 30s después consultable → conflicto → email HITL → grafo → MCP en Claude Desktop)
 - **Slide deck** (10–15 slides) + ensayo presentación
-- **Memoria TFM** — escritura completa con capítulos Phase 8 (`MULTI-TENANT-INGESTION.md`) y guardrails (`CHAT-PIPELINE-GUARDRAILS.md`)
-- ~~**Memoria de chat**~~ ✅ implementada en sesión 4 (query reformulation)
-- ~~**Fix CONTRADICTS falsos positivos**~~ ✅ implementado en sesión 4 (filtro subject)
-
-### 🔲 Phase 7.3 — MCP Server (post-demo, opcional para defensa)
-
-Exponer Korio como servidor MCP para Claude Desktop, ChatGPT, n8n:
-- `search_knowledge_base(query, user_id, tenant_id)`
-- `ingest_document(file_url, tenant_id, space_id)`
-- `list_pending_conflicts(tenant_id)`
-- `list_spaces(user_id)`
-- Stack probable: FastAPI MCP endpoint (mantiene Python)
+- **Memoria TFM** — escritura completa con capítulos Phase 8 (`MULTI-TENANT-INGESTION.md`, `CHAT-PIPELINE-GUARDRAILS.md`) y Phase 7.3 (`MCP-SERVER.md`)
+- ~~**Memoria de chat**~~ ✅ sesión 4
+- ~~**Fix CONTRADICTS falsos positivos**~~ ✅ sesión 4
+- ~~**Phase 7.3 MCP Server**~~ ✅ sesión 5
 
 ---
 
@@ -181,7 +196,8 @@ korio/
 │       ├── 006_tenant_admin_email.sql
 │       ├── 007_waitlist.sql
 │       ├── 008_escalation_tracking.sql
-│       └── 009_source_metadata.sql  # JSONB con canal de origen (Gmail, Drive, manual…)
+│       ├── 009_source_metadata.sql  # JSONB con canal de origen (Gmail, Drive, manual…)
+│       └── 010_mcp_api_keys.sql     # API keys SHA-256 para el servidor MCP (Phase 7.3)
 │
 ├── src/
 │   ├── ingest.py             # Pipeline ingesta: doc → chunks → pgvector + grafo
@@ -199,11 +215,14 @@ korio/
 │
 ├── api/
 │   ├── __init__.py
-│   └── server.py        # FastAPI: /search, /ingest, /upload, /review,
-│                        #          /escalate-reviews, /waitlist,
-│                        #          /graph/contradictions, /graph/entity/{name},
-│                        #          /graph/subgraph, /health,
-│                        #          DELETE /document/{id} (admin)
+│   ├── server.py        # FastAPI: /search, /ingest, /upload, /review,
+│   │                    #          /escalate-reviews, /waitlist,
+│   │                    #          /graph/contradictions, /graph/entity/{name},
+│   │                    #          /graph/subgraph, /health,
+│   │                    #          DELETE /document/{id} (admin)
+│   │                    #          /mcp/* (sub-app SSE con auth ASGI, Phase 7.3)
+│   └── mcp_server.py    # FastMCP: search_knowledge_base, list_pending_conflicts,
+│                        #          list_spaces (Phase 7.3)
 │
 ├── tests/
 │   ├── __init__.py
@@ -228,14 +247,16 @@ korio/
 ├── landing/             # Landing teaser estático en /
 │
 ├── scripts/
-│   ├── benchmark.py     # Medición latencias p50/p95 por escenario
-│   └── graph_backfill.py # Pobló 233 claims sobre 9 docs en 107s
+│   ├── benchmark.py        # Medición latencias p50/p95 por escenario
+│   ├── graph_backfill.py   # Pobló 237 claims sobre 10 docs en 116s (re-run tras fix subject)
+│   └── mcp_create_key.py   # CLI create/list/revoke de MCP API keys (Phase 7.3)
 │
 └── docs/
     ├── ARCHITECTURE.md             # Diagrama del sistema, modelo de datos, RLS
     ├── DEPLOYMENT.md               # Setup en Hetzner desde cero
     ├── ROADMAP.md                  # Fases pasadas y futuras
     ├── SESSION-STARTER.md          # Prompt de arranque para nueva sesión Claude
+    ├── MCP-SERVER.md               # Phase 7.3: Korio como servidor MCP HTTP+SSE
     ├── MULTI-TENANT-INGESTION.md   # Diseño Phase 8: OAuth multi-tenant SaaS
     └── CHAT-PIPELINE-GUARDRAILS.md # Diseño Phase 8: chat con guardrails n8n
 ```
@@ -381,4 +402,4 @@ El early binding es el corazón del sistema. Nunca saltarlo:
 
 ---
 
-*Actualizado: 10 junio 2026 (tarde · sesión 4) — Phase 7.2 CERRADA + memoria de chat multi-turn (query reformulation) + fix CONTRADICTS falsos positivos + doc de diseño `CHAT-PIPELINE-GUARDRAILS.md`. Pendiente para defensa: QA E2E, benchmark, vídeo demo, slides, memoria TFM.*
+*Actualizado: 11 junio 2026 (sesión 5) — Phase 7.3 MCP Server CERRADA + 4 fixes encadenados del RAG híbrido (SSE/middleware, citación, list_spaces, grafo-en-CONTEXTO, rerank por relevancia). Caso TFM "35 horas semanales" funcionando vía MCP en Claude Desktop. Pendiente para defensa: QA E2E, benchmark, vídeo demo, slides, memoria TFM.*
