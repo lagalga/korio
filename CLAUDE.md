@@ -11,9 +11,9 @@
 
 ---
 
-## Estado actual (11 junio 2026 · sesión 5)
+## Estado actual (11 junio 2026 · sesión 6)
 
-### ✅ Completado — Phases 1–7.3 CERRADAS + fixes RAG críticos
+### ✅ Completado — Phases 1–7.3 + v0.2.0 (ingesta agéntica + ACID)
 
 **Phases 1–4** — pipeline ingesta, RAG vectorial, multi-tenancy con RLS, docs técnicos, chat UI con upload, benchmark script.
 
@@ -402,4 +402,17 @@ El early binding es el corazón del sistema. Nunca saltarlo:
 
 ---
 
-*Actualizado: 11 junio 2026 (sesión 5) — Phase 7.3 MCP Server CERRADA + 4 fixes encadenados del RAG híbrido (SSE/middleware, citación, list_spaces, grafo-en-CONTEXTO, rerank por relevancia). Caso TFM "35 horas semanales" funcionando vía MCP en Claude Desktop. Pendiente para defensa: QA E2E, benchmark, vídeo demo, slides, memoria TFM.*
+**Sesión 6 (11 jun · tarde)** — Korio v0.2.0: ingesta agéntica + transaccionalidad ACID:
+
+- **Migración 011**: tabla `pipeline_events` (bus de eventos del pipeline multi-agente con `operation_id` UUID que correlaciona el ciclo), tabla `graph_sync_queue` (retry post-commit con FalkorDB), función PL/pgSQL `ingest_document_atomic(p_doc, p_chunks, p_operation_id, p_source_agent)` que escribe documento + chunks + evento `DOCUMENT_INGESTED` en **una sola transacción**.
+- **`src/agents/events.py`**: `emit(event_type, source_agent, tenant_id, operation_id, document_id?, payload?)` con doble efecto: INSERT síncrono en `pipeline_events` (audit) + POST best-effort a webhook n8n (observabilidad en vivo, `KORIO_EVENT_WEBHOOK_URL`). Enums `EventType` (9 tipos) y `Agent` (6 roles). `new_operation_id()`, `trace(operation_id)`.
+- **Refactor `src/ingest.py` en 5 fases claras**: IO externa (preprocess + chunking + embeddings, todo en memoria) → dedupe (SELECT) → RPC atómico (1 sola escritura) → sync FalkorDB post-commit con cola de retry → detección de conflictos. Cada fase emite eventos al bus.
+- **Tests `tests/test_atomic_ingest.py`**: 3/3 verdes incluyendo `test_rpc_atomico_rollback_si_falla_mid_transaction` que fuerza fallo a mitad con vector de dimensión incorrecta y verifica que NADA queda persistido (documento, chunks ni evento DOCUMENT_INGESTED).
+- **`api/server.py` version `0.2.0`** + `CHANGELOG.md` siguiendo Keep a Changelog.
+- **Doc `docs/AGENTIC-INGESTION.md`** — capítulo memoria TFM "Cierre del feedback del Entregable 4 (transaccionalidad SQL) + comparativa con el sistema multiagéntico del E3/E4". Justifica la decisión de roles-lógicos-en-proceso vs microservicios (LangFlow) con tabla cuantitativa de latencias.
+
+Pendiente sesión 7 (Phase 8 candidatos): detección query-time, estado `inconclusive` post-timeout, políticas reutilizables, refactor `src/agents/{ingestor,detector,…}.py`, workflow n8n `korio:event-bus`.
+
+---
+
+*Actualizado: 11 junio 2026 (sesión 6) — v0.2.0 ingesta agéntica + ACID. Pipeline transaccional con bus de eventos respondiendo al feedback del profesor del Entregable 4. 3/3 tests verdes incluyendo rollback ACID. Pendiente para defensa: QA E2E, benchmark, vídeo demo, slides, memoria TFM.*
