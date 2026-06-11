@@ -26,12 +26,21 @@ from fastapi import FastAPI, HTTPException, UploadFile, Form, Query, Request, De
 from fastapi.security import APIKeyHeader
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import RedirectResponse, HTMLResponse, FileResponse
+from fastapi.responses import RedirectResponse, HTMLResponse, FileResponse, JSONResponse
 from pydantic import BaseModel, Field, EmailStr
 
 from search import search as run_search
 from ingest import ingest_document, DuplicateDocumentError
 from escalation import run_escalation
+
+# MCP Server (Phase 7.3) — import perezoso del mount para no romper el arranque
+# si la dependencia `mcp` no está instalada en entornos antiguos.
+try:
+    from api.mcp_server import mcp_sse_app, resolve_mcp_key, set_current_principal
+    MCP_AVAILABLE = True
+except Exception as _mcp_import_err:  # pragma: no cover
+    MCP_AVAILABLE = False
+    _MCP_IMPORT_ERROR = _mcp_import_err
 
 # Configurar logging
 logging.basicConfig(
@@ -57,6 +66,38 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# ─── Auth middleware del servidor MCP (Phase 7.3) ───────────────────────────
+#
+# Toda petición a /mcp/* debe traer el header `X-Korio-MCP-Key`. Resolvemos la
+# key a (user_id, tenant_id) y dejamos esos valores en contextvars para que
+# las tools del MCP server los lean (ver api/mcp_server.py).
+
+@app.middleware("http")
+async def mcp_auth_middleware(request: Request, call_next):
+    if not request.url.path.startswith("/mcp"):
+        return await call_next(request)
+    if not MCP_AVAILABLE:
+        return JSONResponse(
+            {"detail": "Servidor MCP no disponible (falta dependencia `mcp`)"},
+            status_code=503,
+        )
+    key = request.headers.get("X-Korio-MCP-Key")
+    if not key:
+        return JSONResponse(
+            {"detail": "Falta header X-Korio-MCP-Key"},
+            status_code=401,
+        )
+    resolved = resolve_mcp_key(key)
+    if not resolved:
+        return JSONResponse(
+            {"detail": "MCP key inválida o revocada"},
+            status_code=401,
+        )
+    user_id, tenant_id = resolved
+    set_current_principal(user_id, tenant_id)
+    return await call_next(request)
+
 
 # ─── Modelos de Request / Response ──────────────────────────────────────────
 
@@ -868,6 +909,24 @@ async def waitlist_signup(payload: WaitlistRequest, request: Request):
             )
         logger.exception("Error en /waitlist")
         raise HTTPException(status_code=500, detail="No pudimos registrar el email")
+
+
+# ─── MCP Server (Phase 7.3) ─────────────────────────────────────────────────
+#
+# Montamos el sub-app SSE generado por FastMCP bajo /mcp. Esto expone:
+#   GET  /mcp/sse        — stream SSE (servidor → cliente)
+#   POST /mcp/messages/  — mensajes del cliente
+#
+# El middleware mcp_auth_middleware ya valida la API key antes de delegar.
+
+if MCP_AVAILABLE:
+    app.mount("/mcp", mcp_sse_app)
+    logger.info("MCP server montado en /mcp (transporte SSE)")
+else:
+    logger.warning(
+        "MCP server NO disponible: %s",
+        _MCP_IMPORT_ERROR if not MCP_AVAILABLE else "?",
+    )
 
 
 # ─── Static files: Landing (raíz) + UI app (/ui) ────────────────────────────
