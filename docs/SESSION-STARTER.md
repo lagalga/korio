@@ -34,7 +34,34 @@ git worktree remove .claude/worktrees/nifty-booth-0c25a5
 git worktree remove --force .claude/worktrees/silly-hofstadter-5e49c0
 ```
 
-## Estado actual (al cierre de sesión 10 · 12 jun 2026 · v0.3.0+fixes)
+## Estado actual (al cierre de sesión 11 · 12 jun 2026 · v0.3.2 · programación cerrada)
+
+✅ **Sesión 11 (12 jun · tarde-noche) — Rerank semántico del grafo + cierre programación**:
+- **`find_claims_semantic()`** en `graph_client.py` — scan + cosine similarity en Python (~ms con hundreds de claims) con RLS por space_id. `upsert_claim()` acepta `embedding: Optional[List[float]]`.
+- **`_graph_context()` con Reciprocal Rank Fusion (k=60)** — léxico (keywords + score 3·predicate + 2·value + 1·subject) y semántico (cosine query × claim embedding) corren en paralelo, top-8 final combinado.
+- **`src/ingest.py`** embeda el texto `"subject predicate value"` en batch al crear claims (1 llamada Ollama por chunk). Si Ollama falla → fallback al léxico (safe).
+- **`scripts/graph_embed_claims.py`** backfill — **455 claims embedidos en 23 s** (~20 claims/s) en producción.
+- **3/3 tests verdes** en `tests/test_graph_semantic_rerank.py` (ordering por cosine, RLS, claims sin embedding).
+- **Modelo fallback LLM en VPS**: `mistral:7b-instruct-q4_K_M` (4.4 GB) descargado. Se activa automáticamente si Mistral API rate-limita.
+- **Verificación producción**: query muy rephrasada *"¿cuánto se trabaja a la semana como mínimo?"* (sin "política" ni "jornada") → "35 horas/semana" con citas, 1384 ms. El rerank semántico funciona end-to-end.
+
+✅ **Corrección de specs VPS (12 jun)**: descubrimos que la documentación llevaba mal el modelo y precio del VPS desde el principio. Real:
+- **Hetzner CPX32** (no CX32) · AMD EPYC-Genoa (no Intel)
+- **4 vCPU / 8 GB RAM / 160 GB SSD** (no 80 GB)
+- **€17.53/mes max** (€0.0281/h) — antes lo teníamos como €8/mes
+- COGS Korio recalculados: tier Starter ~€41 (era €31), márgenes pasan de 79% → 72%, Pro de 90% → 87%, Business sigue ~88%.
+- Corregido en README, CLAUDE.md×2, ARCHITECTURE, DEPLOYMENT, ROADMAP y página Notion "Stack, costes e infraestructura".
+
+✅ **Phase 10 diseñada (post-TFM)**: `docs/PHASE-10-MULTIMODAL-INGESTION.md` — ingesta multimodal con 3 nuevos adaptadores:
+- Email body (texto + thread, sin LLM)
+- Slack/Teams threads (Event Subscription/Graph API → `/ingest/slack` o `/ingest/teams`)
+- Audio (Voxtral de Mistral preferido, Whisper local como fallback)
+- Endpoint nuevo `POST /ingest/{kind}` + módulo `src/adapters/`. Coste estimado: <€0.50/mes adicional para una pyme de 50 personas.
+- Capítulo de memoria TFM: *"El conocimiento no vive solo en documentos"*.
+
+---
+
+## Estado al cierre de sesión 10 · 12 jun 2026 · v0.3.1
 
 ✅ **Phases 1–7.3 + v0.3.0 con las 6 reglas del Entregable 3 cumplidas**. En producción:
 
@@ -122,9 +149,9 @@ Variables clave del `.env` del VPS (no las pongas en código, ya están en `/roo
   - **Slack API** (bot token `xoxb-...`) — para el bot `Korio-Delos`
 - 6 workflows activos (detalles arriba)
 
-## Próxima sesión — **sesión 11 · Vídeo demo + Slide deck + Memoria TFM**
+## Próxima sesión — **sesión 12 · Vídeo demo + Slide deck + Memoria TFM**
 
-Faltan **~20 días para demo (2 jul)** y **~27 días para defensa (9 jul)**. El código y la funcionalidad están completos. La sesión 11 es de contenido de defensa.
+Faltan **~20 días para demo (2 jul)** y **~27 días para defensa (9 jul)**. **Programación cerrada en sesión 11** — Korio v0.3.2 con rerank semántico del grafo, validación CONTRADICTS, ACID atomicidad, gobernanza activa, MCP server, ingesta multi-canal, las 6 reglas del E3 cumplidas y QA E2E 10/10. La sesión 12 es de contenido de defensa.
 
 **Agenda de la sesión (en este orden)**
 
@@ -167,9 +194,12 @@ Capítulos clave a redactar:
 | ~~**Benchmark formal** `scripts/benchmark.py` (p50/p95 = 1983ms/3053ms)~~ | ~~1h~~ | ✅ Sesión 10 |
 | ~~**Validación semántica CONTRADICTS** (2 aristas válidas en Delos)~~ | ~~2-3h~~ | ✅ Sesión 10 |
 | ~~**Bajar threshold** recall 0.4 → 0.35 + conflict 0.85 → 0.80~~ | ~~30 min~~ | ✅ Sesión 10 |
-| **Vídeo demo** (3-4 min): ciclo completo con n8n event bus en vivo | 3-4h | 🔲 Sesión 11 |
-| **Slide deck** (10-15 slides) + ensayo | 6-8h | 🔲 Sesión 11 |
-| **Memoria TFM** (capítulos 4-7) | 20-30h | 🔲 Sesiones 11-14 |
+| ~~**Rerank semántico del grafo** con RRF (léxico + cosine sobre embeddings)~~ | ~~2-3h~~ | ✅ Sesión 11 |
+| ~~**Specs VPS** corregidas (CPX32 AMD, €17.53/mes, 160 GB SSD)~~ | ~~30 min~~ | ✅ Sesión 11 |
+| ~~**Diseño Phase 10** ingesta multimodal (email/Slack/Teams/audio)~~ | ~~1-2h~~ | ✅ Sesión 11 |
+| **Vídeo demo** (3-4 min): ciclo completo con n8n event bus en vivo | 3-4h | 🔲 Sesión 12 |
+| **Slide deck** (10-15 slides) + ensayo | 6-8h | 🔲 Sesión 12 |
+| **Memoria TFM** (capítulos 4-7) | 20-30h | 🔲 Sesiones 12-15 |
 
 ## Convenciones de la sesión
 

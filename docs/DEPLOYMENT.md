@@ -1,6 +1,6 @@
 # Korio — Guía de despliegue en producción
 
-> Setup completo desde cero en Hetzner CX32 · Frankfurt
+> Setup completo desde cero en Hetzner **CPX32** (AMD EPYC-Genoa) · Frankfurt
 
 ---
 
@@ -8,7 +8,7 @@
 
 | Servicio | Plan | Coste | Notas |
 |---|---|---|---|
-| Hetzner VPS CX32 | Hourly/Monthly | ~€8/mes | Frankfurt, 4vCPU/8GB/80GB SSD |
+| Hetzner VPS **CPX32** | Hourly/Monthly | **€17.53/mes max** (€0.0281/h) | Frankfurt · AMD EPYC-Genoa · 4 vCPU / 8 GB / 160 GB SSD |
 | Supabase | Pro | $25/mes | Frankfurt (eu-central-1) — GDPR |
 | Mistral AI | Pay-per-use | ~€0.002/query | `mistral-small-latest` |
 | Dominio (opcional) | — | — | Para HTTPS en producción |
@@ -22,7 +22,7 @@
 ### 1.1 Crear servidor
 
 En [console.hetzner.com](https://console.hetzner.com):
-- **Tipo:** CX32 (4vCPU, 8GB RAM)
+- **Tipo:** **CPX32** (AMD EPYC-Genoa, 4 vCPU, 8 GB RAM, 160 GB SSD)
 - **Imagen:** Ubuntu 24.04 LTS
 - **Ubicación:** Falkenstein o Nuremberg (EU — GDPR)
 - **SSH Key:** añadir tu clave pública
