@@ -582,7 +582,31 @@ class GraphClient:
         """
         Devuelve nodos y aristas del grafo del tenant en formato apto para vis-network.
         Limita para evitar respuestas gigantes.
+
+        Garantiza que los EXTREMOS de las aristas CONTRADICTS estén SIEMPRE
+        incluidos aunque excedan el `limit` — son los nodos más críticos para
+        la demo (gobernanza activa visible en el grafo) y antes podían quedar
+        fuera si el corte aleatorio del LIMIT los dejaba atrás.
         """
+        params = {
+            "tenant_id": tenant_id,
+            "space_ids": allowed_space_ids or [],
+            "limit":     limit,
+        }
+
+        # 1) Aristas CONTRADICTS (sin límite, son pocas y críticas)
+        contradicts_q = """
+        MATCH (a)-[r:CONTRADICTS]->(b)
+        WHERE a.tenant_id = $tenant_id AND b.tenant_id = $tenant_id
+        RETURN id(a) AS source, id(b) AS target, type(r) AS kind
+        """
+        contradicts = self._rows_to_dicts(self.graph.query(contradicts_q, params))
+        priority_ids = set()
+        for e in contradicts:
+            priority_ids.add(e["source"])
+            priority_ids.add(e["target"])
+
+        # 2) Nodos: hasta `limit` con la query normal
         node_q = """
         MATCH (n)
         WHERE n.tenant_id = $tenant_id
@@ -594,14 +618,31 @@ class GraphClient:
                n.kind AS entity_kind
         LIMIT $limit
         """
-        # Dos queries para las aristas: las CONTRADICTS SIEMPRE entran (son lo
-        # más relevante visualmente y son pocas); el resto con LIMIT para no
-        # saturar la respuesta.
-        contradicts_q = """
-        MATCH (a)-[r:CONTRADICTS]->(b)
-        WHERE a.tenant_id = $tenant_id AND b.tenant_id = $tenant_id
-        RETURN id(a) AS source, id(b) AS target, type(r) AS kind
-        """
+        nodes = self._rows_to_dicts(self.graph.query(node_q, params))
+        fetched = {n["internal_id"] for n in nodes}
+
+        # 3) Nodos prioritarios (extremos CONTRADICTS) que NO entraron en el LIMIT
+        missing = priority_ids - fetched
+        if missing:
+            # Cypher con literales (ints, seguros) para evitar problemas de
+            # serialización de listas con la versión actual del driver FalkorDB.
+            ids_list = ", ".join(str(i) for i in missing)
+            extra_q = f"""
+            MATCH (n)
+            WHERE id(n) IN [{ids_list}]
+              AND n.tenant_id = $tenant_id
+              AND (NOT EXISTS(n.space_id) OR n.space_id IN $space_ids)
+            RETURN labels(n)[0] AS kind, id(n) AS internal_id,
+                   n.id AS node_id, n.name AS name, n.subject AS subject,
+                   n.predicate AS predicate, n.value AS value,
+                   n.filename AS filename, n.chunk_status AS chunk_status,
+                   n.kind AS entity_kind
+            """
+            extra = self._rows_to_dicts(self.graph.query(extra_q, params))
+            nodes.extend(extra)
+            logger.info(f"  ↻ subgraph: rescatados {len(extra)} nodos prioritarios de CONTRADICTS fuera del LIMIT={limit}")
+
+        # 4) Resto de aristas (HAS_CLAIM, MENTIONS, CONTAINS, ABOUT_ENTITY)
         other_edges_q = """
         MATCH (a)-[r]->(b)
         WHERE a.tenant_id = $tenant_id AND b.tenant_id = $tenant_id
@@ -611,14 +652,7 @@ class GraphClient:
         RETURN id(a) AS source, id(b) AS target, type(r) AS kind
         LIMIT $limit
         """
-        params = {
-            "tenant_id": tenant_id,
-            "space_ids": allowed_space_ids or [],
-            "limit":     limit,
-        }
-        nodes = self._rows_to_dicts(self.graph.query(node_q, params))
-        contradicts = self._rows_to_dicts(self.graph.query(contradicts_q, params))
-        others      = self._rows_to_dicts(self.graph.query(other_edges_q, params))
+        others = self._rows_to_dicts(self.graph.query(other_edges_q, params))
         return {"nodes": nodes, "edges": contradicts + others}
 
     # ─── Mantenimiento ────────────────────────────────────────────────────────
