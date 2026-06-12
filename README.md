@@ -10,7 +10,7 @@ Korio permite a una organización consultar en lenguaje natural el conocimiento 
 - **Aislamiento por departamento** dentro de cada cliente (un médico no ve documentos del departamento Legal).
 - **Detección automática de contradicciones** entre documentos al ingestar (auto-resolución por autoridad/fecha, HITL via email para casos ambiguos, cron de escalada con auto-cierre).
 - **Grafo de conocimiento** en FalkorDB con entidades + claims atómicos extraídos por LLM. Search híbrido vector + grafo rescata datos cuando la query está semánticamente reformulada respecto al texto fuente.
-- **Ingesta automática multi-canal** vía n8n: Gmail (label vigilada), Drive (carpeta vigilada), Slack (`/korio ¿pregunta?` con respuesta en thread). Cada documento lleva `source_metadata` (JSONB) con el contexto del canal de origen.
+- **Ingesta automática multi-canal** vía n8n: Gmail (label vigilada), Drive (carpeta vigilada), Slack (`/korio` para consultar **+** subida automática de PDF/DOCX al canal vigilado). Cada documento lleva `source_metadata` (JSONB) con el contexto del canal de origen.
 
 **Estado:** Phases 1–7.3 + rerank semántico del grafo · **v0.3.2** · Producción en [korio.es](https://korio.es) · Demo TFM 2 julio 2026 · Defensa 9 julio 2026
 

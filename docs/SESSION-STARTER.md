@@ -24,7 +24,23 @@ Si todo OK, dímelo en una línea. Si algo está raro, antes de tocar nada cuén
 
 ## Pasos manuales que pueden haber quedado pendientes de ayer
 
-Sesión 10 (12 jun) quedó **todo desplegado y verificado** — no hay pendientes operativos.
+**Pendiente operativo de sesión 11 — configurar Slack Event Subscriptions** (paso UI que requiere acceso a https://api.slack.com/apps):
+
+1. Abrir la Slack app "Korio-Delos" (el bot que ya responde a `/korio`).
+2. Menú lateral **OAuth & Permissions** → añadir Bot Token Scopes:
+   - `files:read` (leer metadatos de archivos)
+   - `reactions:write` (poner ✅ en mensajes)
+   - `chat:write` (mensaje ephemeral)
+3. Menú lateral **Event Subscriptions**:
+   - Activar el toggle "Enable Events".
+   - **Request URL**: `https://n8n.korio.es/webhook/korio-slack-events`
+   - Slack debería verificar la URL automáticamente (el workflow responde el challenge).
+   - **Subscribe to bot events** → añadir `file_shared`.
+4. **Install App** o **Reinstall to Workspace** para aplicar los nuevos scopes.
+5. Invitar al bot al canal donde se subirán archivos (ej. `#korio-ingesta`): `/invite @Korio-Delos`.
+6. **Prueba E2E**: subir un PDF al canal → en ~30 s aparece en `/search` y se puede consultar en `korio.es/ui`.
+
+Si Slack no verifica la URL: revisar el workflow `Korio · Slack file_shared → /upload (Delos RRHH)` en `n8n.korio.es` (id `81GO5BjXj0ZNYmhO`) — el nodo "Webhook Slack Events" tiene que estar respondiendo a `url_verification` con el challenge.
 
 Worktrees obsoletos pendientes de limpieza manual (el clasificador de auto-mode los bloqueó):
 ```bash
@@ -70,12 +86,14 @@ git worktree remove --force .claude/worktrees/silly-hofstadter-5e49c0
 - `https://korio.es/ui/graph.html` — grafo de conocimiento vivo (FalkorDB) con vis-network, panel de contradicciones rojas en tiempo real
 - `https://korio.es/docs` — Swagger (con botón Authorize para los endpoints admin)
 - `https://korio.es/mcp/sse` — **servidor MCP HTTP+SSE (Phase 7.3)**: 3 tools (`search_knowledge_base`, `list_pending_conflicts`, `list_spaces`). Auth con header `X-Korio-MCP-Key`. Conectado a Claude Desktop vía `mcp-remote` por npx (Node 20+ requerido).
-- `https://n8n.korio.es` — **6 workflows activos**:
+- `https://n8n.korio.es` — **7 workflows activos**:
   - HITL email (gobernanza) — webhook protegido con Basic Auth
   - Cron escalada diaria 09:00 Madrid
+  - Pipeline event bus (observabilidad agéntica)
   - **Gmail → /upload** (Phase 7.2): vigila label `korio/ingesta` en `contacto@lagalga.es`, ingiere adjuntos PDF/DOCX
   - **Drive → /upload** (Phase 7.2): vigila carpeta `Clínica Delos / input` (`1rlBEmkqLHvidWEPv64LaMpzBh9bMDGF4`)
   - **Slack `/korio` → /search** (Phase 7.2): comando que consulta Korio y responde en thread con fuentes
+  - **Slack file_shared → /upload** (sesión 11): subir un PDF/DOCX al canal donde está el bot ingiere el documento, reacciona ✅ y notifica al uploader. Webhook: `https://n8n.korio.es/webhook/korio-slack-events`
 
 ✅ **Sesión 10 (12 jun) — QA E2E 10/10 + Benchmark + fixes encadenados**:
 

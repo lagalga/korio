@@ -91,7 +91,7 @@ Resultado verificado en producción y vía Claude Desktop:
 | PII detection | Presidio + spaCy `es_core_news_lg` | Antes de ingestar |
 | Chunking | LangChain `RecursiveCharacterTextSplitter` | 500 tok / 50 overlap |
 | Conversión docs | MarkItDown | PDF/DOCX/XLSX → Markdown |
-| Automatización | n8n v1.x (Docker en VPS) | **5 workflows**: HITL + Cron + Gmail + Drive + Slack |
+| Automatización | n8n v1.x (Docker en VPS) | **7 workflows**: HITL + Cron + Pipeline event bus + Gmail + Drive + Slack `/korio` + Slack file_shared |
 | Servidor | Hetzner **CPX32** (AMD EPYC-Genoa), Frankfurt, 4 vCPU / 8 GB / 160 GB SSD | `ssh korio-vps` · **€17.53/mes max** (€0.0281/h) |
 | Base de datos | Supabase Pro, Frankfurt | `pkurvkdmoulfqnngjsjr.supabase.co` |
 

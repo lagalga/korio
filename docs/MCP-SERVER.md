@@ -7,7 +7,7 @@
 Korio ya tiene tres puntos de entrada útiles:
 
 1. **Chat UI propia** (`korio.es/ui`) — el demo "de cara".
-2. **Workflows n8n** (Gmail, Drive, Slack `/korio`) — la ingesta y consulta automatizada.
+2. **Workflows n8n** (Gmail, Drive y Slack file_shared para ingesta + Slack `/korio` para consulta) — la ingesta y consulta automatizada.
 3. **API REST + Swagger** — el contrato técnico.
 
 Pero los tres son específicos: la UI es nuestra; los workflows son scripts cerrados; la API REST requiere que el cliente sepa montar embeddings + auth + RLS por su cuenta. **El Model Context Protocol (MCP) resuelve la última milla**: cualquier LLM con cliente MCP (Claude Desktop, ChatGPT, Cursor, n8n, agentes propios) puede descubrir las "tools" de Korio y llamarlas en lenguaje natural sin acoplarse a la API.
