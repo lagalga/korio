@@ -562,7 +562,9 @@ class GraphClient:
                r.similarity AS similarity,
                r.review_id AS review_id,
                a.chunk_status AS status_a,
-               b.chunk_status AS status_b
+               b.chunk_status AS status_b,
+               id(a) AS node_a_id,
+               id(b) AS node_b_id
         """
         params = {
             "tenant_id": tenant_id,

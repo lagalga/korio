@@ -84,10 +84,24 @@
     .contradiction {
       background: #fff7ed; border: 1px solid #fed7aa; border-radius: 8px;
       padding: 10px 12px; font-size: 12px; line-height: 1.5;
+      cursor: pointer; transition: all 0.15s ease;
+    }
+    .contradiction:hover {
+      background: #ffedd5; border-color: #fb923c; transform: translateX(-2px);
+      box-shadow: -2px 2px 6px rgba(220, 38, 38, 0.15);
+    }
+    .contradiction.is-active {
+      background: #fed7aa; border-color: #dc2626;
+      box-shadow: -2px 2px 8px rgba(220, 38, 38, 0.25);
     }
     .contradiction__pred { font-weight: 600; color: #92400e; margin-bottom: 4px; }
     .contradiction__vals { color: #1e293b; }
     .contradiction__vals em { color: #475569; font-style: normal; font-size: 11px; }
+    .contradiction__hint {
+      margin-top: 6px; font-size: 10px; color: #b45309;
+      font-style: italic; display: none;
+    }
+    .contradiction:hover .contradiction__hint { display: block; }
     .stats { font-size: 12px; color: #475569; }
     .stats strong { color: #161632; font-size: 14px; }
     .empty {
@@ -262,6 +276,17 @@ const renderGraph = async () => {
       nodes: new vis.DataSet(sub.nodes),
       edges: new vis.DataSet(sub.edges),
     }
+    // Snapshot inmutable del estado original para poder restaurar tras
+    // resaltar una contradicción del sidebar (highlightContradictionEdge).
+    originalGraphData = {
+      nodes: JSON.parse(JSON.stringify(sub.nodes)),
+      edges: JSON.parse(JSON.stringify(sub.edges.map((e, i) => ({ ...e, id: e.id ?? `e_${i}` })))),
+    }
+    // Asegurar que cada edge tiene un id estable (vis.DataSet autogenera si falta,
+    // pero al update() necesitamos uno conocido para reescribir la misma fila).
+    sub.edges.forEach((e, i) => { if (e.id == null) e.id = `e_${i}` })
+    data.edges.clear()
+    data.edges.add(sub.edges)
     const options = {
       nodes: {
         shape: 'dot',
@@ -312,19 +337,30 @@ const renderGraph = async () => {
     // Stats
     statsBox.innerHTML = `<strong>${sub.stats.nodes}</strong> nodos · <strong>${sub.stats.edges}</strong> aristas · <strong>${contras.count || 0}</strong> contradicciones`
 
-    // Contradicciones panel
+    // Contradicciones panel — clic/hover enlaza con la arista correspondiente en el lienzo
     if (!contras.contradictions || contras.contradictions.length === 0) {
       contraBox.innerHTML = '<div class="empty">Sin contradicciones para mostrar</div>'
     } else {
-      contraBox.innerHTML = contras.contradictions.map(c => {
+      contraBox.innerHTML = contras.contradictions.map((c, idx) => {
         const statusA = c.status_a === 'active' ? '✅' : c.status_a === 'disputed' ? '⚠️' : '⛔'
         const statusB = c.status_b === 'active' ? '✅' : c.status_b === 'disputed' ? '⚠️' : '⛔'
         const sim = c.similarity ? `${Math.round(c.similarity * 100)}%` : ''
-        return `<div class="contradiction">
+        // data-from-id / data-to-id apuntan a los node_ids internos de FalkorDB,
+        // que coinciden con los `id` de los nodos en el DataSet de vis-network.
+        return `<div class="contradiction" data-idx="${idx}" data-from-id="${c.node_a_id ?? ''}" data-to-id="${c.node_b_id ?? ''}">
           <div class="contradiction__pred">${escapeHtml(c.subject)} → ${escapeHtml(c.predicate)} ${sim ? `<em>(${sim})</em>` : ''}</div>
           <div class="contradiction__vals">${statusA} ${escapeHtml(c.value_a)}<br>${statusB} ${escapeHtml(c.value_b)}</div>
+          <div class="contradiction__hint">Pasa el ratón para resaltar la arista · Clic para enfocar</div>
         </div>`
       }).join('')
+      // Bindings hover/click
+      contraBox.querySelectorAll('.contradiction').forEach(el => {
+        const fromId = el.dataset.fromId, toId = el.dataset.toId
+        if (!fromId || !toId) return
+        el.addEventListener('mouseenter', () => highlightContradictionEdge(fromId, toId))
+        el.addEventListener('mouseleave', () => clearHighlight())
+        el.addEventListener('click', () => focusContradictionEdge(el, fromId, toId))
+      })
     }
 
     statusText.textContent = `${TENANTS[tenantSelect.value].name} · ${sub.stats.nodes} nodos`
@@ -335,6 +371,79 @@ const renderGraph = async () => {
 }
 
 const escapeHtml = s => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+
+// ── Resaltado de aristas CONTRADICTS desde el panel lateral ────────────────
+// Cuando se hace hover/clic sobre una contradicción del sidebar, atenuamos
+// todo el grafo excepto los dos claims contradictorios + su arista. Esto
+// resuelve el problema de "las 500 aristas grises tapan las 2 rojas" cuando
+// los claims están en una zona densa del layout.
+
+function highlightContradictionEdge(fromId, toId) {
+  if (!network) return
+  const data = network.body.data
+  const allNodes = data.nodes.get()
+  const allEdges = data.edges.get()
+  const fromN = Number(fromId), toN = Number(toId)
+
+  // Atenuar todos los nodos excepto los dos extremos
+  data.nodes.update(allNodes.map(n => ({
+    id: n.id,
+    color: (n.id === fromN || n.id === toN)
+      ? { background: '#dc2626', border: '#7f1d1d' }
+      : { background: 'rgba(203, 213, 225, 0.25)', border: 'rgba(148, 163, 184, 0.25)' },
+    font: (n.id === fromN || n.id === toN)
+      ? { size: 16, color: '#7f1d1d', face: '-apple-system, sans-serif', strokeWidth: 4, strokeColor: '#ffffff', bold: true }
+      : { size: 11, color: 'rgba(30, 41, 59, 0.2)' },
+    borderWidth: (n.id === fromN || n.id === toN) ? 3 : 1,
+    size: (n.id === fromN || n.id === toN) ? 20 : 10,
+  })))
+
+  // Atenuar todas las aristas excepto la que conecta los dos claims
+  data.edges.update(allEdges.map(e => {
+    const isTheOne = (e.from === fromN && e.to === toN) || (e.from === toN && e.to === fromN)
+    return {
+      id: e.id,
+      color: isTheOne
+        ? { color: '#dc2626', highlight: '#dc2626' }
+        : { color: 'rgba(203, 213, 225, 0.12)', highlight: 'rgba(203, 213, 225, 0.12)' },
+      width: isTheOne ? 8 : 1,
+      label: isTheOne ? '⚠️ contradice' : '',
+    }
+  }))
+}
+
+function clearHighlight() {
+  if (!network || !originalGraphData) return
+  // Restaurar nodos y aristas al estado original
+  network.body.data.nodes.update(originalGraphData.nodes)
+  network.body.data.edges.update(originalGraphData.edges)
+}
+
+function focusContradictionEdge(el, fromId, toId) {
+  if (!network) return
+  // Marcar el item activo en el sidebar (toggle)
+  document.querySelectorAll('.contradiction.is-active').forEach(d => d.classList.remove('is-active'))
+  el.classList.add('is-active')
+  // Aplicar el highlight (queda fijado aunque salgas con el ratón)
+  highlightContradictionEdge(fromId, toId)
+  // Encuadrar los dos nodos en el viewport
+  network.fit({
+    nodes: [Number(fromId), Number(toId)],
+    animation: { duration: 600, easingFunction: 'easeInOutQuad' },
+  })
+  // Clic fuera del sidebar limpia el highlight
+  const offClick = (ev) => {
+    if (!el.contains(ev.target)) {
+      el.classList.remove('is-active')
+      clearHighlight()
+      document.removeEventListener('click', offClick)
+    }
+  }
+  setTimeout(() => document.addEventListener('click', offClick), 100)
+}
+
+// Snapshot del estado original del grafo (para poder restaurar tras highlight)
+let originalGraphData = null
 
 tenantSelect.addEventListener('change', () => { renderUsers(); renderGraph() })
 userSelect.addEventListener('change', renderGraph)
