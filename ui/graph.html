@@ -380,20 +380,11 @@ const escapeHtml = s => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&l
 // de `options.nodes`), no las resetearíamos: el nodo se quedaría agrandado.
 let highlightSnapshot = null
 
-// Defaults globales de vis-network (en options.nodes / options.edges) para
-// reset explícito en el snapshot. Sin esto, los nodos heredan size/borderWidth
-// de options pero NO los exponen vía DataSet.get(), por lo que después del
-// highlight no podemos restaurarlos sólo con un update parcial.
-const NODE_DEFAULTS = {
-  size: 10,
-  borderWidth: 1,
-  font: { size: 11, color: '#1e293b', face: '-apple-system, sans-serif', strokeWidth: 0 },
-}
-const EDGE_DEFAULTS = {
-  width: 1,
-  label: '',
-  font: { size: 9, color: '#64748b', strokeWidth: 0, align: 'middle' },
-}
+// Defaults globales de vis-network (replican options.nodes / options.edges)
+// para que el reset del snapshot sea EXPLÍCITO. Sin esto, update() no
+// resetea propiedades ausentes y el nodo se queda con el size del highlight.
+const NODE_FONT_DEFAULT = { size: 11, color: '#1e293b', face: '-apple-system, sans-serif', strokeWidth: 0, bold: false }
+const EDGE_FONT_DEFAULT = { size: 9, color: '#64748b', strokeWidth: 0, align: 'middle' }
 
 function highlightContradictionEdge(fromId, toId) {
   if (!network) return
@@ -402,18 +393,26 @@ function highlightContradictionEdge(fromId, toId) {
   if (highlightSnapshot) clearHighlight()
 
   const data = network.body.data
-  // Snapshot enriquecido: cada nodo/arista lleva los defaults visuales
-  // EXPLÍCITOS aunque originalmente vinieran sin ellos del backend. Así el
-  // update() de clearHighlight() reescribe todas las propiedades que el
-  // highlight modifica (size, borderWidth, font) y nada queda "enganchado".
+  // Snapshot con TODAS las propiedades que el highlight puede modificar,
+  // explícitas. Si el nodo no tenía una propiedad (vis la heredaba de
+  // options.nodes), inyectamos el default explícito para que el reset
+  // sí pueda reescribirla.
   highlightSnapshot = {
     nodes: data.nodes.get().map(n => ({
-      ...NODE_DEFAULTS,
-      ...JSON.parse(JSON.stringify(n)),
+      id:          n.id,
+      color:       n.color !== undefined ? JSON.parse(JSON.stringify(n.color)) : null,
+      font:        n.font  !== undefined ? JSON.parse(JSON.stringify(n.font))  : NODE_FONT_DEFAULT,
+      borderWidth: n.borderWidth ?? 1,
+      size:        n.size ?? 10,
     })),
     edges: data.edges.get().map(e => ({
-      ...EDGE_DEFAULTS,
-      ...JSON.parse(JSON.stringify(e)),
+      id:     e.id,
+      color:  e.color !== undefined ? JSON.parse(JSON.stringify(e.color)) : null,
+      font:   e.font  !== undefined ? JSON.parse(JSON.stringify(e.font))  : EDGE_FONT_DEFAULT,
+      width:  e.width ?? 1,
+      label:  e.label ?? '',
+      dashes: e.dashes ?? false,
+      smooth: e.smooth !== undefined ? JSON.parse(JSON.stringify(e.smooth)) : { type: 'continuous' },
     })),
   }
   const fromN = Number(fromId), toN = Number(toId)
@@ -447,13 +446,17 @@ function highlightContradictionEdge(fromId, toId) {
 
 function clearHighlight() {
   if (!network || !highlightSnapshot) return
-  // Restaurar pasando los objetos snapshot completos: vis-network reescribe
-  // todas las propiedades porque están presentes en el objeto. Así size,
-  // borderWidth, font y color vuelven a sus valores originales (o se
-  // eliminan si no estaban definidos antes).
+  // Restaurar pasando los objetos snapshot completos con todas las
+  // propiedades explícitas (size, borderWidth, font, color, width, dashes).
+  // vis-network update() solo reescribe propiedades presentes en el objeto,
+  // así que la cobertura explícita es crítica.
   network.body.data.nodes.update(highlightSnapshot.nodes)
   network.body.data.edges.update(highlightSnapshot.edges)
   highlightSnapshot = null
+  // Forzar repintado: a veces vis cachea propiedades del nodo en su render
+  // interno y, aunque el DataSet refleje el nuevo size, el nodo no se redibuja
+  // hasta el próximo evento de la física.
+  network.redraw()
 }
 
 function focusContradictionEdge(el, fromId, toId) {
