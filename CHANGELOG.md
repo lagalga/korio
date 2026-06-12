@@ -10,6 +10,34 @@ semántico [SemVer](https://semver.org/lang/es/).
 
 ## [Unreleased]
 
+## [0.3.2] — 2026-06-12 · sesión 11 (cierre de programación)
+### Added
+- **Rerank semántico del grafo de conocimiento** — Phase 8 cerrada.
+  `src/graph_client.py` añade `find_claims_semantic(tenant_id,
+  query_embedding, allowed_space_ids, top_k)` que scan + cosine similarity
+  sobre los Claims con embedding guardado. `upsert_claim()` acepta
+  `embedding: Optional[List[float]]`. `src/ingest.py` embeda el texto
+  `"subject predicate value"` en batch al ingestar. `src/search.py`
+  `_graph_context()` ejecuta léxico + semántico en paralelo y combina
+  rankings con **Reciprocal Rank Fusion** (k=60), top-8 final.
+  Coste query-time: cero llamadas extra (reutiliza el embedding de la
+  query). Habilita queries muy rephrasadas como *"¿cuánto se trabaja a la
+  semana como mínimo?"* que el léxico no atrapaba pero el grafo aporta
+  "35 horas" sin problema.
+- **`scripts/graph_embed_claims.py`** — backfill one-shot batch=16.
+  Ejecutado en producción: **455 claims embedidos en 23 s** (~20 claims/s).
+- **`tests/test_graph_semantic_rerank.py`** — 3 tests (ordering por cosine,
+  RLS, claims sin embedding). **3/3 verdes en VPS**.
+- **Modelo fallback LLM en Ollama VPS** — `mistral:7b-instruct-q4_K_M`
+  descargado (4.4 GB). Activado automáticamente por `LLMClient` cuando
+  `MISTRAL_API_KEY` no está disponible. Blinda contra rate-limit Mistral.
+
+### Verified in production
+- Query del hito TFM *"¿cuántas horas semanales mínimas exige la política?"*
+  → respuesta correcta con `graph_contributed=true` en 1772 ms.
+- Query MUY rephrasada *"¿cuánto se trabaja a la semana como mínimo?"*
+  (sin "política" ni "jornada") → respuesta correcta con citas en 1384 ms.
+
 ## [0.3.1] — 2026-06-12 · sesión 10
 ### Added
 - **Validación semántica de aristas CONTRADICTS** (`src/llm_client.py`,
