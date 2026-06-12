@@ -312,6 +312,40 @@ class LLMClient:
             "api_configured": bool(MISTRAL_API_KEY and MISTRAL_API_KEY not in ("optional", ""))
         }
 
+    def is_semantic_contradiction(
+        self,
+        subject_a: str, predicate_a: str, value_a: str,
+        subject_b: str, predicate_b: str, value_b: str,
+    ) -> bool:
+        """
+        Devuelve True si los dos claims son semánticamente contradictorios/incompatibles.
+
+        Usa temp=0 para respuestas deterministas. Si el LLM falla, devuelve False
+        (conservador: no crear arista CONTRADICTS si no se puede verificar).
+        """
+        system_prompt = (
+            "Eres un verificador de contradicciones en bases de conocimiento. "
+            "Tu única tarea es decidir si dos claims son REALMENTE incompatibles entre sí "
+            "(no pueden ser verdad a la vez). "
+            "Responde SOLO con 'SÍ' o 'NO'. Sin explicaciones."
+        )
+        user_prompt = (
+            f"Claim A: [{subject_a}] --{predicate_a}--> \"{value_a}\"\n"
+            f"Claim B: [{subject_b}] --{predicate_b}--> \"{value_b}\"\n\n"
+            "¿Son contradictorios o incompatibles entre sí? (SÍ/NO)"
+        )
+        try:
+            answer = self.generate(
+                prompt=user_prompt,
+                system_prompt=system_prompt,
+                temperature=0.0,
+                max_tokens=5,
+            ).strip().upper()
+            return answer.startswith("SÍ") or answer.startswith("SI") or answer == "YES"
+        except Exception as e:
+            logger.warning(f"is_semantic_contradiction falló: {e} — asumiendo NO")
+            return False
+
 
 # Singleton
 _llm_client = None

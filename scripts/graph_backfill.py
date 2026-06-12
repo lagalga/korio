@@ -149,34 +149,14 @@ def backfill(
     contradictions_added = 0
     for r in reviews:
         try:
-            # Crear arista CONTRADICTS solo entre claims con MISMO predicate +
-            # MISMO subject (o uno contiene al otro) + valores distintos.
-            # El filtro de subject evita falsos positivos del tipo:
-            #   (subject="política RRHH",   predicate="responsable", value="director")
-            #   (subject="protocolo limpieza", predicate="responsable", value="proveedor")
-            # — comparten predicate "responsable" pero hablan de cosas distintas.
-            cypher = """
-            MATCH (cA:Claim {tenant_id: $tenant_id, chunk_id: $new_id}),
-                  (cB:Claim {tenant_id: $tenant_id, chunk_id: $existing_id})
-            WHERE cA.predicate = cB.predicate
-              AND cA.value <> cB.value
-              AND (cA.subject = cB.subject
-                   OR cA.subject CONTAINS cB.subject
-                   OR cB.subject CONTAINS cA.subject)
-            MERGE (cA)-[r:CONTRADICTS]->(cB)
-            SET r.similarity = $similarity, r.review_id = $review_id
-            RETURN count(r) AS added
-            """
-            result = gc.graph.query(cypher, {
-                "tenant_id":   r["tenant_id"],
-                "new_id":      r["new_chunk_id"],
-                "existing_id": r["existing_chunk_id"],
-                "similarity":  float(r.get("similarity") or 0),
-                "review_id":   r["id"],
-            })
-            if result.result_set and result.result_set[0]:
-                added = result.result_set[0][0]
-                contradictions_added += added
+            added = gc.link_contradictions_between_chunks(
+                tenant_id=r["tenant_id"],
+                new_chunk_id=int(r["new_chunk_id"]),
+                existing_chunk_id=int(r["existing_chunk_id"]),
+                similarity=float(r.get("similarity") or 0),
+                review_id=r["id"],
+            )
+            contradictions_added += added
         except Exception as e:
             logger.warning(f"  Review {r['id'][:8]}…: {e}")
 
