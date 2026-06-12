@@ -7,7 +7,7 @@
 Hola. Arrancamos sesión nueva de **Korio** (mi TFM del Máster IA Business & Innovation de Nuclio). El repo es `lagalga/korio`, branch `main`. Trabajamos siempre en el worktree:
 
 ```
-/Users/berto/Claude Code/korio/.claude/worktrees/nifty-booth-0c25a5
+/Users/berto/Claude Code/korio/.claude/worktrees/dreamy-bose-cd8a36
 ```
 
 Configurado para que `git push` (sin args) publique directamente en `main`.
