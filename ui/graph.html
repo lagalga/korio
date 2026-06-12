@@ -416,12 +416,6 @@ let canonicalGraph = null
 // en clearHighlight cuando no hay nada que limpiar.
 let highlightActive = false
 
-// Defaults visuales para los nodos/aristas que NO tenían propiedades
-// explícitas del backend (vis las heredaba de options.nodes/edges).
-// Los usamos al hacer reset si el canonical original no las llevaba.
-const NODE_FONT_DEFAULT = { size: 11, color: '#1e293b', face: '-apple-system, sans-serif', strokeWidth: 0, bold: false }
-const EDGE_FONT_DEFAULT = { size: 9, color: '#64748b', strokeWidth: 0, align: 'middle' }
-
 function highlightContradictionEdge(fromId, toId) {
   if (!network) return
   // Si ya había un highlight activo, deshacerlo PRIMERO para garantizar
@@ -460,64 +454,29 @@ function highlightContradictionEdge(fromId, toId) {
 }
 
 function clearHighlight() {
-  if (!network || !canonicalGraph) return
-  // Restauración SIEMPRE desde el estado canónico inmutable (sub.nodes/sub.edges
-  // tal como vino del backend), no desde un snapshot temporal. Cada llamada a
-  // clearHighlight reescribe todas las propiedades visuales que el highlight
-  // puede haber tocado, en tres capas:
-  //   1. DataSet.update  → reflejo en el modelo de datos
-  //   2. body.nodes[id].setOptions → reflejo en la instancia interna de vis
-  //   3. network.redraw  → repintado inmediato del canvas
-  // Si uno de los tres falla, los otros lo cubren.
+  if (!network || !canonicalGraph || !highlightActive) return
+  // Tras múltiples intentos con DataSet.update + body.nodes.setOptions + redraw
+  // que demostraron NO resetear propiedades anidadas (font.bold:true se queda
+  // pegado), la única forma fiable de limpiar el estado es CLEAR + ADD del
+  // DataSet con los datos canónicos. Eso destruye y recrea las instancias
+  // internas de vis para los nodos/aristas, garantizando estado limpio.
+  //
+  // Capturamos las posiciones actuales antes para reinyectarlas como `x`/`y`
+  // explícitos: si no, el alta vuelve a ponerlos en (0,0) y la física los
+  // dispara desde el centro.
   const data = network.body.data
+  const positions = network.getPositions()
 
-  const nodeUpdates = canonicalGraph.nodes.map(n => ({
-    id:          n.id,
-    color:       n.color !== undefined ? n.color : null,
-    font:        n.font  !== undefined ? n.font  : NODE_FONT_DEFAULT,
-    borderWidth: n.borderWidth ?? 1,
-    size:        n.size ?? 10,
-  }))
-  const edgeUpdates = canonicalGraph.edges.map(e => ({
-    id:     e.id,
-    color:  e.color !== undefined ? e.color : null,
-    font:   e.font  !== undefined ? e.font  : EDGE_FONT_DEFAULT,
-    width:  e.width ?? 1,
-    label:  e.label ?? '',
-    dashes: e.dashes ?? false,
-    smooth: e.smooth !== undefined ? e.smooth : { type: 'continuous' },
-  }))
-
-  data.nodes.update(nodeUpdates)
-  data.edges.update(edgeUpdates)
-
-  nodeUpdates.forEach(n => {
-    const node = network.body.nodes[n.id]
-    if (node && typeof node.setOptions === 'function') {
-      node.setOptions({
-        color:       n.color,
-        font:        n.font,
-        borderWidth: n.borderWidth,
-        size:        n.size,
-      })
-    }
-  })
-  edgeUpdates.forEach(e => {
-    const edge = network.body.edges[e.id]
-    if (edge && typeof edge.setOptions === 'function') {
-      edge.setOptions({
-        color:  e.color,
-        font:   e.font,
-        width:  e.width,
-        label:  e.label,
-        dashes: e.dashes,
-        smooth: e.smooth,
-      })
-    }
-  })
+  data.nodes.clear()
+  data.nodes.add(canonicalGraph.nodes.map(n => ({
+    ...n,
+    x: positions[n.id]?.x,
+    y: positions[n.id]?.y,
+  })))
+  data.edges.clear()
+  data.edges.add(canonicalGraph.edges)
 
   highlightActive = false
-  network.redraw()
 }
 
 function focusContradictionEdge(el, fromId, toId) {
