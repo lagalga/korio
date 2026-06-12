@@ -10,6 +10,45 @@ semántico [SemVer](https://semver.org/lang/es/).
 
 ## [Unreleased]
 
+## [0.3.1] — 2026-06-12 · sesión 10
+### Added
+- **Validación semántica de aristas CONTRADICTS** (`src/llm_client.py`,
+  `src/graph_client.py`, `scripts/graph_backfill.py`). Nuevo método
+  `LLMClient.is_semantic_contradiction(sA, pA, vA, sB, pB, vB)` — llama a
+  Mistral (temp=0, max_tokens=5) para decidir SÍ/NO si dos claims son
+  realmente incompatibles. `link_contradictions_between_chunks()` elimina el
+  filtro CONTAINS de subject (demasiado estricto → 0 aristas) y valida
+  semánticamente cada par candidato antes de crear la arista MERGE. Resultado:
+  2 aristas CONTRADICTS válidas en Delos (vs 0 previas).
+- **FalkorDB AOF persistence** — `REDIS_ARGS=--appendonly yes --appendfsync
+  everysec --save 60 1` en `docker-compose.yml`. El grafo sobrevive reinicios
+  del contenedor sin pérdida de datos.
+- **`--delay / -d` en benchmark** (`scripts/benchmark.py`). Pausa configurable
+  entre iteraciones para evitar rate-limit de Mistral en runs largos (ej.
+  `--delay 1.5`).
+
+### Changed
+- **Threshold de búsqueda 0.4 → 0.35** (`src/search.py`, `api/server.py`).
+  Mejora recall en queries abiertas sin regresiones de precisión evidentes.
+- **Threshold query-time conflict 0.85 → 0.80** (`KORIO_QUERY_TIME_CONFLICT_THRESHOLD`
+  en VPS `.env`). La similitud real entre chunks de versiones distintas de la
+  política de vacaciones era 0.8253; con 0.85 no se detectaba.
+
+### Fixed
+- **Retry Mistral 429** en `_generate_mistral()` — backoff exponencial (1s/2s/4s),
+  máximo 3 intentos. Evita errores 500 en cascada durante el benchmark.
+- **Import flexible `LLMClient` en `graph_client.py`** — `try/except
+  ModuleNotFoundError` permite cargar el módulo tanto desde la raíz del
+  proyecto (vía `server.py`) como desde `scripts/` (que añaden `src/` al
+  `sys.path` directamente).
+
+### QA
+- **QA E2E 10/10** — los 10 escenarios definidos (vectorial, grafo, multi-turn,
+  RLS, disputed, query-time, MCP×2, ingesta Gmail, bus eventos) superados sin
+  regresiones.
+- **Benchmark formal 50/50 queries** — p50 global 1983 ms, p95 3053 ms,
+  0 errores (con `--delay 1.5`).
+
 ## [0.3.0] — 2026-06-11 · sesiones 7-9
 ### Added
 - **Workflow n8n `Korio · Pipeline event bus`** (sesión 7) consumiendo
