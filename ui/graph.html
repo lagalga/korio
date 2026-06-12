@@ -271,22 +271,16 @@ const renderGraph = async () => {
     // Limpiar contenido HTML previo en el div del network (si lo había)
     $('network').innerHTML = ''
 
+    // Asegurar que cada edge tiene un id estable: el highlight de
+    // contradicciones llama a data.edges.update({id, ...}) para reescribir
+    // propiedades. Sin id estable, vis.DataSet no encuentra la fila a actualizar.
+    sub.edges.forEach((e, i) => { if (e.id == null) e.id = `e_${i}` })
+
     // Render network
     const data = {
       nodes: new vis.DataSet(sub.nodes),
       edges: new vis.DataSet(sub.edges),
     }
-    // Snapshot inmutable del estado original para poder restaurar tras
-    // resaltar una contradicción del sidebar (highlightContradictionEdge).
-    originalGraphData = {
-      nodes: JSON.parse(JSON.stringify(sub.nodes)),
-      edges: JSON.parse(JSON.stringify(sub.edges.map((e, i) => ({ ...e, id: e.id ?? `e_${i}` })))),
-    }
-    // Asegurar que cada edge tiene un id estable (vis.DataSet autogenera si falta,
-    // pero al update() necesitamos uno conocido para reescribir la misma fila).
-    sub.edges.forEach((e, i) => { if (e.id == null) e.id = `e_${i}` })
-    data.edges.clear()
-    data.edges.add(sub.edges)
     const options = {
       nodes: {
         shape: 'dot',
@@ -378,15 +372,30 @@ const escapeHtml = s => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&l
 // resuelve el problema de "las 500 aristas grises tapan las 2 rojas" cuando
 // los claims están en una zona densa del layout.
 
+// Snapshot del estado del DataSet ANTES de aplicar el highlight, para poder
+// restaurar exacto al hacer clearHighlight. vis-network `update()` solo
+// reescribe propiedades presentes en el objeto pasado, así que si en el
+// highlight introducimos `size`/`borderWidth` y luego pasáramos el snapshot
+// "original" (que NO incluía esas propiedades porque vis-network las hereda
+// de `options.nodes`), no las resetearíamos: el nodo se quedaría agrandado.
+let highlightSnapshot = null
+
 function highlightContradictionEdge(fromId, toId) {
   if (!network) return
+  // Si ya había un highlight activo, deshacerlo PRIMERO para no acumular
+  // modificaciones (caso: mover ratón directamente entre dos items).
+  if (highlightSnapshot) clearHighlight()
+
   const data = network.body.data
-  const allNodes = data.nodes.get()
-  const allEdges = data.edges.get()
+  // Snapshot deep-copy del estado actual exacto
+  highlightSnapshot = {
+    nodes: JSON.parse(JSON.stringify(data.nodes.get())),
+    edges: JSON.parse(JSON.stringify(data.edges.get())),
+  }
   const fromN = Number(fromId), toN = Number(toId)
 
   // Atenuar todos los nodos excepto los dos extremos
-  data.nodes.update(allNodes.map(n => ({
+  data.nodes.update(highlightSnapshot.nodes.map(n => ({
     id: n.id,
     color: (n.id === fromN || n.id === toN)
       ? { background: '#dc2626', border: '#7f1d1d' }
@@ -399,7 +408,7 @@ function highlightContradictionEdge(fromId, toId) {
   })))
 
   // Atenuar todas las aristas excepto la que conecta los dos claims
-  data.edges.update(allEdges.map(e => {
+  data.edges.update(highlightSnapshot.edges.map(e => {
     const isTheOne = (e.from === fromN && e.to === toN) || (e.from === toN && e.to === fromN)
     return {
       id: e.id,
@@ -413,10 +422,14 @@ function highlightContradictionEdge(fromId, toId) {
 }
 
 function clearHighlight() {
-  if (!network || !originalGraphData) return
-  // Restaurar nodos y aristas al estado original
-  network.body.data.nodes.update(originalGraphData.nodes)
-  network.body.data.edges.update(originalGraphData.edges)
+  if (!network || !highlightSnapshot) return
+  // Restaurar pasando los objetos snapshot completos: vis-network reescribe
+  // todas las propiedades porque están presentes en el objeto. Así size,
+  // borderWidth, font y color vuelven a sus valores originales (o se
+  // eliminan si no estaban definidos antes).
+  network.body.data.nodes.update(highlightSnapshot.nodes)
+  network.body.data.edges.update(highlightSnapshot.edges)
+  highlightSnapshot = null
 }
 
 function focusContradictionEdge(el, fromId, toId) {
@@ -442,8 +455,6 @@ function focusContradictionEdge(el, fromId, toId) {
   setTimeout(() => document.addEventListener('click', offClick), 100)
 }
 
-// Snapshot del estado original del grafo (para poder restaurar tras highlight)
-let originalGraphData = null
 
 tenantSelect.addEventListener('change', () => { renderUsers(); renderGraph() })
 userSelect.addEventListener('change', renderGraph)
