@@ -87,7 +87,7 @@ class LLMClient:
         temperature: float,
         max_tokens: int
     ) -> str:
-        """Genera texto usando Mistral API (La Plateforme)."""
+        """Genera texto usando Mistral API (La Plateforme). Reintenta hasta 3 veces en 429."""
         url = "https://api.mistral.ai/v1/chat/completions"
 
         messages = []
@@ -107,15 +107,25 @@ class LLMClient:
             "Content-Type": "application/json"
         }
 
-        try:
-            response = requests.post(url, json=payload, headers=headers, timeout=30)
-            response.raise_for_status()
-            data = response.json()
-            return data["choices"][0]["message"]["content"].strip()
-        except requests.exceptions.HTTPError as e:
-            raise RuntimeError(f"Error en Mistral API: {e.response.text}") from e
-        except Exception as e:
-            raise RuntimeError(f"Error generando con Mistral API: {e}") from e
+        for attempt in range(3):
+            try:
+                response = requests.post(url, json=payload, headers=headers, timeout=30)
+                if response.status_code == 429:
+                    wait = 2 ** attempt  # 1s, 2s, 4s
+                    logger.warning(f"  Mistral 429 rate limit — reintento {attempt+1}/3 en {wait}s")
+                    time.sleep(wait)
+                    continue
+                response.raise_for_status()
+                data = response.json()
+                return data["choices"][0]["message"]["content"].strip()
+            except requests.exceptions.HTTPError as e:
+                if attempt < 2:
+                    time.sleep(2 ** attempt)
+                    continue
+                raise RuntimeError(f"Error en Mistral API: {e.response.text}") from e
+            except Exception as e:
+                raise RuntimeError(f"Error generando con Mistral API: {e}") from e
+        raise RuntimeError("Mistral API: máximo de reintentos alcanzado (429 persistente)")
 
     def _generate_ollama(
         self,
