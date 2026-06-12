@@ -265,14 +265,21 @@ def search(
     except Exception as e:
         raise RuntimeError(f"Error en búsqueda vectorial: {e}") from e
 
-    # Detectar conflictos en los chunks recuperados (gobernanza activa)
-    # Si algún chunk tiene chunk_status='disputed', la respuesta debe presentar
-    # ambas versiones y avisar al usuario explícitamente.
-    disputed_chunks = [c for c in raw_chunks if c.get("chunk_status") == "disputed"]
+    # Detectar conflictos en los chunks recuperados (gobernanza activa).
+    # Solo consideramos 'disputed' los chunks que aparte de tener ese estado
+    # son REALMENTE relevantes para la query (similarity >= DISPUTED_BANNER_MIN_SIM).
+    # Sin este filtro, queries vagas recuperaban chunks `disputed` de docs no
+    # relacionados y disparaban el banner sin justificación visible al usuario.
+    DISPUTED_BANNER_MIN_SIM = float(os.getenv("KORIO_DISPUTED_BANNER_MIN_SIM", "0.6"))
+    disputed_chunks = [
+        c for c in raw_chunks
+        if c.get("chunk_status") == "disputed"
+        and float(c.get("similarity") or 0) >= DISPUTED_BANNER_MIN_SIM
+    ]
     has_conflict = len(disputed_chunks) > 0
     if has_conflict:
         logger.warning(
-            f"  ⚠️ {len(disputed_chunks)} chunk(s) en estado 'disputed' — "
+            f"  ⚠️ {len(disputed_chunks)} chunk(s) en estado 'disputed' con sim>={DISPUTED_BANNER_MIN_SIM} — "
             f"se presentarán ambas versiones del contenido en conflicto"
         )
 
