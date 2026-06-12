@@ -11,7 +11,7 @@ Korio v0.3.2 ingesta documentos estructurados (PDF, DOCX, XLSX, Markdown) vía:
 - Upload manual desde la UI
 - Gmail (label vigilada, adjuntos)
 - Drive (carpeta vigilada)
-- Slack (slash command, sólo lectura por ahora)
+- Slack (slash command para consultar **+** file_shared event para subir PDF/DOCX desde sesión 11)
 
 Pero el **conocimiento operativo real de una pyme** vive también en:
 

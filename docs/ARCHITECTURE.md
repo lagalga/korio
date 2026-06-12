@@ -11,7 +11,7 @@ Korio es un sistema de RAG (*Retrieval-Augmented Generation*) multi-tenant que p
 
 ### Capas funcionales
 
-1. **Ingesta multi-canal** — manual (UI/CLI) + automática vía n8n (Gmail, Drive, Slack). Cada documento lleva `source_metadata` (JSONB) con el contexto del canal de origen.
+1. **Ingesta multi-canal** — manual (UI/CLI) + automática vía n8n (Gmail, Drive, Slack file_shared). Cada documento lleva `source_metadata` (JSONB) con el contexto del canal de origen.
 2. **Pipeline de procesamiento** — MarkItDown → Presidio → chunking → embeddings (768d) → pgvector + extracción de entidades + claims al grafo FalkorDB.
 3. **Gobernanza activa** — detección semántica de chunks contradictorios en ingesta, auto-resolución por fecha/autoridad, HITL email para casos ambiguos, cron de escalada con auto-cierre a 21 días.
 4. **Búsqueda RAG híbrida** — vector + grafo en paralelo, RLS en 3 capas (aplicación + Postgres + FalkorDB).
