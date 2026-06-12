@@ -106,6 +106,7 @@ def benchmark(
     iterations: int = DEFAULT_ITERATIONS,
     output: Optional[str] = None,
     warmup: bool = True,
+    delay: float = 0.0,
 ):
     print(f'\n{"═" * 64}')
     print(f'  Korio — Benchmark de latencias RAG')
@@ -154,6 +155,8 @@ def benchmark(
             except Exception as e:
                 errors += 1
                 print(f'   [{i+1}/{iterations}] ERROR: {e}')
+            if delay > 0 and i < iterations - 1:
+                time.sleep(delay)
 
         if not wall_times:
             print('   ❌ Todos los intentos fallaron')
@@ -227,6 +230,9 @@ def main():
                         help=f'Iteraciones por escenario (default: {DEFAULT_ITERATIONS})')
     parser.add_argument('--output', '-o', help='Guardar resultados en JSON')
     parser.add_argument('--no-warmup', action='store_true', help='No hacer warmup')
+    parser.add_argument('--delay', '-d', type=float, default=0.0,
+                        help='Segundos de pausa entre iteraciones (default: 0). '
+                             'Usar ≥1.5 para evitar rate-limit de Mistral en tests largos.')
     args = parser.parse_args()
 
     benchmark(
@@ -234,6 +240,7 @@ def main():
         iterations=args.iterations,
         output=args.output,
         warmup=not args.no_warmup,
+        delay=args.delay,
     )
 
 
