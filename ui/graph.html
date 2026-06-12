@@ -347,13 +347,38 @@ const renderGraph = async () => {
           <div class="contradiction__hint">Pasa el ratón para resaltar la arista · Clic para enfocar</div>
         </div>`
       }).join('')
-      // Bindings hover/click
+      // Bindings hover/click. Usamos mousemove + mouseleave a nivel del
+      // contenedor (no por item) para evitar bugs de eventos perdidos cuando
+      // el cursor pasa rápido entre items o entra/sale por bordes raros
+      // (e.g. al aparecer el .contradiction__hint cambia el bounding box).
+      let currentHoverItem = null
+      const isStickyActive = () => contraBox.querySelector('.contradiction.is-active') !== null
+      contraBox.addEventListener('mousemove', (ev) => {
+        if (isStickyActive()) return  // mientras hay clic fijo, no procesar hover
+        const item = ev.target.closest('.contradiction')
+        if (item === currentHoverItem) return
+        currentHoverItem = item
+        if (item) {
+          const { fromId, toId } = item.dataset
+          if (fromId && toId) highlightContradictionEdge(fromId, toId)
+        } else {
+          clearHighlight()
+        }
+      })
+      contraBox.addEventListener('mouseleave', () => {
+        if (isStickyActive()) return
+        currentHoverItem = null
+        clearHighlight()
+      })
+      // Clic sigue siendo por item (sticky)
       contraBox.querySelectorAll('.contradiction').forEach(el => {
         const fromId = el.dataset.fromId, toId = el.dataset.toId
         if (!fromId || !toId) return
-        el.addEventListener('mouseenter', () => highlightContradictionEdge(fromId, toId))
-        el.addEventListener('mouseleave', () => clearHighlight())
-        el.addEventListener('click', () => focusContradictionEdge(el, fromId, toId))
+        el.addEventListener('click', (ev) => {
+          ev.stopPropagation()
+          currentHoverItem = null
+          focusContradictionEdge(el, fromId, toId)
+        })
       })
     }
 
@@ -446,16 +471,39 @@ function highlightContradictionEdge(fromId, toId) {
 
 function clearHighlight() {
   if (!network || !highlightSnapshot) return
-  // Restaurar pasando los objetos snapshot completos con todas las
-  // propiedades explícitas (size, borderWidth, font, color, width, dashes).
-  // vis-network update() solo reescribe propiedades presentes en el objeto,
-  // así que la cobertura explícita es crítica.
+  // Defensa en profundidad: actualizar TANTO el DataSet COMO las instancias
+  // internas de vis-network. La inspección con DevTools mostró que el
+  // DataSet podía quedar desincronizado con `body.nodes[id]` (el render
+  // mantiene size=20 aunque el snapshot lleve size=10). Llamando a
+  // `setOptions()` directo en cada nodo modificado, forzamos la actualización
+  // de las propiedades visuales internas.
   network.body.data.nodes.update(highlightSnapshot.nodes)
   network.body.data.edges.update(highlightSnapshot.edges)
+  highlightSnapshot.nodes.forEach(n => {
+    const node = network.body.nodes[n.id]
+    if (node && typeof node.setOptions === 'function') {
+      node.setOptions({
+        color:       n.color,
+        font:        n.font,
+        borderWidth: n.borderWidth,
+        size:        n.size,
+      })
+    }
+  })
+  highlightSnapshot.edges.forEach(e => {
+    const edge = network.body.edges[e.id]
+    if (edge && typeof edge.setOptions === 'function') {
+      edge.setOptions({
+        color:  e.color,
+        font:   e.font,
+        width:  e.width,
+        label:  e.label,
+        dashes: e.dashes,
+        smooth: e.smooth,
+      })
+    }
+  })
   highlightSnapshot = null
-  // Forzar repintado: a veces vis cachea propiedades del nodo en su render
-  // interno y, aunque el DataSet refleje el nuevo size, el nodo no se redibuja
-  // hasta el próximo evento de la física.
   network.redraw()
 }
 
