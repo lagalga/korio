@@ -276,6 +276,15 @@ const renderGraph = async () => {
     // propiedades. Sin id estable, vis.DataSet no encuentra la fila a actualizar.
     sub.edges.forEach((e, i) => { if (e.id == null) e.id = `e_${i}` })
 
+    // Estado canónico inmutable del grafo (deep clone). Es la fuente de
+    // verdad a la que SIEMPRE volvemos en clearHighlight, en lugar de
+    // confiar en snapshots tomados durante hovers (que pueden contaminarse
+    // entre transiciones).
+    canonicalGraph = {
+      nodes: JSON.parse(JSON.stringify(sub.nodes)),
+      edges: JSON.parse(JSON.stringify(sub.edges)),
+    }
+
     // Render network
     const data = {
       nodes: new vis.DataSet(sub.nodes),
@@ -397,66 +406,47 @@ const escapeHtml = s => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&l
 // resuelve el problema de "las 500 aristas grises tapan las 2 rojas" cuando
 // los claims están en una zona densa del layout.
 
-// Snapshot del estado del DataSet ANTES de aplicar el highlight, para poder
-// restaurar exacto al hacer clearHighlight. vis-network `update()` solo
-// reescribe propiedades presentes en el objeto pasado, así que si en el
-// highlight introducimos `size`/`borderWidth` y luego pasáramos el snapshot
-// "original" (que NO incluía esas propiedades porque vis-network las hereda
-// de `options.nodes`), no las resetearíamos: el nodo se quedaría agrandado.
-let highlightSnapshot = null
+// Estado canónico del grafo (deep clone de sub.nodes/sub.edges tal como
+// vinieron del backend). Se rellena en renderGraph(). Sirve como fuente
+// inmutable a la que SIEMPRE volvemos en clearHighlight. Antes usaba un
+// snapshot tomado por hover y el bug "scale enganchado" venía de que ese
+// snapshot podía contaminarse con propiedades del highlight previo.
+let canonicalGraph = null
+// Marca booleana de si hay un highlight activo, para early-return rápido
+// en clearHighlight cuando no hay nada que limpiar.
+let highlightActive = false
 
-// Defaults globales de vis-network (replican options.nodes / options.edges)
-// para que el reset del snapshot sea EXPLÍCITO. Sin esto, update() no
-// resetea propiedades ausentes y el nodo se queda con el size del highlight.
+// Defaults visuales para los nodos/aristas que NO tenían propiedades
+// explícitas del backend (vis las heredaba de options.nodes/edges).
+// Los usamos al hacer reset si el canonical original no las llevaba.
 const NODE_FONT_DEFAULT = { size: 11, color: '#1e293b', face: '-apple-system, sans-serif', strokeWidth: 0, bold: false }
 const EDGE_FONT_DEFAULT = { size: 9, color: '#64748b', strokeWidth: 0, align: 'middle' }
 
 function highlightContradictionEdge(fromId, toId) {
   if (!network) return
-  // Si ya había un highlight activo, deshacerlo PRIMERO para no acumular
-  // modificaciones (caso: mover ratón directamente entre dos items).
-  if (highlightSnapshot) clearHighlight()
+  // Si ya había un highlight activo, deshacerlo PRIMERO para garantizar
+  // un punto de partida limpio.
+  if (highlightActive) clearHighlight()
 
   const data = network.body.data
-  // Snapshot con TODAS las propiedades que el highlight puede modificar,
-  // explícitas. Si el nodo no tenía una propiedad (vis la heredaba de
-  // options.nodes), inyectamos el default explícito para que el reset
-  // sí pueda reescribirla.
-  highlightSnapshot = {
-    nodes: data.nodes.get().map(n => ({
-      id:          n.id,
-      color:       n.color !== undefined ? JSON.parse(JSON.stringify(n.color)) : null,
-      font:        n.font  !== undefined ? JSON.parse(JSON.stringify(n.font))  : NODE_FONT_DEFAULT,
-      borderWidth: n.borderWidth ?? 1,
-      size:        n.size ?? 10,
-    })),
-    edges: data.edges.get().map(e => ({
-      id:     e.id,
-      color:  e.color !== undefined ? JSON.parse(JSON.stringify(e.color)) : null,
-      font:   e.font  !== undefined ? JSON.parse(JSON.stringify(e.font))  : EDGE_FONT_DEFAULT,
-      width:  e.width ?? 1,
-      label:  e.label ?? '',
-      dashes: e.dashes ?? false,
-      smooth: e.smooth !== undefined ? JSON.parse(JSON.stringify(e.smooth)) : { type: 'continuous' },
-    })),
-  }
   const fromN = Number(fromId), toN = Number(toId)
+  highlightActive = true
 
   // Atenuar todos los nodos excepto los dos extremos
-  data.nodes.update(highlightSnapshot.nodes.map(n => ({
-    id: n.id,
-    color: (n.id === fromN || n.id === toN)
+  data.nodes.update(data.nodes.getIds().map(id => ({
+    id,
+    color: (id === fromN || id === toN)
       ? { background: '#dc2626', border: '#7f1d1d' }
       : { background: 'rgba(203, 213, 225, 0.25)', border: 'rgba(148, 163, 184, 0.25)' },
-    font: (n.id === fromN || n.id === toN)
+    font: (id === fromN || id === toN)
       ? { size: 16, color: '#7f1d1d', face: '-apple-system, sans-serif', strokeWidth: 4, strokeColor: '#ffffff', bold: true }
       : { size: 11, color: 'rgba(30, 41, 59, 0.2)' },
-    borderWidth: (n.id === fromN || n.id === toN) ? 3 : 1,
-    size: (n.id === fromN || n.id === toN) ? 20 : 10,
+    borderWidth: (id === fromN || id === toN) ? 3 : 1,
+    size: (id === fromN || id === toN) ? 20 : 10,
   })))
 
   // Atenuar todas las aristas excepto la que conecta los dos claims
-  data.edges.update(highlightSnapshot.edges.map(e => {
+  data.edges.update(data.edges.get().map(e => {
     const isTheOne = (e.from === fromN && e.to === toN) || (e.from === toN && e.to === fromN)
     return {
       id: e.id,
@@ -470,16 +460,38 @@ function highlightContradictionEdge(fromId, toId) {
 }
 
 function clearHighlight() {
-  if (!network || !highlightSnapshot) return
-  // Defensa en profundidad: actualizar TANTO el DataSet COMO las instancias
-  // internas de vis-network. La inspección con DevTools mostró que el
-  // DataSet podía quedar desincronizado con `body.nodes[id]` (el render
-  // mantiene size=20 aunque el snapshot lleve size=10). Llamando a
-  // `setOptions()` directo en cada nodo modificado, forzamos la actualización
-  // de las propiedades visuales internas.
-  network.body.data.nodes.update(highlightSnapshot.nodes)
-  network.body.data.edges.update(highlightSnapshot.edges)
-  highlightSnapshot.nodes.forEach(n => {
+  if (!network || !canonicalGraph) return
+  // Restauración SIEMPRE desde el estado canónico inmutable (sub.nodes/sub.edges
+  // tal como vino del backend), no desde un snapshot temporal. Cada llamada a
+  // clearHighlight reescribe todas las propiedades visuales que el highlight
+  // puede haber tocado, en tres capas:
+  //   1. DataSet.update  → reflejo en el modelo de datos
+  //   2. body.nodes[id].setOptions → reflejo en la instancia interna de vis
+  //   3. network.redraw  → repintado inmediato del canvas
+  // Si uno de los tres falla, los otros lo cubren.
+  const data = network.body.data
+
+  const nodeUpdates = canonicalGraph.nodes.map(n => ({
+    id:          n.id,
+    color:       n.color !== undefined ? n.color : null,
+    font:        n.font  !== undefined ? n.font  : NODE_FONT_DEFAULT,
+    borderWidth: n.borderWidth ?? 1,
+    size:        n.size ?? 10,
+  }))
+  const edgeUpdates = canonicalGraph.edges.map(e => ({
+    id:     e.id,
+    color:  e.color !== undefined ? e.color : null,
+    font:   e.font  !== undefined ? e.font  : EDGE_FONT_DEFAULT,
+    width:  e.width ?? 1,
+    label:  e.label ?? '',
+    dashes: e.dashes ?? false,
+    smooth: e.smooth !== undefined ? e.smooth : { type: 'continuous' },
+  }))
+
+  data.nodes.update(nodeUpdates)
+  data.edges.update(edgeUpdates)
+
+  nodeUpdates.forEach(n => {
     const node = network.body.nodes[n.id]
     if (node && typeof node.setOptions === 'function') {
       node.setOptions({
@@ -490,7 +502,7 @@ function clearHighlight() {
       })
     }
   })
-  highlightSnapshot.edges.forEach(e => {
+  edgeUpdates.forEach(e => {
     const edge = network.body.edges[e.id]
     if (edge && typeof edge.setOptions === 'function') {
       edge.setOptions({
@@ -503,7 +515,8 @@ function clearHighlight() {
       })
     }
   })
-  highlightSnapshot = null
+
+  highlightActive = false
   network.redraw()
 }
 
