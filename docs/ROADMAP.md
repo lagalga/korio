@@ -43,7 +43,7 @@
 #### Infraestructura
 | Feature | Estado |
 |---|---|
-| VPS Hetzner (CX32, Frankfurt) | ✅ |
+| VPS Hetzner (**CPX32** AMD, Frankfurt) · €17.53/mes max | ✅ |
 | nginx + Let's Encrypt SSL (renovación automática) | ✅ |
 | FastAPI como systemd service (`korio-api`) | ✅ |
 | n8n en Docker (`korio-n8n`) | ✅ |

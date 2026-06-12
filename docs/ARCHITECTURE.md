@@ -231,7 +231,7 @@ query("¿vacaciones?", user_id="doctor-uuid")
 | PII detection | Presidio + spaCy `es_core_news_lg` | Antes de ingestar, local |
 | Chunking | LangChain `RecursiveCharacterTextSplitter` | 500 tok / 50 overlap |
 | Conversión docs | MarkItDown | PDF/DOCX/XLSX/HTML → Markdown |
-| Servidor VPS | Hetzner CX32, Frankfurt | 4vCPU/8GB, €8/mes |
+| Servidor VPS | Hetzner **CPX32** AMD EPYC-Genoa, Frankfurt | 4 vCPU / 8 GB / 160 GB SSD · **€17.53/mes max** (€0.0281/h) |
 
 ---
 
@@ -239,7 +239,7 @@ query("¿vacaciones?", user_id="doctor-uuid")
 
 | Operación | Mediana | Notas |
 |---|---|---|
-| Embedding query | ~0.8s | Ollama CPU en Hetzner CX32 |
+| Embedding query | ~0.8s | Ollama CPU en Hetzner CPX32 AMD |
 | Vector search pgvector | <0.1s | top-5, ~27 chunks en BD |
 | LLM generation (Mistral API) | ~2.5s | `mistral-small-latest` |
 | **Total RAG end-to-end** | **~3.3s** | p50 con Mistral API |
@@ -255,7 +255,7 @@ query("¿vacaciones?", user_id="doctor-uuid")
 └──────────────────────┬────────────────────────────────────┘
                        │ HTTPS
                        ▼
-┌─── Hetzner CX32 (Frankfurt) ─────────────────────────────┐
+┌─── Hetzner CPX32 AMD (Frankfurt) ────────────────────────┐
 │                                                           │
 │  ┌─────────────────────────────────┐                      │
 │  │  FastAPI + Uvicorn :8000        │                      │

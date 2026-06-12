@@ -92,7 +92,7 @@ Resultado verificado en producción y vía Claude Desktop:
 | Chunking | LangChain `RecursiveCharacterTextSplitter` | 500 tok / 50 overlap |
 | Conversión docs | MarkItDown | PDF/DOCX/XLSX → Markdown |
 | Automatización | n8n v1.x (Docker en VPS) | **5 workflows**: HITL + Cron + Gmail + Drive + Slack |
-| Servidor | Hetzner CX32, Frankfurt, 4vCPU/8GB | `ssh korio-vps` |
+| Servidor | Hetzner **CPX32** (AMD EPYC-Genoa), Frankfurt, 4 vCPU / 8 GB / 160 GB SSD | `ssh korio-vps` · **€17.53/mes max** (€0.0281/h) |
 | Base de datos | Supabase Pro, Frankfurt | `pkurvkdmoulfqnngjsjr.supabase.co` |
 
 ---

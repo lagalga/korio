@@ -230,7 +230,7 @@ Visualización interactiva en [`korio.es/ui/graph.html`](https://korio.es/ui/gra
 | Doc parsing | MarkItDown `[pdf,docx,xlsx,pptx]` | |
 | Automatización | n8n v1.x (Docker en VPS) | 2 workflows: HITL email + Cron escalada |
 | Visualización grafo | **vis-network 9.1.9** (CDN) | barnesHut física, canvas render |
-| Servidor | Hetzner CX32, Frankfurt | 4vCPU/8GB, Ubuntu 24.04 |
+| Servidor | Hetzner **CPX32** (AMD), Frankfurt | 4 vCPU / 8 GB / 160 GB SSD · Ubuntu 24.04 · **€17.53/mes max** |
 | Reverse proxy | nginx + Let's Encrypt (certbot) | renovación automática |
 
 ---
