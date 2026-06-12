@@ -205,33 +205,58 @@ class GraphClient:
         predicate: str,
         value: str,
         chunk_status: str = "active",
+        embedding: Optional[List[float]] = None,
     ) -> None:
         """
         Crea Claim + arista Chunk -[HAS_CLAIM]-> Claim.
         Si la entidad sujeto existe como Entity, también crea Claim -[ABOUT_ENTITY]-> Entity.
+
+        Si se proporciona `embedding` (vector 768 dims de nomic-embed-text sobre
+        el texto "subject predicate value"), se guarda como propiedad del nodo
+        Claim para habilitar el rerank semántico en query-time
+        (ver `find_claims_semantic`).
         """
-        # Crear Claim + relación con chunk
-        self.graph.query(
-            """
-            MATCH (c:Chunk {tenant_id: $tenant_id, id: $chunk_id})
-            MERGE (cl:Claim {tenant_id: $tenant_id, id: $claim_id})
-            SET cl.subject      = $subject,
-                cl.predicate    = $predicate,
-                cl.value        = $value,
-                cl.chunk_id     = $chunk_id,
-                cl.chunk_status = $chunk_status
-            MERGE (c)-[:HAS_CLAIM]->(cl)
-            """,
-            {
-                "claim_id":     claim_id,
-                "tenant_id":    tenant_id,
-                "chunk_id":     chunk_id,
-                "subject":      subject.strip().lower(),
-                "predicate":    predicate.strip().lower(),
-                "value":        value.strip(),
-                "chunk_status": chunk_status,
-            },
-        )
+        # Crear Claim + relación con chunk. El embedding va como propiedad
+        # opcional para no romper claims antiguos sin él.
+        params = {
+            "claim_id":     claim_id,
+            "tenant_id":    tenant_id,
+            "chunk_id":     chunk_id,
+            "subject":      subject.strip().lower(),
+            "predicate":    predicate.strip().lower(),
+            "value":        value.strip(),
+            "chunk_status": chunk_status,
+        }
+        if embedding is not None:
+            params["embedding"] = list(embedding)
+            self.graph.query(
+                """
+                MATCH (c:Chunk {tenant_id: $tenant_id, id: $chunk_id})
+                MERGE (cl:Claim {tenant_id: $tenant_id, id: $claim_id})
+                SET cl.subject      = $subject,
+                    cl.predicate    = $predicate,
+                    cl.value        = $value,
+                    cl.chunk_id     = $chunk_id,
+                    cl.chunk_status = $chunk_status,
+                    cl.embedding    = $embedding
+                MERGE (c)-[:HAS_CLAIM]->(cl)
+                """,
+                params,
+            )
+        else:
+            self.graph.query(
+                """
+                MATCH (c:Chunk {tenant_id: $tenant_id, id: $chunk_id})
+                MERGE (cl:Claim {tenant_id: $tenant_id, id: $claim_id})
+                SET cl.subject      = $subject,
+                    cl.predicate    = $predicate,
+                    cl.value        = $value,
+                    cl.chunk_id     = $chunk_id,
+                    cl.chunk_status = $chunk_status
+                MERGE (c)-[:HAS_CLAIM]->(cl)
+                """,
+                params,
+            )
 
         # Si el sujeto del claim coincide con una Entity, enlazar
         self.graph.query(
@@ -446,6 +471,76 @@ class GraphClient:
         """
         result = self.graph.query(cypher, params)
         return self._rows_to_dicts(result)
+
+    def find_claims_semantic(
+        self,
+        tenant_id: str,
+        query_embedding: List[float],
+        allowed_space_ids: Optional[List[str]] = None,
+        top_k: int = 10,
+        only_active: bool = True,
+    ) -> List[Dict[str, Any]]:
+        """
+        Rerank semántico de claims por cosine similarity contra el embedding
+        de la query.
+
+        FalkorDB no tiene índice vectorial nativo, así que hacemos scan +
+        cálculo en Python. Con ~hundreds de claims por tenant es instantáneo
+        (dot product de vectores 768 dims × ~250 claims = ~milisegundos).
+
+        Args:
+            tenant_id: tenant para RLS
+            query_embedding: vector 768 dims de la query (nomic-embed-text)
+            allowed_space_ids: lista de space_ids accesibles al usuario
+            top_k: número de claims a devolver
+            only_active: filtra por chunk_status='active'
+
+        Returns:
+            Lista de claims con campo extra `semantic_score` (cosine similarity).
+            Solo incluye claims que tengan embedding guardado.
+        """
+        import math
+
+        cypher = """
+        MATCH (cl:Claim {tenant_id: $tenant_id})
+        MATCH (c:Chunk {tenant_id: $tenant_id, id: cl.chunk_id})
+        WHERE c.space_id IN $space_ids
+          AND cl.embedding IS NOT NULL
+        """
+        if only_active:
+            cypher += " AND cl.chunk_status = 'active'"
+        cypher += """
+        RETURN cl.subject AS subject,
+               cl.predicate AS predicate,
+               cl.value AS value,
+               cl.chunk_status AS status,
+               cl.chunk_id AS chunk_id,
+               c.document_id AS document_id,
+               cl.embedding AS embedding
+        """
+        params = {
+            "tenant_id": tenant_id,
+            "space_ids": allowed_space_ids or [],
+        }
+        result = self.graph.query(cypher, params)
+        rows = self._rows_to_dicts(result)
+
+        # Cosine similarity en Python — los embeddings ya están normalizados
+        # por nomic-embed-text, así que basta con el dot product.
+        def cosine(v1, v2):
+            dot = sum(a * b for a, b in zip(v1, v2))
+            n1 = math.sqrt(sum(a * a for a in v1))
+            n2 = math.sqrt(sum(b * b for b in v2))
+            if n1 == 0 or n2 == 0:
+                return 0.0
+            return dot / (n1 * n2)
+
+        for r in rows:
+            emb = r.pop("embedding", None) or []
+            r["semantic_score"] = cosine(query_embedding, emb) if emb else 0.0
+
+        rows.sort(key=lambda r: r["semantic_score"], reverse=True)
+        return rows[:top_k]
 
     def get_contradictions(
         self,

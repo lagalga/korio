@@ -61,58 +61,97 @@ def _extract_query_keywords(query: str, max_keywords: int = 6) -> List[str]:
     return out[:max_keywords]
 
 
-def _graph_context(query: str, tenant_id: str, allowed_space_ids: List[str]) -> str:
+def _graph_context(
+    query: str,
+    tenant_id: str,
+    allowed_space_ids: List[str],
+    query_embedding: Optional[List[float]] = None,
+) -> str:
     """
-    Consulta el grafo de conocimiento con las keywords de la query y
-    devuelve un bloque de contexto formateado para inyectar al LLM.
-    Devuelve string vacío si no hay grafo o no hay matches.
+    Consulta el grafo de conocimiento con dos paths en paralelo:
+
+    1. **Léxico**: keywords de la query → CONTAINS sobre predicate/subject/value
+       (cubre matches exactos cuando la query usa el vocabulario del corpus).
+    2. **Semántico**: embedding de la query × embedding del claim, cosine
+       similarity (cubre queries rephrasadas que el léxico no atrapa).
+
+    Merge dedupe + top-8 ordenados por score combinado (lexical_rank +
+    semantic_rank en RRF — Reciprocal Rank Fusion). Si solo uno de los dos
+    paths devuelve resultados, se usa ese.
+
+    Devuelve string vacío si no hay grafo, no hay matches o falla.
     """
     if not GRAPH_ENABLED or not tenant_id or not allowed_space_ids:
         return ""
     try:
         from graph_client import get_graph_client
         gc = get_graph_client()
+
+        # Path 1: léxico (con rerank ponderado existente)
+        lexical_ranked: List[dict] = []
         keywords = _extract_query_keywords(query)
-        if not keywords:
-            return ""
-        claims = gc.find_claims_by_predicate(
-            tenant_id=tenant_id,
-            predicate_keywords=keywords,
-            allowed_space_ids=allowed_space_ids,
-            only_active=True,
-        )
-        if not claims:
-            return ""
-
-        # Rerank por relevancia: predicate match vale más que value, y value
-        # más que subject. Sin esto, keywords genéricas ("política") saturan
-        # el resultado con claims sobre el subject equivocado y los claims
-        # informativos (ej. value="35 horas/semana") quedan fuera del top-8.
-        def _score(c):
-            score = 0
-            pred = (c.get("predicate") or "").lower()
-            subj = (c.get("subject") or "").lower()
-            val  = (c.get("value") or "").lower()
-            for kw in keywords:
-                if kw in pred: score += 3
-                if kw in val:  score += 2
-                if kw in subj: score += 1
-            return score
-
-        claims.sort(key=_score, reverse=True)
-
-        lines = []
-        seen_keys = set()
-        for c in claims:
-            key = (c.get("subject", ""), c.get("predicate", ""), c.get("value", ""))
-            if key in seen_keys:
-                continue
-            seen_keys.add(key)
-            lines.append(
-                f"  • {c['subject']} → {c['predicate']}: {c['value']}"
+        if keywords:
+            lexical_claims = gc.find_claims_by_predicate(
+                tenant_id=tenant_id,
+                predicate_keywords=keywords,
+                allowed_space_ids=allowed_space_ids,
+                only_active=True,
             )
-            if len(lines) >= 8:
-                break
+
+            def _lexical_score(c):
+                score = 0
+                pred = (c.get("predicate") or "").lower()
+                subj = (c.get("subject") or "").lower()
+                val  = (c.get("value") or "").lower()
+                for kw in keywords:
+                    if kw in pred: score += 3
+                    if kw in val:  score += 2
+                    if kw in subj: score += 1
+                return score
+
+            lexical_claims.sort(key=_lexical_score, reverse=True)
+            lexical_ranked = lexical_claims[:15]
+
+        # Path 2: semántico (sobre claims con embedding guardado)
+        semantic_ranked: List[dict] = []
+        if query_embedding:
+            try:
+                semantic_ranked = gc.find_claims_semantic(
+                    tenant_id=tenant_id,
+                    query_embedding=query_embedding,
+                    allowed_space_ids=allowed_space_ids,
+                    top_k=15,
+                    only_active=True,
+                )
+            except Exception as e:
+                logger.warning(f"Rerank semántico del grafo falló (sigo con léxico): {e}")
+                semantic_ranked = []
+
+        if not lexical_ranked and not semantic_ranked:
+            return ""
+
+        # Merge por Reciprocal Rank Fusion: score = sum(1/(k+rank)) para cada
+        # path donde aparece el claim. k=60 es el valor estándar de RRF.
+        K = 60
+        scores: dict = {}
+        meta: dict = {}
+
+        for rank, c in enumerate(lexical_ranked):
+            key = (c.get("subject", ""), c.get("predicate", ""), c.get("value", ""))
+            scores[key] = scores.get(key, 0.0) + 1.0 / (K + rank + 1)
+            meta.setdefault(key, c)
+
+        for rank, c in enumerate(semantic_ranked):
+            key = (c.get("subject", ""), c.get("predicate", ""), c.get("value", ""))
+            scores[key] = scores.get(key, 0.0) + 1.0 / (K + rank + 1)
+            meta.setdefault(key, c)
+
+        # Top-8 final por RRF score
+        top = sorted(scores.items(), key=lambda kv: kv[1], reverse=True)[:8]
+        lines = [
+            f"  • {meta[k]['subject']} → {meta[k]['predicate']}: {meta[k]['value']}"
+            for k, _ in top
+        ]
         if not lines:
             return ""
         return (
@@ -308,7 +347,12 @@ def search(
         try:
             user_spaces = db.client.table("user_spaces").select("space_id").eq("user_id", user_id).execute()
             space_ids = [row["space_id"] for row in (user_spaces.data or [])]
-            graph_block = _graph_context(query, tenant_id, space_ids)
+            # Pasamos el embedding de la query (calculado en step 2) para
+            # habilitar el rerank semántico del grafo (find_claims_semantic).
+            graph_block = _graph_context(
+                query, tenant_id, space_ids,
+                query_embedding=query_vector.tolist() if query_vector is not None else None,
+            )
             if graph_block:
                 logger.info(f"  ✓ Grafo contribuyó con contexto adicional ({graph_block.count(chr(10).join(['', '']))} líneas)")
         except Exception as e:

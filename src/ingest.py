@@ -283,11 +283,27 @@ def ingest_document(
                     gc.upsert_entity(tenant_id=tenant_id, name=ent.name, kind=ent.kind)
                     gc.link_chunk_to_entity(chunk_id=chunk_id, tenant_id=tenant_id, entity_name=ent.name)
                     graph_stats["entities"] += 1
-                for cl in extraction.claims:
+
+                # Embeber los claims en batch (1 llamada Ollama por chunk)
+                # para que el rerank semántico del grafo funcione en query-time.
+                claim_embeddings = []
+                if extraction.claims:
+                    try:
+                        claim_texts = [
+                            f"{cl.subject} {cl.predicate} {cl.value}"
+                            for cl in extraction.claims
+                        ]
+                        claim_embeddings = embedder.embed_batch(claim_texts)
+                    except Exception as e:
+                        logger.warning(f"  Fallo embedding claims (sigo sin rerank semántico): {e}")
+                        claim_embeddings = [None] * len(extraction.claims)
+
+                for cl, emb in zip(extraction.claims, claim_embeddings):
+                    emb_list = emb.tolist() if emb is not None else None
                     gc.upsert_claim(
                         claim_id=cl.claim_id, tenant_id=tenant_id, chunk_id=chunk_id,
                         subject=cl.subject, predicate=cl.predicate, value=cl.value,
-                        chunk_status="active",
+                        chunk_status="active", embedding=emb_list,
                     )
                     graph_stats["claims"] += 1
                 graph_stats["chunks_processed"] += 1
