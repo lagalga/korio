@@ -807,16 +807,29 @@ async def graph_subgraph(tenant_id: str, user_id: str, limit: int = 200):
         for e in sg["edges"]:
             ekind = e.get("kind", "")
             is_contradiction = (ekind == "CONTRADICTS")
-            color = "#dc2626" if is_contradiction else "#cbd5e1"
-            width = 4 if is_contradiction else 1
-            vis_edges.append({
-                "from":  e["source"],
-                "to":    e["target"],
-                "label": ekind,
-                "color": {"color": color, "highlight": "#dc2626"},
-                "width": width,
+            edge = {
+                "from":   e["source"],
+                "to":     e["target"],
                 "arrows": "to",
-            })
+            }
+            if is_contradiction:
+                # Resaltar fuertemente las contradicciones para que NO se pierdan
+                # entre las 500+ aristas estructurales del grafo.
+                edge.update({
+                    "label":  "⚠️ contradice",
+                    "color":  {"color": "#dc2626", "highlight": "#dc2626"},
+                    "width":  6,
+                    "dashes": [10, 5],
+                    "font":   {"size": 12, "color": "#dc2626", "strokeWidth": 3, "strokeColor": "#ffffff", "bold": True},
+                    "smooth": {"type": "curvedCW", "roundness": 0.25},
+                })
+            else:
+                edge.update({
+                    "label":  ekind,
+                    "color":  {"color": "#cbd5e1", "highlight": "#dc2626"},
+                    "width":  1,
+                })
+            vis_edges.append(edge)
         return {
             "tenant_id": tenant_id,
             "nodes":     vis_nodes,
