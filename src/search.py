@@ -140,7 +140,7 @@ def search(
     user_id: str,
     tenant_id: Optional[str] = None,
     limit: int = 5,
-    threshold: float = 0.4,
+    threshold: float = 0.35,
     language: str = "es",
     history: Optional[List[dict]] = None
 ) -> dict:
@@ -152,7 +152,7 @@ def search(
         user_id: ID del usuario (para RLS — define qué documentos puede ver)
         tenant_id: ID del tenant (para audit log)
         limit: Número máximo de chunks a recuperar (default: 5)
-        threshold: Similitud mínima para incluir un chunk (0-1, default: 0.4)
+        threshold: Similitud mínima para incluir un chunk (0-1, default: 0.35)
         language: Idioma de la respuesta ("es" o "en")
         history: Historial conversacional opcional (lista de turnos previos).
                  Si se proporciona, la query se reformula como pregunta autónoma
