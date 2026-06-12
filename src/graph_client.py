@@ -294,7 +294,10 @@ class GraphClient:
         Returns:
             Número de aristas CONTRADICTS creadas
         """
-        from src.llm_client import get_llm_client  # import local para evitar circular
+        try:
+            from src.llm_client import get_llm_client  # desde raíz del proyecto
+        except ModuleNotFoundError:
+            from llm_client import get_llm_client  # desde scripts/ con src/ en sys.path
         llm = get_llm_client()
 
         try:
