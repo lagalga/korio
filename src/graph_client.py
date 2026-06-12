@@ -282,47 +282,56 @@ class GraphClient:
         review_id: Optional[str] = None,
     ) -> int:
         """
-        Crea aristas CONTRADICTS entre claims de dos chunks que tengan
-        el MISMO predicate, el MISMO subject (o uno contiene al otro)
-        y VALORES distintos.
+        Crea aristas CONTRADICTS entre claims de dos chunks con MISMO predicate
+        y VALORES distintos, validando semánticamente con Mistral que sean
+        incompatibles antes de crear la arista.
 
-        El filtro de subject evita falsos positivos del tipo:
-          (subject="política RRHH", predicate="responsable", value="director")
-          (subject="protocolo limpieza", predicate="responsable", value="proveedor")
-        — comparten predicate pero hablan de cosas distintas, no son contradicción.
-
-        Diseñado para llamarse on-the-fly desde conflict_detector cuando
-        se crea una review pending — refleja la contradicción en el grafo
-        sin esperar al backfill.
+        El filtro de subject se eliminó: era demasiado estricto y bloqueaba
+        pares reales como "política vacaciones" vs "política de vacaciones para
+        empleados asalariados" (mismo concepto, nombre ligeramente distinto).
+        La validación semántica actúa como filtro de calidad.
 
         Returns:
             Número de aristas CONTRADICTS creadas
         """
+        from src.llm_client import get_llm_client  # import local para evitar circular
+        llm = get_llm_client()
+
         try:
-            result = self.graph.query(
-                """
-                MATCH (cA:Claim {tenant_id: $tenant_id, chunk_id: $new_id}),
-                      (cB:Claim {tenant_id: $tenant_id, chunk_id: $existing_id})
+            # Recuperar todos los pares candidatos: mismo predicate, valor distinto
+            candidates = self.graph.query(
+                f"""
+                MATCH (cA:Claim {{tenant_id: '{tenant_id}', chunk_id: {new_chunk_id}}}),
+                      (cB:Claim {{tenant_id: '{tenant_id}', chunk_id: {existing_chunk_id}}})
                 WHERE cA.predicate = cB.predicate
                   AND cA.value <> cB.value
-                  AND (cA.subject = cB.subject
-                       OR cA.subject CONTAINS cB.subject
-                       OR cB.subject CONTAINS cA.subject)
-                MERGE (cA)-[r:CONTRADICTS]->(cB)
-                SET r.similarity = $similarity,
-                    r.review_id  = $review_id
-                RETURN count(r) AS added
-                """,
-                {
-                    "tenant_id":   tenant_id,
-                    "new_id":      new_chunk_id,
-                    "existing_id": existing_chunk_id,
-                    "similarity":  float(similarity),
-                    "review_id":   review_id or "",
-                },
+                RETURN id(cA) AS idA, cA.subject, cA.predicate, cA.value,
+                       id(cB) AS idB, cB.subject, cB.predicate, cB.value
+                """
             )
-            if result.result_set and result.result_set[0]:
-                return int(result.result_set[0][0])
+            if not candidates.result_set:
+                return 0
+
+            added = 0
+            for row in candidates.result_set:
+                idA, sA, pA, vA, idB, sB, pB, vB = row
+                if not llm.is_semantic_contradiction(sA, pA, vA, sB, pB, vB):
+                    logger.debug(f"  ⬜ No contradicción semántica: [{sA}]--{pA}-->[{vA}] vs [{sB}]--{pB}-->[{vB}]")
+                    continue
+                # Crear arista
+                self.graph.query(
+                    f"""
+                    MATCH (cA:Claim {{tenant_id: '{tenant_id}', chunk_id: {new_chunk_id}}}),
+                          (cB:Claim {{tenant_id: '{tenant_id}', chunk_id: {existing_chunk_id}}})
+                    WHERE id(cA) = {idA} AND id(cB) = {idB}
+                    MERGE (cA)-[r:CONTRADICTS]->(cB)
+                    SET r.similarity = {float(similarity)},
+                        r.review_id  = '{review_id or ""}'
+                    """
+                )
+                logger.info(f"  🔴 CONTRADICTS: [{sA}]--{pA}-->[{vA}] vs [{sB}]--{pB}-->[{vB}]")
+                added += 1
+            return added
         except Exception as e:
             logger.warning(f"Error vinculando contradicciones en grafo: {e}")
         return 0
