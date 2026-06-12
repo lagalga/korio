@@ -134,7 +134,7 @@ class SearchRequest(BaseModel):
     user_id: str = Field(..., description="UUID del usuario (define qué documentos puede ver)")
     tenant_id: Optional[str] = Field(None, description="UUID del tenant (para audit log)")
     limit: int = Field(5, ge=1, le=20, description="Número máximo de chunks a recuperar")
-    threshold: float = Field(0.4, ge=0.0, le=1.0, description="Similitud mínima (0-1)")
+    threshold: float = Field(0.35, ge=0.0, le=1.0, description="Similitud mínima (0-1)")
     language: str = Field("es", pattern="^(es|en)$", description="Idioma de la respuesta")
     history: Optional[list[ChatTurn]] = Field(
         None,
