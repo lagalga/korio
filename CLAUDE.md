@@ -11,7 +11,7 @@
 
 ---
 
-## Estado actual (11 junio 2026 · sesiones 6-9 · v0.3.0)
+## Estado actual (12 junio 2026 · sesiones 6-12 · v0.3.3)
 
 ### ✅ Completado — Phases 1–7.3 + v0.3.0 (las 6 reglas del E3 cumplidas)
 
@@ -197,7 +197,11 @@ korio/
 │       ├── 007_waitlist.sql
 │       ├── 008_escalation_tracking.sql
 │       ├── 009_source_metadata.sql  # JSONB con canal de origen (Gmail, Drive, manual…)
-│       └── 010_mcp_api_keys.sql     # API keys SHA-256 para el servidor MCP (Phase 7.3)
+│       ├── 010_mcp_api_keys.sql     # API keys SHA-256 para el servidor MCP (Phase 7.3)
+│       ├── 011_pipeline_events_atomic_ingest.sql  # Bus de eventos + ingesta ACID (sesión 6)
+│       ├── 012_silent_conflicts_query_time.sql    # RPC detección query-time (sesión 8)
+│       ├── 013_inconclusive_state_and_policies.sql # Estado inconclusive + policies (sesión 9)
+│       └── 014_n8n_errors.sql       # Tabla errores workflows n8n (sesión 12)
 │
 ├── src/
 │   ├── ingest.py             # Pipeline ingesta: doc → chunks → pgvector + grafo
@@ -226,9 +230,14 @@ korio/
 │
 ├── tests/
 │   ├── __init__.py
-│   ├── conftest.py      # Fixtures: UUIDs seed (tenants, users, spaces)
-│   ├── test_rls.py      # 10 tests aislamiento (10/10 ✅)
-│   └── test_search.py   # 10 tests RAG (10/10 ✅)
+│   ├── conftest.py                       # Fixtures: UUIDs seed (tenants, users, spaces)
+│   ├── test_rls.py                       # 10 tests aislamiento (10/10 ✅)
+│   ├── test_search.py                    # 10 tests RAG (10/10 ✅)
+│   ├── test_atomic_ingest.py             # 3 tests ACID atomicidad (sesiones 6)
+│   ├── test_pipeline_agentic.py          # 2 tests fachada agéntica (sesión 7)
+│   ├── test_query_time_detection.py      # 1 test detección query-time E4 (sesión 8)
+│   ├── test_inconclusive_and_policies.py # 2 tests inconclusive + policy reuse (sesión 9)
+│   └── test_graph_semantic_rerank.py     # 3 tests rerank semántico del grafo (sesión 11)
 │
 ├── data-synthetic/      # Documentos de prueba (en .gitignore)
 │   ├── delos_politica_rrhh.md
@@ -247,18 +256,21 @@ korio/
 ├── landing/             # Landing teaser estático en /
 │
 ├── scripts/
-│   ├── benchmark.py        # Medición latencias p50/p95 por escenario
-│   ├── graph_backfill.py   # Pobló 237 claims sobre 10 docs en 116s (re-run tras fix subject)
-│   └── mcp_create_key.py   # CLI create/list/revoke de MCP API keys (Phase 7.3)
+│   ├── benchmark.py           # Medición latencias p50/p95 por escenario
+│   ├── graph_backfill.py      # Pobló 237 claims sobre 10 docs en 116s (re-run tras fix subject)
+│   ├── graph_embed_claims.py  # Backfill embeddings en claims FalkorDB (455 claims en 23s)
+│   └── mcp_create_key.py      # CLI create/list/revoke de MCP API keys (Phase 7.3)
 │
 └── docs/
     ├── ARCHITECTURE.md             # Diagrama del sistema, modelo de datos, RLS
     ├── DEPLOYMENT.md               # Setup en Hetzner desde cero
     ├── ROADMAP.md                  # Fases pasadas y futuras
     ├── SESSION-STARTER.md          # Prompt de arranque para nueva sesión Claude
+    ├── AGENTIC-INGESTION.md        # Las 6 reglas del E3 + comparativa microservicios (sesiones 6-9)
     ├── MCP-SERVER.md               # Phase 7.3: Korio como servidor MCP HTTP+SSE
     ├── MULTI-TENANT-INGESTION.md   # Diseño Phase 8: OAuth multi-tenant SaaS
-    └── CHAT-PIPELINE-GUARDRAILS.md # Diseño Phase 8: chat con guardrails n8n
+    ├── CHAT-PIPELINE-GUARDRAILS.md # Diseño Phase 8: chat con guardrails n8n
+    └── PHASE-10-MULTIMODAL-INGESTION.md  # Diseño Phase 10: email/Slack/Teams/audio (sesión 11)
 ```
 
 ---
@@ -444,4 +456,45 @@ Pendiente sesión 7 (Phase 8 candidatos): detección query-time, estado `inconcl
 
 ---
 
-*Actualizado: 11 junio 2026 (sesiones 6-9) — v0.3.0. Korio cierra el feedback del profesor (transaccionalidad ACID), el Caso extremo del E4 (detección query-time), y las 6 reglas del E3 (`inconclusive` + `policies`). 8/8 tests verdes. Suite agéntica observable en n8n.korio.es. Pendiente para defensa: QA E2E, benchmark, vídeo demo, slides, memoria TFM.*
+---
+
+**Sesión 10 (12 jun · mañana)** — QA E2E 10/10 + Benchmark + fixes encadenados:
+
+- **QA E2E completo (10/10 ✅)**: E1 vectorial directa, E2 grafo (35h/semana), E3 multi-turn reformulación, E4 aislamiento RLS, E5 chunk disputed badge, E6 query-time silent_conflict, E7 MCP Claude Desktop, E8 MCP list_pending_conflicts, E9 ingesta Gmail, E10 bus de eventos n8n.
+- **FalkorDB AOF persistencia** — `REDIS_ARGS=--appendonly yes --appendfsync everysec` en `docker-compose.yml`.
+- **Benchmark `--delay` flag** — `scripts/benchmark.py` acepta `-d <segundos>` entre iteraciones. Resultado: global p50=1983ms, p95=3053ms. 50/50 sin errores.
+- **Retry Mistral 429** — `_generate_mistral()` reintenta hasta 3 veces con backoff exponencial (1s/2s/4s).
+- **Threshold búsqueda 0.4→0.35** y **query-time conflict 0.85→0.80** (vars de entorno actualizadas en VPS).
+- **Validación semántica CONTRADICTS** — `llm_client.py` nuevo método `is_semantic_contradiction()`. `graph_client.py` reescrito `link_contradictions_between_chunks()`: elimina filtro CONTAINS excesivamente estricto, valida par a par con Mistral (temp=0). Resultado: 2 aristas CONTRADICTS válidas en Delos vs 0 previas.
+
+---
+
+**Sesión 11 (12 jun · tarde)** — Rerank semántico del grafo (v0.3.2):
+
+- **`find_claims_semantic()`** en `graph_client.py` — scan + cosine similarity en Python con RLS por space_id.
+- **`upsert_claim()`** acepta `embedding: Optional[List[float]]`.
+- **`_graph_context()` con Reciprocal Rank Fusion (k=60)** — léxico (keywords + score 3·predicate + 2·value + 1·subject) y semántico (cosine query × claim) corren en paralelo, top-8 final combinado.
+- **`src/ingest.py`** embeda `"subject predicate value"` en batch al crear claims.
+- **`scripts/graph_embed_claims.py`** backfill — 455 claims embedidos en 23s en producción.
+- **3/3 tests** en `tests/test_graph_semantic_rerank.py`.
+- **Modelo fallback `mistral:7b-instruct-q4_K_M`** descargado en VPS (4.4 GB).
+- **Corrección specs VPS** — Hetzner CPX32 AMD EPYC-Genoa, 4 vCPU / 8 GB / 160 GB SSD, €17.53/mes. Corregido en README, CLAUDE.md, ARCHITECTURE, DEPLOYMENT, ROADMAP y Notion.
+- **`docs/PHASE-10-MULTIMODAL-INGESTION.md`** — diseño Phase 10 post-TFM: email body, Slack/Teams threads, audio (Voxtral + Whisper). `src/adapters/` + `POST /ingest/{kind}`.
+- **Workflow n8n `Korio · Slack file_shared → /upload (Delos RRHH)`** (`81GO5BjXj0ZNYmhO`): Webhook `korio-slack-events` → switch challenge/file_shared → `files.info` → download → POST `/upload` → ✅ reaction + DM. Verificado E2E con PDF en producción.
+
+---
+
+**Sesión 12 (12 jun · noche)** — Visualización grafo + captura de errores n8n (v0.3.3):
+
+- **Fix banner "⚠️ Contradicción detectada"** — umbral `KORIO_DISPUTED_BANNER_MIN_SIM=0.6` (env). El banner solo aparece si la similitud del chunk disputado supera el umbral, eliminando falsos positivos en queries no relacionadas.
+- **Fix aristas CONTRADICTS invisibles** — `get_tenant_subgraph()` con `limit=300` excluía nodos endpoint de aristas CONTRADICTS. Solución: second query que rescata nodos prioritarios `id(n) IN [list]` fuera del LIMIT.
+- **Hover/click en sidebar → resaltar arista CONTRADICTS** — `data-from-id` / `data-to-id` en items de la sidebar. `highlightContradictionEdge(fromId, toId)` dimea todos los nodos/aristas excepto los 2 claims endpoint y su CONTRADICTS. Click bloquea, click fuera libera.
+- **Fix scale "enganchado" post-hover** — `DataSet.update()` no puede resetear propiedades anidadas (font.bold, size). Solución definitiva: `data.nodes.clear() + data.nodes.add(canonicalGraph.nodes con posiciones preservadas)`. Clona estado canónico inmutable al renderizar.
+- **`supabase/migrations/014_n8n_errors.sql`** — tabla `n8n_errors` (workflow_id, error_message, error_node, raw_payload JSONB, reviewed_at) + 3 índices. Sin RLS (solo service_role).
+- **Workflow n8n `Korio - Gestión de errores n8n`** (`KeUTpIk0ycbW1f3g`) — Error Trigger → Set (extrae mensaje desde stack) → parallel [HTTP POST Supabase `n8n_errors` + Slack DM a admin U0A97H29E8J con Block Kit]. Verificado E2E: 2 filas en Supabase, real production error de Slack `/korio` capturado.
+- **`errorWorkflow: "KeUTpIk0ycbW1f3g"` aplicado** a los 7 workflows de producción (ya configurado en todos).
+- **Pendiente Phase 9 (próxima sesión)**: throttling anti-spam (1 DM por 10 errores del mismo workflow), panel `/admin/errors` en la UI, botón "reviewed" en el propio mensaje Slack (interactivity webhook).
+
+---
+
+*Actualizado: 12 junio 2026 (sesiones 6-12) — v0.3.3. Programación cerrada. Sistema completo: QA 10/10, benchmark p50=1983ms/p95=3053ms, rerank semántico del grafo con RRF, grafo UI con highlight de contradicciones, 8 workflows n8n activos + captura de errores, 28/28 tests verdes. Pendiente: vídeo demo, slide deck, memoria TFM (sesiones 13+).*
