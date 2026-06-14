@@ -39,7 +39,8 @@ def test_find_claims_semantic_orders_by_cosine_similarity():
 
     # Limpiar estado previo de tests
     gc.graph.query(
-        f"MATCH (n) WHERE n.tenant_id = '{tenant_id}' DETACH DELETE n"
+        "MATCH (n) WHERE n.tenant_id = $tid DETACH DELETE n",
+        {"tid": tenant_id},
     )
 
     # Setup: Document → Chunk → 3 Claims con embeddings sintéticos
@@ -86,7 +87,8 @@ def test_find_claims_semantic_orders_by_cosine_similarity():
 
     # Cleanup
     gc.graph.query(
-        f"MATCH (n) WHERE n.tenant_id = '{tenant_id}' DETACH DELETE n"
+        "MATCH (n) WHERE n.tenant_id = $tid DETACH DELETE n",
+        {"tid": tenant_id},
     )
 
 
@@ -111,7 +113,8 @@ def test_find_claims_semantic_respects_rls():
     space_b   = "space-b-rerank"
 
     gc.graph.query(
-        f"MATCH (n) WHERE n.tenant_id = '{tenant_id}' DETACH DELETE n"
+        "MATCH (n) WHERE n.tenant_id = $tid DETACH DELETE n",
+        {"tid": tenant_id},
     )
 
     gc.upsert_document(
@@ -144,7 +147,8 @@ def test_find_claims_semantic_respects_rls():
 
     # Cleanup
     gc.graph.query(
-        f"MATCH (n) WHERE n.tenant_id = '{tenant_id}' DETACH DELETE n"
+        "MATCH (n) WHERE n.tenant_id = $tid DETACH DELETE n",
+        {"tid": tenant_id},
     )
 
 
@@ -168,7 +172,8 @@ def test_find_claims_semantic_skips_claims_without_embedding():
     space_id  = "space-no-emb"
 
     gc.graph.query(
-        f"MATCH (n) WHERE n.tenant_id = '{tenant_id}' DETACH DELETE n"
+        "MATCH (n) WHERE n.tenant_id = $tid DETACH DELETE n",
+        {"tid": tenant_id},
     )
 
     gc.upsert_document(
@@ -197,5 +202,6 @@ def test_find_claims_semantic_skips_claims_without_embedding():
     )
 
     gc.graph.query(
-        f"MATCH (n) WHERE n.tenant_id = '{tenant_id}' DETACH DELETE n"
+        "MATCH (n) WHERE n.tenant_id = $tid DETACH DELETE n",
+        {"tid": tenant_id},
     )
