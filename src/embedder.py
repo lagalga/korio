@@ -51,7 +51,14 @@ class Embedder:
         self._check_connection()
 
     def _check_connection(self) -> None:
-        """Verifica que Ollama está corriendo y el modelo existe."""
+        """Verifica que Ollama está corriendo, que el modelo existe y que la
+        dimensionalidad real coincide con la esperada (768).
+
+        La asserción de dimensión es defensa contra cambios silenciosos del
+        modelo en el VPS: si alguien sustituye `nomic-embed-text` por uno de
+        384 dims, el vector store quedaría corrupto. Mejor que el servicio no
+        arranque a tener datos incoherentes.
+        """
         try:
             response = requests.get(f"{self.base_url}/api/tags", timeout=5)
             response.raise_for_status()
@@ -66,7 +73,24 @@ class Embedder:
                     f"Modelos disponibles: {model_names}"
                 )
 
-            print(f"✓ Ollama conexión OK ({self.model})")
+            # Asserción de dimensión con un embedding de prueba.
+            probe = requests.post(
+                f"{self.base_url}/api/embed",
+                json={"model": self.model, "input": "korio-dim-check"},
+                timeout=15,
+            )
+            probe.raise_for_status()
+            embeddings = probe.json().get("embeddings") or []
+            if not embeddings:
+                raise RuntimeError("Ollama no devolvió embedding en el dim-check")
+            actual_dims = len(embeddings[0])
+            if actual_dims != self.dims:
+                raise RuntimeError(
+                    f"Dim embedding inesperada: esperaba {self.dims}, recibí {actual_dims}. "
+                    f"¿Cambió el modelo en Ollama? (vector store quedaría corrupto)"
+                )
+
+            print(f"✓ Ollama conexión OK ({self.model}, {actual_dims} dims)")
 
         except requests.exceptions.ConnectionError as e:
             raise ConnectionError(
