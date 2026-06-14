@@ -46,6 +46,28 @@ git worktree remove .claude/worktrees/nifty-booth-0c25a5
 git worktree remove --force .claude/worktrees/silly-hofstadter-5e49c0
 ```
 
+## Estado al cierre de sesión 13a · 14 jun 2026 · v0.3.4 · hardening seguridad
+
+✅ **Sesión 13a (14 jun · noche) — Auditoría completa + hardening pre-demo**:
+- Tres pasadas con agentes Explore (seguridad / diseño / bugs) sobre v0.3.3. 21 hallazgos catalogados (4 CRIT, 3 HIGH, 8 MED, 6 LOW).
+- **7 fixes cerrados** (issues nuevos bloqueantes para demo pública):
+  - **N1 CORS** whitelist `korio.es` (+ `localhost` opcional con `KORIO_ENV=dev`)
+  - **N2** `hmac.compare_digest` sobre `KORIO_ADMIN_API_KEY`
+  - **N3** tenant check en `DELETE /document/{id}` con `KORIO_ADMIN_TENANT_ID`
+  - **N4** RLS sobre `mcp_api_keys` (migración `015_mcp_api_keys_rls.sql`)
+  - **N5** assert dim 768 al arranque del embedder
+  - **N6** cleanup blindado tempfile en `/upload`
+  - **C2** Cypher parametrizado en `tests/test_graph_semantic_rerank.py`
+- **14 issues diferidos** con destino justificado (Phase 8/9 o ya planeados): `docs/AUDIT-2026-06-14.md`.
+- **5 commits atómicos a `main`** push verificado.
+- **Pendiente operativo manual** (antes de redeploy en VPS):
+  1. Aplicar migración `015_mcp_api_keys_rls.sql` en Supabase prod (CLI o SQL editor).
+  2. Setear en `/root/korio/.env`: `KORIO_ENV=prod`, `KORIO_ADMIN_TENANT_ID=<uuid del admin>`, opcional `KORIO_EXTRA_CORS_ORIGINS=`.
+  3. `git pull` en VPS + `systemctl restart korio-api`.
+  4. QA: `curl -i -H "Origin: https://evil.test" https://korio.es/health` → sin `Access-Control-Allow-Origin: *`.
+
+---
+
 ## Estado al cierre de sesión 12 · 12 jun 2026 · v0.3.3 · programación cerrada
 
 ✅ **Todo el sistema está en producción y verificado**:

@@ -11,7 +11,7 @@
 
 ---
 
-## Estado actual (12 junio 2026 · sesiones 6-12 · v0.3.3)
+## Estado actual (14 junio 2026 · sesiones 6-13a · v0.3.4)
 
 ### ✅ Completado — Phases 1–7.3 + v0.3.0 (las 6 reglas del E3 cumplidas)
 
@@ -201,7 +201,8 @@ korio/
 │       ├── 011_pipeline_events_atomic_ingest.sql  # Bus de eventos + ingesta ACID (sesión 6)
 │       ├── 012_silent_conflicts_query_time.sql    # RPC detección query-time (sesión 8)
 │       ├── 013_inconclusive_state_and_policies.sql # Estado inconclusive + policies (sesión 9)
-│       └── 014_n8n_errors.sql       # Tabla errores workflows n8n (sesión 12)
+│       ├── 014_n8n_errors.sql       # Tabla errores workflows n8n (sesión 12)
+│       └── 015_mcp_api_keys_rls.sql # RLS sobre mcp_api_keys (sesión 13a)
 │
 ├── src/
 │   ├── ingest.py             # Pipeline ingesta: doc → chunks → pgvector + grafo
@@ -497,4 +498,23 @@ Pendiente sesión 7 (Phase 8 candidatos): detección query-time, estado `inconcl
 
 ---
 
-*Actualizado: 12 junio 2026 (sesiones 6-12) — v0.3.3. Programación cerrada. Sistema completo: QA 10/10, benchmark p50=1983ms/p95=3053ms, rerank semántico del grafo con RRF, grafo UI con highlight de contradicciones, 8 workflows n8n activos + captura de errores, 28/28 tests verdes. Pendiente: vídeo demo, slide deck, memoria TFM (sesiones 13+).*
+---
+
+**Sesión 13a (14 jun 2026)** — Hardening de seguridad pre-demo (v0.3.4):
+
+- **Auditoría completa** con 3 agentes Explore en paralelo (seguridad / diseño / bugs) sobre v0.3.3. 21 hallazgos catalogados (4 CRIT, 3 HIGH, 8 MED, 6 LOW). Cruce contra roadmap existente para no duplicar Phase 8/9/10.
+- **7 fixes cerrados** (bloqueantes para demo pública del 2-jul):
+  - **N1 CORS whitelist** — `api/server.py`: `https://korio.es` + opcional `localhost` si `KORIO_ENV=dev`. Métodos/headers explícitos. Env nueva `KORIO_EXTRA_CORS_ORIGINS`.
+  - **N2 timing attack** — `require_admin` con `hmac.compare_digest` (no `!=`).
+  - **N3 cross-tenant DELETE** — `DELETE /document/{id}` valida `doc.tenant_id == KORIO_ADMIN_TENANT_ID` (defensa en profundidad hasta OAuth Phase 8).
+  - **N4 RLS `mcp_api_keys`** — migración `015_mcp_api_keys_rls.sql`: policies `self_read`/`self_update` (auth.uid) + `service_role_all`.
+  - **N5 assert dim 768** — `Embedder._check_connection` aborta arranque si Ollama devuelve dim distinta.
+  - **N6 cleanup tempfile** — `/upload`: `tmp_path` antes de `copyfileobj`, `finally` blindado contra `FileNotFoundError`/`OSError`.
+  - **C2 Cypher parametrizado** — `tests/test_graph_semantic_rerank.py` con `$tid` (no f-string).
+- **14 issues diferidos** con destino justificado (Phase 8/9 o ya planeados): anexo en `docs/AUDIT-2026-06-14.md` (capítulo memoria TFM *Seguridad y deuda técnica reconocida*).
+- **Envs nuevas en `/root/korio/.env`**: `KORIO_ENV=prod`, `KORIO_ADMIN_TENANT_ID=<uuid>`, opcional `KORIO_EXTRA_CORS_ORIGINS`.
+- **5 commits atómicos a `main`** (`Fix(seguridad)…`, `Feat(seguridad)…`, `Fix:…`, `Fix(test):…`, `Docs:…`). Push verificado.
+
+---
+
+*Actualizado: 14 junio 2026 (sesiones 6-13a) — v0.3.4. Hardening seguridad cerrado: 7 fixes nuevos antes de demo pública (CORS, timing attack, cross-tenant DELETE, RLS mcp_api_keys, dim assert, tempfile cleanup, Cypher param). 15 migraciones, 8 workflows n8n, 28/28 tests verdes, p50=1983ms/p95=3053ms. Pendiente: vídeo demo, slide deck, memoria TFM (sesiones 13b+).*
