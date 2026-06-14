@@ -10,6 +10,86 @@ semántico [SemVer](https://semver.org/lang/es/).
 
 ## [Unreleased]
 
+## [0.3.4] — 2026-06-14 · sesión 13a (hardening de seguridad pre-demo)
+### Security
+- **N1 — CORS whitelist** (`api/server.py`). Sustituye `allow_origins=["*"]`
+  por whitelist explícita (`https://korio.es`, opcional `localhost` si
+  `KORIO_ENV=dev`). Métodos y headers explícitos. Nueva env
+  `KORIO_EXTRA_CORS_ORIGINS` (lista coma-separada).
+- **N2 — `hmac.compare_digest` en admin key** (`api/server.py` `require_admin`).
+  Sustituye comparación `!=` por constant-time para evitar timing attacks que
+  permitirían descubrir `KORIO_ADMIN_API_KEY` byte a byte.
+- **N3 — Tenant check en `DELETE /document/{id}`** (`api/server.py`). Valida
+  `doc.tenant_id == KORIO_ADMIN_TENANT_ID` antes de borrar. Defensa en
+  profundidad mientras llega OAuth (Phase 8). Si la env no está seteada,
+  comportamiento previo (compat atrás).
+- **N4 — RLS sobre `mcp_api_keys`** (`supabase/migrations/015_mcp_api_keys_rls.sql`).
+  Policies `mcp_keys_self_read` y `mcp_keys_self_update` filtran por
+  `user_id = auth.uid()`. Policy `mcp_keys_service_role_all` mantiene acceso
+  al backend.
+
+### Changed
+- **N5 — Assert dim 768 en arranque del Embedder** (`src/embedder.py`).
+  `_check_connection()` hace embedding de prueba y aborta arranque si la
+  dimensionalidad no coincide. Defensa contra cambios silenciosos del modelo
+  en Ollama (cambiar a 384 corrompería el vector store).
+- **N6 — Cleanup blindado de tempfile en `/upload`** (`api/server.py`).
+  `tmp_path` se asigna antes de `copyfileobj` (garantiza que `finally` siempre
+  pueda limpiarlo). `os.unlink` envuelto en `try/except FileNotFoundError/OSError`
+  con log warning, no rompe el request.
+
+### Fixed
+- **C2 — Cypher parametrizado en test**
+  (`tests/test_graph_semantic_rerank.py`). Sustituye f-strings con `tenant_id`
+  en `MATCH/DELETE` de cleanup por parámetros `$tid` del driver FalkorDB.
+
+### Docs
+- **`docs/AUDIT-2026-06-14.md`** — anexo de auditoría (21 hallazgos: 4 CRIT,
+  3 HIGH, 8 MED, 6 LOW). Mapea cada hallazgo a su destino: cerrado (N1-N6,
+  C2), diferido a Phase 8/9, ya planeado en roadmap previo, o aceptado
+  consciente. Capítulo memoria TFM *Seguridad y deuda técnica reconocida*.
+
+### Verified in production
+- `curl -i -H "Origin: https://evil.test" https://korio.es/health` no devuelve
+  `Access-Control-Allow-Origin: *`.
+- Admin key inválida → `HTTP 401`.
+- `/health` → `status: ok` (3/3 servicios).
+- Log de arranque: `✓ Ollama conexión OK (nomic-embed-text, 768 dims)`.
+
+## [0.3.3] — 2026-06-12 · sesión 12 (grafo UI + captura de errores n8n)
+### Added
+- **Grafo UI: hover/click en sidebar resalta arista CONTRADICTS**
+  (`ui/graph.html`, `ui/js/main.js`). `data-from-id`/`data-to-id` en items
+  de la sidebar; `highlightContradictionEdge(fromId, toId)` dimea todos los
+  nodos/aristas excepto los 2 claims endpoint y su arista. Click bloquea
+  highlight, click fuera libera.
+- **Captura de errores n8n** (`supabase/migrations/014_n8n_errors.sql`).
+  Tabla `n8n_errors` (workflow_id, error_message, error_node, raw_payload
+  JSONB, reviewed_at) + 3 índices. Sin RLS (solo service_role).
+- **Workflow `Korio - Gestión de errores n8n`** (`KeUTpIk0ycbW1f3g`) —
+  Error Trigger → Set (extrae mensaje desde stack) → \[HTTP POST Supabase
+  `n8n_errors` + Slack DM al admin con Block Kit\]. `errorWorkflow`
+  aplicado a los 7 workflows de producción.
+
+### Fixed
+- **Banner disputed calibrado** (`src/search.py`). Nuevo umbral
+  `KORIO_DISPUTED_BANNER_MIN_SIM=0.6` (env): el banner ⚠️ solo aparece si la
+  similitud del chunk en disputa supera el umbral. Elimina falsos positivos
+  en queries no relacionadas.
+- **Aristas CONTRADICTS invisibles en el grafo UI** (`src/graph_client.py`
+  `get_tenant_subgraph()`). Antes el `LIMIT 300` podía excluir nodos endpoint
+  de aristas CONTRADICTS. Solución: query secundaria `id(n) IN [list]`
+  rescata los nodos prioritarios fuera del LIMIT.
+- **Scale "enganchado" tras hover en el grafo**. `DataSet.update()` no puede
+  resetear propiedades anidadas (font.bold, size). Solución definitiva:
+  `data.nodes.clear() + data.nodes.add(canonicalGraph.nodes con posiciones
+  preservadas)`. Clona estado canónico inmutable al renderizar.
+
+### Verified in production
+- 2 filas reales en `n8n_errors` (error `channel_not_found` del workflow
+  Slack `/korio` capturado).
+- 8 workflows n8n activos.
+
 ## [0.3.2] — 2026-06-12 · sesión 11 (cierre de programación)
 ### Added
 - **Rerank semántico del grafo de conocimiento** — Phase 8 cerrada.
