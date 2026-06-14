@@ -13,6 +13,7 @@ import sys
 import os
 import time
 import json
+import hmac
 import logging
 import shutil
 import tempfile
@@ -59,12 +60,34 @@ app = FastAPI(
     redoc_url="/redoc"
 )
 
+# ─── CORS ────────────────────────────────────────────────────────────────────
+#
+# Whitelist explícita de orígenes en producción. Se permite localhost solo si
+# KORIO_ENV=dev (uso típico: `python -m http.server 3000 --directory ui`).
+# Se pueden añadir orígenes extra vía KORIO_EXTRA_CORS_ORIGINS (coma-separado).
+
+_cors_origins = ["https://korio.es", "https://www.korio.es"]
+if os.getenv("KORIO_ENV", "prod").lower() == "dev":
+    _cors_origins += [
+        "http://localhost:3000",
+        "http://localhost:8000",
+        "http://127.0.0.1:3000",
+        "http://127.0.0.1:8000",
+    ]
+_extra = os.getenv("KORIO_EXTRA_CORS_ORIGINS", "")
+_cors_origins += [o.strip() for o in _extra.split(",") if o.strip()]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # En producción: lista de dominios permitidos
+    allow_origins=_cors_origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
+    allow_headers=[
+        "content-type",
+        "authorization",
+        "x-korio-admin-key",
+        "x-korio-mcp-key",
+    ],
 )
 
 # ─── Auth ASGI wrapper para el sub-app MCP (Phase 7.3) ──────────────────────
@@ -452,9 +475,11 @@ async def upload_and_ingest(
     start_time = time.time()
     suffix = Path(file.filename).suffix if file.filename else ".tmp"
 
+    # Reservar nombre ANTES de copiar para garantizar que el `finally` siempre
+    # tenga `tmp_path` definido aunque `copyfileobj` falle a mitad.
     with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
-        shutil.copyfileobj(file.file, tmp)
         tmp_path = tmp.name
+        shutil.copyfileobj(file.file, tmp)
 
     try:
         result = ingest_document(
@@ -497,7 +522,14 @@ async def upload_and_ingest(
         logger.exception("Error en /upload")
         raise HTTPException(status_code=500, detail=str(e))
     finally:
-        os.unlink(tmp_path)
+        # Cleanup blindado: el unlink no debe romper el flujo si el fichero
+        # ya no existe (race con limpiezas externas) o el sistema lo bloquea.
+        try:
+            os.unlink(tmp_path)
+        except FileNotFoundError:
+            pass
+        except OSError as cleanup_err:
+            logger.warning(f"No se pudo borrar tempfile {tmp_path}: {cleanup_err}")
 
 
 # ─── Endpoint HITL: resolución de conflictos ─────────────────────────────────
@@ -854,10 +886,14 @@ admin_key_header = APIKeyHeader(name="X-Korio-Admin-Key", auto_error=False)
 
 
 def require_admin(key: Optional[str] = Security(admin_key_header)) -> None:
-    """Dependency: valida la admin key del header X-Korio-Admin-Key."""
+    """Dependency: valida la admin key del header X-Korio-Admin-Key.
+
+    Comparación constant-time con `hmac.compare_digest` para evitar
+    timing attacks que permitirían descubrir la key byte a byte.
+    """
     if not KORIO_ADMIN_API_KEY:
         raise HTTPException(status_code=500, detail="KORIO_ADMIN_API_KEY no configurada en el servidor")
-    if key != KORIO_ADMIN_API_KEY:
+    if not key or not hmac.compare_digest(key, KORIO_ADMIN_API_KEY):
         raise HTTPException(status_code=401, detail="Admin key inválida")
 
 
@@ -915,6 +951,19 @@ async def delete_document(document_id: str):
         raise HTTPException(status_code=404, detail=f"Documento {document_id} no encontrado")
 
     doc = existing.data[0]
+
+    # Defensa en profundidad: la admin key es global, pero acotamos su poder al
+    # tenant declarado en KORIO_ADMIN_TENANT_ID (si está configurado). Evita que
+    # una key filtrada permita borrar documentos de otros tenants. En Phase 8,
+    # OAuth 2.1 reemplaza esta capa con permisos por usuario.
+    admin_tenant_id = os.getenv("KORIO_ADMIN_TENANT_ID", "").strip()
+    if admin_tenant_id and doc.get("tenant_id") != admin_tenant_id:
+        logger.warning(
+            f"DELETE cross-tenant bloqueado: doc.tenant_id={doc.get('tenant_id')} "
+            f"vs admin_tenant_id={admin_tenant_id}"
+        )
+        # 404 (no 403) para no filtrar existencia del documento.
+        raise HTTPException(status_code=404, detail=f"Documento {document_id} no encontrado")
 
     # Borrar del grafo primero (si está habilitado). Si falla, no abortamos el
     # borrado de Postgres — preferible un grafo levemente inconsistente a un
