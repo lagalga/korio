@@ -12,8 +12,9 @@ Korio permite a una organización consultar en lenguaje natural el conocimiento 
 - **Grafo de conocimiento** en FalkorDB con entidades + claims atómicos extraídos por LLM. Search híbrido vector + grafo rescata datos cuando la query está semánticamente reformulada respecto al texto fuente.
 - **Ingesta automática multi-canal** vía n8n: Gmail (label vigilada), Drive (carpeta vigilada), Slack (`/korio` para consultar **+** subida automática de PDF/DOCX al canal vigilado). Cada documento lleva `source_metadata` (JSONB) con el contexto del canal de origen.
 
-**Estado:** Phases 1–7.3 + rerank semántico del grafo · **v0.3.2** · Producción en [korio.es](https://korio.es) · Demo TFM 2 julio 2026 · Defensa 9 julio 2026
+**Estado:** Phases 1–7.3 + rerank semántico + hardening seguridad · **v0.3.4** · Producción en [korio.es](https://korio.es) · Demo TFM 2 julio 2026 · Defensa 9 julio 2026
 
+> **Sesión 13a · 14 jun 2026 (v0.3.4):** auditoría completa (21 hallazgos) + 7 fixes seguridad bloqueantes para demo pública: CORS whitelist, `hmac.compare_digest` en admin key, tenant check en `DELETE /document`, RLS sobre `mcp_api_keys` (migración 015), assert dim 768 en embedder, cleanup blindado tempfile, Cypher parametrizado. Anexo en `docs/AUDIT-2026-06-14.md`.
 > **Benchmark (sesión 10 · 12 jun 2026):** p50 global 1983 ms · p95 3053 ms · 50/50 queries sin errores · QA E2E 10/10 ✅
 > **Sesión 11 · 12 jun 2026:** rerank semántico del grafo con RRF (lexical + semantic) — 455 claims embedidos · queries rephrasadas resuelven via grafo en ~1.4 s · 3/3 tests verdes.
 
@@ -28,7 +29,7 @@ Korio permite a una organización consultar en lenguaje natural el conocimiento 
 | [korio.es/ui/graph.html](https://korio.es/ui/graph.html) | **Visualización del grafo de conocimiento** |
 | [korio.es/docs](https://korio.es/docs) | Swagger UI (FastAPI) con Authorize para endpoints admin |
 | [korio.es/mcp/sse](https://korio.es/mcp/sse) | **Servidor MCP HTTP+SSE (Phase 7.3)** — 3 tools (`search_knowledge_base`, `list_pending_conflicts`, `list_spaces`), auth `X-Korio-MCP-Key` |
-| [n8n.korio.es](https://n8n.korio.es) | Editor de workflows (**6 activos**: Pipeline event bus + HITL + Cron + Gmail + Drive + Slack) |
+| [n8n.korio.es](https://n8n.korio.es) | Editor de workflows (**8 activos**: Pipeline event bus + HITL + Cron + Gmail + Drive + Slack `/korio` + Slack file_shared + Gestión de errores) |
 
 ---
 
@@ -298,23 +299,25 @@ python -m pytest tests/ -v    # 28/28 ✅ (~25s)
 
 ---
 
-## Métricas (9 junio 2026)
+## Métricas (14 junio 2026)
 
 | Métrica | Valor |
 |---|---|
-| Versión | **v0.3.0** (11 junio 2026) |
+| Versión | **v0.3.4** (14 junio 2026, sesión 13a — hardening seguridad) |
 | Tests | **28/28 ✅** (20 RLS+RAG + 8 agéntica/ACID) |
+| Benchmark formal (sesión 10) | p50 1983 ms · p95 3053 ms · 50/50 sin errores |
 | Latencia RAG vector-puro | ~1.0–3.3s |
 | Latencia RAG híbrido (vector + grafo) | ~1.0s |
 | Latencia embedding | ~0.8s |
 | Latencia detección query-time | ~0.1s adicional (RPC SQL par a par) |
-| Umbral conflicto silencioso (query-time) | 0.85 (configurable `KORIO_QUERY_TIME_CONFLICT_THRESHOLD`) |
+| Umbral conflicto silencioso (query-time) | 0.80 (configurable `KORIO_QUERY_TIME_CONFLICT_THRESHOLD`) |
 | Tiempo backfill grafo (9 docs → 233 claims) | 107s |
 | Phases completadas | 1 · 2 · 3 · 4 · 5 · 6 · 7.1 · 7.2 · 7.3 |
-| Migraciones SQL aplicadas | 13 |
-| Workflows n8n activos | 6 |
+| Migraciones SQL aplicadas | **15** (úl: `015_mcp_api_keys_rls.sql`) |
+| Workflows n8n activos | **8** |
 | MCP server | korio.es/mcp/sse — Claude Desktop conectado |
 | Producción | korio.es + grafo en vivo |
+| Auditoría seguridad | 21 hallazgos · 7 cerrados (sesión 13a) · 14 diferidos a Phase 8/9 con justificación (`docs/AUDIT-2026-06-14.md`) |
 
 ---
 
