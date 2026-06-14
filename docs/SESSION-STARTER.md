@@ -139,42 +139,80 @@ journalctl -u korio-api -f                        # logs tiempo real
 curl https://korio.es/health                      # health check
 ```
 
-## Próxima sesión — **sesión 13 · Vídeo demo + Slide deck + Memoria TFM**
+## Próxima sesión — **sesión 13b · Dry-run de la demo con docs nuevos**
 
-Faltan **~20 días para demo (2 jul)** y **~27 días para defensa (9 jul)**. Programación cerrada en sesión 11 (v0.3.2). La sesión 13 arranca el contenido de defensa.
+Faltan **~18 días para demo (2 jul)** y **~25 días para defensa (9 jul)**. Programación cerrada en sesión 11. Hardening seguridad cerrado en 13a. Toca probar el flujo real con un set de documentos pensado para activar TODAS las casuísticas a demostrar.
 
-**Agenda (en este orden)**
+### Set de documentos para la demo
 
-### 1. Vídeo demo (3-4h)
+11 ficheros generados en `data-synthetic/demo-tfm/` (tenant **Clínica Delos**). Markdown originales convertidos a PDF/DOCX donde aplica. README dentro de esa carpeta tiene el detalle de asignación, conversión y plan de ingesta. Resumen:
 
-Guión del ciclo completo en ~3-4 minutos:
-1. Gmail llega con adjunto → label `korio/ingesta` → 30s después aparece en `/search`
-2. Bus de eventos en n8n.korio.es: 3-4 ejecuciones visibles con emojis
-3. Chat en `korio.es/ui`: query que activa el grafo (35h/semana), respuesta con fuente citada
-4. Chunk disputed → badge ⚠️ en source chips
-5. Detección query-time: aviso de la gobernanza
-6. Claude Desktop con MCP: misma query, respuesta equivalente
-7. `graph.html`: nodos, aristas CONTRADICTS rojas, hover/click en sidebar
+| # | Fichero | Space | Canal de ingesta | Casuística |
+|---|---|---|---|---|
+| R1 | `R1_politica-vacaciones-2023.pdf` | RRHH | manual | base disputed |
+| R2 | `R2_politica-vacaciones-2025.pdf` | RRHH | **Gmail** | auto-resuelve sobre R1 |
+| R3 | `R3_protocolo-bajas-medicas.pdf` | RRHH | manual | 12 meses IT |
+| R4 | `R4_convenio-colectivo-sanitario-resumen.md` | RRHH | manual | grafo "35h/semana" rephrase |
+| R5 | `R5_circular-bajas-2024.pdf` | RRHH | manual | silent conflict E4 con R3 (18 vs 12) |
+| M1 | `M1_protocolo-atencion-urgencias.pdf` | Médico | manual | base disputed |
+| M2 | `M2_guia-clinica-urgencias-actualizada.pdf` | Médico | **Drive** | auto-resuelve sobre M1 (Dr. jefe) |
+| M3 | `M3_ficha-medicamento-ibuprofeno.md` | Médico | manual | PII anonimización Presidio |
+| L1 | `L1_contrato-tipo-medico-residente.docx` | Legal | manual | bilingüe ES+EN |
+| L2 | `L2_circular-lopd-datos-pacientes-v1.pdf` | Legal | manual | 5 años retención |
+| L3 | `L3_circular-lopd-datos-pacientes-v2.pdf` | Legal | **Slack** | HITL → timeout → `inconclusive` |
 
-### 2. Slide deck (6-8h)
+### Plan de sesión 13b
+
+1. **Reset del tenant Delos** (10 min). El grafo está actualmente fuera de sync (chunks disputed en Postgres, 0 nodos en FalkorDB) — antes de la nueva ingesta, borrar todos los docs Delos vía `DELETE /document/{id}` y confirmar `count(n)==0` en FalkorDB para `tenant_id=a0000000-...001`. Comando completo en `data-synthetic/demo-tfm/README.md` §Reset.
+2. **Ingesta secuencial controlada** (45 min) siguiendo el orden del README (R1→R2 Gmail→R3→R4→R5→M1→M2 Drive→M3→L1→L2→L3 Slack). Cada paso debe disparar la casuística esperada (auto-resolución, silent conflict, HITL).
+3. **Forzar `inconclusive` en L2↔L3** (10 min) — bajar `ESCALATION_TIMEOUT_DAYS=0` temporalmente, disparar `/escalate-reviews`, restaurar a 21.
+4. **Backfill grafo si la sync online falla** (10 min) — `scripts/graph_backfill.py` + `scripts/graph_embed_claims.py` con `--tenant-id` Delos.
+5. **QA con las 8 queries** del README §Fase 4 (15 min). Si todas pasan, dejar el estado tal cual hasta el día de grabación del vídeo.
+6. **Notas para vídeo + slides** (10 min) — capturar timing de cada caso (Gmail llega → 30s después aparece, etc.) y screenshots de grafo + banner ⚠️.
+
+Tiempo estimado: **2-2.5h**.
+
+### Sesiones posteriores (después de la 13b)
+
+| Sesión | Objetivo | Estimación |
+|---|---|---|
+| **13c** | Reset + ingesta limpia + **grabación vídeo demo** (3-4 min) con el guion del README §Fase 4 | 3-4h |
+| **14** | **Slide deck** (10-15 slides) | 6-8h |
+| **15-16** | **Memoria TFM** (capítulos 4-7 + anexo seguridad de `docs/AUDIT-2026-06-14.md`) | 20-30h |
+| **17** | **Ensayo defensa** ante el tribunal (9 jul) | 2-3h |
+
+### Guion del vídeo (a fijar en 13c)
+
+~3-4 minutos cubriendo:
+1. Gmail (R2) llega → label `korio/ingesta` → 30s después aparece en `/search`
+2. Bus de eventos en `n8n.korio.es`: 3-4 ejecuciones visibles
+3. Chat en `korio.es/ui`: "¿Cuánto se trabaja a la semana?" → grafo aporta 35h
+4. Query "¿Cuántos días de vacaciones?" → R2 gana, R1 disputed (badge ⚠️)
+5. Query "¿Cuánto dura la baja?" → silent conflict R3↔R5, aviso gobernanza
+6. Claude Desktop con MCP: misma query, respuesta equivalente con citas
+7. `graph.html`: nodos por persona/concepto, arista CONTRADICTS roja, hover en sidebar
+
+### Slide deck (esquema sesión 14)
 
 10-15 slides para el tribunal:
-- Problema + oportunidad de mercado
-- Arquitectura del sistema (diagrama con las 7 phases)
+- Problema + oportunidad de mercado pyme española
+- Arquitectura del sistema (diagrama 7 phases)
 - Demo en vivo (clips del vídeo)
-- Las 6 reglas del E3 materializadas
-- Métricas: p50=1983ms/p95=3053ms, datos en producción
-- Phase 8: roadmap post-TFM
-- Conclusiones
+- Las 6 reglas del E3 materializadas (tabla `docs/AGENTIC-INGESTION.md` §Cumplimiento)
+- Métricas: p50=1983ms / p95=3053ms / 28/28 tests / 8 workflows n8n
+- Seguridad: auditoría 21 hallazgos · 7 cerrados · 14 mapeados a Phase 8/9 (`docs/AUDIT-2026-06-14.md`)
+- Phase 8 (post-TFM): OAuth multi-tenant + guardrails LLM + ingesta multimodal
+- Conclusiones + cierre
 
-### 3. Memoria TFM (20-30h — trabajo de fondo)
+### Memoria TFM (sesiones 15-16)
 
 Capítulos clave:
-- **Capítulo 4**: Arquitectura RAG multi-tenant (pipeline ingesta, gobernanza ACID, RLS)
-- **Capítulo 5**: Grafo de conocimiento (FalkorDB, CONTRADICTS semántico, hybrid RAG con RRF)
-- **Capítulo 6**: Sistema agéntico (las 6 reglas del E3, pipeline ACID, bus de eventos)
-- **Capítulo 7**: MCP Server (Phase 7.3) + Ingesta multi-canal (Phase 7.2)
-- **Capítulo 8** (diseño futuro): `docs/MULTI-TENANT-INGESTION.md` + `docs/CHAT-PIPELINE-GUARDRAILS.md` + `docs/PHASE-10-MULTIMODAL-INGESTION.md`
+- **Capítulo 4** — Arquitectura RAG multi-tenant (pipeline ingesta, gobernanza ACID, RLS).
+- **Capítulo 5** — Grafo de conocimiento (FalkorDB, CONTRADICTS semántico, hybrid RAG con RRF).
+- **Capítulo 6** — Sistema agéntico (las 6 reglas del E3, pipeline ACID, bus de eventos).
+- **Capítulo 7** — MCP Server (Phase 7.3) + Ingesta multi-canal (Phase 7.2).
+- **Capítulo 8** — Seguridad y deuda técnica reconocida (`docs/AUDIT-2026-06-14.md` como anexo).
+- **Capítulo 9** (diseño futuro) — `MULTI-TENANT-INGESTION.md` + `CHAT-PIPELINE-GUARDRAILS.md` + `PHASE-10-MULTIMODAL-INGESTION.md`.
 
 ## Pendiente antes de la defensa
 
@@ -188,9 +226,12 @@ Capítulos clave:
 | ~~Diseño Phase 10 ingesta multimodal~~ | ~~1-2h~~ | ✅ Sesión 11 |
 | ~~Grafo UI: highlight aristas CONTRADICTS + fix scale~~ | ~~2-3h~~ | ✅ Sesión 12 |
 | ~~Captura errores n8n (tabla Supabase + Slack DM)~~ | ~~1-2h~~ | ✅ Sesión 12 |
-| **Vídeo demo** (3-4 min): ciclo completo con n8n event bus | 3-4h | 🔲 Sesión 13 |
-| **Slide deck** (10-15 slides) + ensayo | 6-8h | 🔲 Sesión 13 |
-| **Memoria TFM** (capítulos 4-7) | 20-30h | 🔲 Sesiones 13-16 |
+| ~~Hardening seguridad (auditoría 21 hallazgos, 7 cerrados)~~ | ~~3h~~ | ✅ Sesión 13a |
+| **Dry-run demo con docs nuevos** | 2-2.5h | 🔲 Sesión 13b (mañana) |
+| **Grabación vídeo demo** (3-4 min) | 3-4h | 🔲 Sesión 13c |
+| **Slide deck** (10-15 slides) | 6-8h | 🔲 Sesión 14 |
+| **Memoria TFM** (capítulos 4-9) | 20-30h | 🔲 Sesiones 15-16 |
+| **Ensayo defensa** | 2-3h | 🔲 Sesión 17 |
 
 ## Convenciones de la sesión
 

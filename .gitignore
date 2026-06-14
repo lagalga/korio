@@ -58,3 +58,4 @@ logs/
 # Local data
 data-synthetic/*.md
 !data-synthetic/README.md
+data-synthetic/demo-tfm/.DS_Store
