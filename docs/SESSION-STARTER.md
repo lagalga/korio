@@ -139,7 +139,46 @@ journalctl -u korio-api -f                        # logs tiempo real
 curl https://korio.es/health                      # health check
 ```
 
-## Próxima sesión — **sesión 13b · Dry-run de la demo con docs nuevos**
+## Estado al cierre de sesión 13b · 15 jun 2026 · v0.3.5 · multi-canal real + ivfflat fix
+
+✅ **Sesión 13b (15 jun) — QA E2E con multi-canal real + ivfflat fix**:
+- **18 docs en producción** (13 Delos + 5 García). Auto-resoluciones limpias en 5 pares por fecha extraída del contenido.
+- **R6/R7 nuevos** (normativa uniformes RRHH sin fecha) → conflict pending → `/escalate-reviews` → chunks `inconclusive` ✅ regla 5 cubierta.
+- **García 5 docs nuevos** (G1-G5) con conflict fiscal IRPF 2023↔2025 auto-resuelto.
+- **Multi-canal real** verificado E2E:
+  - Gmail label `korio/rrhh` → R2 → space RRHH ✅
+  - Drive `input/medico` → M2 → space Médico ✅
+  - Slack `#clinica-delos-legal` → L3 → space Legal ✅
+- **4 service users Slack** (`slack_{rrhh,medico,legal,admin}@delos`) con scope por user_spaces. Workflow `/korio` mapea `channel_id → user_id` → RLS automático.
+- **Fixes raíz aplicados** (5 commits):
+  - `e5ea543` — `src/version_extractor.py` extrae fecha del documento (filename + content)
+  - `68760ff` — R6/R7 + migración 016 silent conflict same-space (evita falsos cross-departamento)
+  - `be13a45` — García 5 docs + migración 017 space Admin + 018 service users Slack + **019 DROP ivfflat** (causa raíz RPC=0)
+- **Bug crítico ivfflat resuelto**: índice `lists=100` con 19 chunks → cada chunk en su propia lista → `ivfflat.probes=1` solo encontraba self-match. DROP del índice. Sin índice el seq scan es trivial con decenas de chunks. Reintroducir en Phase 9 con `lists=sqrt(N)` o HNSW.
+- **Workflows n8n parametrizados**:
+  - Slack: `channel_id → space_id` mapping (4 canales `#clinica-delos-{rrhh,medico,legal,admin}`)
+  - Drive: 4 triggers paralelos (uno por subcarpeta `input/{rrhh,medico,legal,admin}`)
+  - Gmail: filtro por label (`korio/{rrhh,medico,legal,admin}`) en lugar de `unread`, idempotencia vía `korio/procesado`
+- **Notion troubleshooting actualizado**: 6 entradas (4 resoluciones, 2 problemas Phase 9, 1 aprendizaje).
+
+🔲 **Pendientes Phase 9 (no bloqueantes para vídeo)**:
+- Detector ingesta: falsos positivos entre docs temáticamente similares pero no contradictorios (G1↔G2 caso despacho). Fix: validación semántica LLM antes de declarar conflict.
+- Workflow Slack: doc-ya-existe → DM al usuario en lugar de disparar errorWorkflow.
+- Regla 4 (políticas reutilizables): no se cubrió aún, requiere admin resolviendo HITL vía email antes del timeout para que policy se persista.
+- Reintroducir índice vectorial cuando volumen > 1000 chunks (ivfflat con `lists=sqrt(N)` o HNSW).
+
+---
+
+## Próxima sesión — **sesión 13c · Demo Regla 4 (políticas) + retoques UI HITL + commit final**
+
+### Plan
+1. **Demo regla 4 (políticas reutilizables)** (30 min): crear par de docs sintéticos R8/R9 sin fecha extraíble (mismo espacio), conflict pending, admin resuelve vía email HITL ANTES del timeout. Verificar que se persiste policy en tabla `policies`. Ingestar R10 similar → policy se aplica automáticamente (logs `📚 Policy`).
+2. **Retoque UI email HITL** (en curso): mejoras al template del email enviado al admin para que sea más legible y refleje el branding Korio.
+3. **Sesión cierre**: actualizar CHANGELOG con v0.3.5, etiquetar release, mover SESSION-STARTER a la siguiente fase.
+
+---
+
+## (Histórico) sesión 13b original · Dry-run de la demo con docs nuevos
 
 Faltan **~18 días para demo (2 jul)** y **~25 días para defensa (9 jul)**. Programación cerrada en sesión 11. Hardening seguridad cerrado en 13a. Toca probar el flujo real con un set de documentos pensado para activar TODAS las casuísticas a demostrar.
 

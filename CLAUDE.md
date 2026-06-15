@@ -518,3 +518,34 @@ Pendiente sesión 7 (Phase 8 candidatos): detección query-time, estado `inconcl
 ---
 
 *Actualizado: 14 junio 2026 (sesiones 6-13a) — v0.3.4. Hardening seguridad cerrado: 7 fixes nuevos antes de demo pública (CORS, timing attack, cross-tenant DELETE, RLS mcp_api_keys, dim assert, tempfile cleanup, Cypher param). 15 migraciones, 8 workflows n8n, 28/28 tests verdes, p50=1983ms/p95=3053ms. Pendiente: vídeo demo, slide deck, memoria TFM (sesiones 13b+).*
+
+---
+
+**Sesión 13b (15 jun · noche)** — QA E2E con multi-canal real + ivfflat fix (v0.3.5):
+
+- **18 docs en producción** (13 Delos + 5 García nuevos G1-G5). Auto-resoluciones limpias en 5 pares (R2↔R1, R5↔R3, M2↔M1, L3↔L2, G4↔G3) por fecha extraída del contenido.
+- **R6/R7 nuevos** (normativa uniformes RRHH sin fecha) → conflict pending → `/escalate-reviews` con backdate → chunks `inconclusive` ✅ regla 5 demostrada.
+- **Multi-canal real verificado E2E**:
+  - Gmail label `korio/rrhh` → R2 → space RRHH
+  - Drive carpeta `input/medico` → M2 → space Médico
+  - Slack `#clinica-delos-legal` → L3 → space Legal
+- **Slack RLS por canal**: 4 service users (`slack_{rrhh,medico,legal,admin}@delos`) con scope vía `user_spaces`. Workflow `/korio` mapea `channel_id → user_id` → RLS automático. Preguntar en `#clinica-delos-rrhh` sobre LOPD → "No encuentro" (correcto).
+- **Migración 016** — `detect_silent_conflicts_among_chunks` añade `d1.space_id = d2.space_id`. Cross-space sin caso funcional + chunks cortos producían falsos positivos (R4↔M3 sim 0.85 entre RRHH y Médico).
+- **Migración 017** — space `Administración` (id ...004) en Delos + grant al admin.
+- **Migración 018** — 4 service users Slack con `user_spaces` por canal.
+- **Migración 019** — **DROP `idx_embeddings_vector`** (ivfflat lists=100). Causa raíz del bug RPC: con 19 chunks dispersos en 100 listas, `ivfflat.probes=1` (default) solo recorría una lista → encontraba self-match exacto pero ignoraba todos los vecinos. Sin índice el seq scan es trivial con decenas de chunks. Reintroducir en Phase 9 con `lists=ceil(sqrt(N))` o HNSW.
+- **Workflows n8n parametrizados** (4 refactores):
+  - `Korio · Slack file_shared → /upload (Delos multi-space)` — switch sobre `event.channel_id` → space_id.
+  - `Korio · Drive → /upload (Delos multi-space)` — 4 triggers paralelos por subcarpeta `input/{rrhh,medico,legal,admin}`, mapping `parents[0] → space_id`.
+  - `Korio · Gmail → /upload (Delos multi-space)` — filtro `(label:korio/rrhh OR ... OR label:korio/admin) has:attachment -label:korio/procesado -in:trash`. Sin `readStatus:unread` (frágil si user abre correo). Idempotencia vía `korio/procesado`.
+  - `Korio · Slack /korio → /search (Delos multi-canal)` — mapping `channel_id → service user_id`.
+- **3 commits a `main`**: `e5ea543` (extractor version_ts), `68760ff` (R6/R7 + mig 016), `be13a45` (García + mig 017/018/019).
+- **Notion troubleshooting**: 6 entradas nuevas (4 resoluciones + 2 problemas Phase 9 + 1 aprendizaje).
+
+🔲 **Pendientes Phase 9** (no bloqueantes para vídeo):
+- Detector ingesta: falsos positivos entre docs temáticamente similares (G1↔G2 caso despacho legal mismo estilo). Fix: validación semántica LLM (`is_semantic_contradiction()`) antes de declarar conflict.
+- Workflow Slack: doc-ya-existe debe avisar al usuario con DM, no disparar errorWorkflow.
+- Regla 4 (políticas reutilizables): sin caso demostrado aún, queda para 13c.
+- Reintroducir índice vectorial con volumen >1000 chunks.
+
+*Actualizado: 15 junio 2026 (sesión 13b) — v0.3.5. Multi-canal real con 4 service users RLS, ivfflat DROP, 3 commits, 6 entradas Notion troubleshooting. 16 migraciones, 8 workflows n8n parametrizados, 18 docs producción. Pendiente: regla 4 demo (sesión 13c), vídeo (semana 25 jun), slide deck, memoria TFM.*

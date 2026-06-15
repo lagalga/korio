@@ -10,6 +10,55 @@ semántico [SemVer](https://semver.org/lang/es/).
 
 ## [Unreleased]
 
+## [0.3.5] — 2026-06-15 · sesión 13b (multi-canal real + ivfflat fix + extractor version_ts)
+
+### Added
+- **`src/version_extractor.py`** — extracción de `version_ts` desde el documento
+  (filename + content) con jerarquía de 6 heurísticas: fecha textual
+  día+mes+año, ISO, año aislado en filename, marcador `vN`, léxico
+  "actualizada/nueva/revisada", año aislado en content. Antes el detector de
+  conflictos siempre comparaba `datetime.now()`, lo que rompía la
+  auto-resolución por fecha tras un reset.
+- **`data-synthetic/demo-tfm/R6+R7`** — par de docs sin fecha extraíble
+  (normativa de uniformes RRHH v1/v2) para activar el caso HITL → `inconclusive`
+  (regla 5 del E3).
+- **`data-synthetic/demo-tfm/G1-G5`** — 5 docs ficticios del Despacho García
+  con casuística propia: dictámenes IRPF 2023↔2025 auto-resueltos por fecha,
+  casos laborales/mercantiles, protocolo onboarding.
+- **Migración 017** — space `Administración` (id `...004`) en el tenant Delos +
+  grant al admin user.
+- **Migración 018** — 4 service users Slack (`slack_{rrhh,medico,legal,admin}@delos`)
+  con scope por `user_spaces`. El workflow `/korio` mapea `channel_id` →
+  service user_id → el RLS del backend hace el resto.
+
+### Changed
+- **Workflow Slack `file_shared`** parametrizado. Multi-canal real:
+  `#clinica-delos-{rrhh,medico,legal,admin}` → mapping `channel_id → space_id`.
+- **Workflow Drive** refactorizado a 4 `googleDriveTrigger` paralelos, uno por
+  subcarpeta `input/{rrhh,medico,legal,admin}`. Mapping `parents[0] → space_id`.
+- **Workflow Gmail** filtro cambiado a label-based (no `unread`). Idempotencia
+  vía `korio/procesado`. Más robusto: el usuario puede abrir el correo en
+  Gmail sin romper el pipeline.
+- **Workflow `/korio` search** mapea `channel_id` al service user del canal →
+  RLS del backend filtra automáticamente por el space del departamento.
+
+### Fixed
+- **Migración 016 — `detect_silent_conflicts_among_chunks` solo same-space**.
+  Cross-space producía falsos positivos cuando chunks cortos de departamentos
+  distintos quedaban próximos en el espacio vectorial (R4 RRHH ↔ M3 Médico
+  con sim 0.85). Cross-space no tiene caso funcional en Korio.
+- **Migración 019 — DROP `idx_embeddings_vector`** (ivfflat `lists=100`).
+  Causa raíz del bug "RPC search devuelve 0 matches tras reset": con 19
+  chunks dispersos en 100 listas, `ivfflat.probes=1` solo recorría una →
+  encontraba self-match exacto pero ignoraba todos los vecinos. Sin índice el
+  planner usa seq scan, trivial con decenas de chunks. Reintroducir en
+  Phase 9 con `lists=ceil(sqrt(N))` o HNSW cuando el volumen lo justifique.
+
+### Operational
+- 18 docs en producción (13 Delos + 5 García). 5 auto-resoluciones limpias.
+  R6/R7 → `inconclusive` (regla 5 demostrada).
+- 6 entradas nuevas en Notion troubleshooting.
+
 ## [0.3.4] — 2026-06-14 · sesión 13a (hardening de seguridad pre-demo)
 ### Security
 - **N1 — CORS whitelist** (`api/server.py`). Sustituye `allow_origins=["*"]`
