@@ -112,8 +112,11 @@ def ingest_document(
 
     document_id  = document_id or str(uuid.uuid4())
     operation_id = operation_id or new_operation_id()
-    version_ts   = datetime.now(timezone.utc)
     filename     = display_filename or path.name
+    # version_ts se decide tras preprocesar (mira filename + content). Si no
+    # se puede extraer ninguna fecha, fallback a now() abajo.
+    version_ts: Optional[datetime] = None
+    version_ts_source: str = "fallback:now"
 
     logger.info(f"▶ Ingesta iniciada — filename={filename} operation_id={operation_id}")
 
@@ -131,6 +134,15 @@ def ingest_document(
         preprocessor = get_preprocessor()
         content, prep_meta = preprocessor.process_document(file_path, anonymize=anonymize)
         logger.info(f"  ✓ {prep_meta['char_count']} chars; PII: {prep_meta['pii_found']} hits")
+        # Extraer fecha de versión del documento (filename + contenido)
+        from version_extractor import extract_version_ts
+        extracted_ts, version_ts_source = extract_version_ts(filename, content)
+        if extracted_ts is not None:
+            version_ts = extracted_ts
+            logger.info(f"  📅 version_ts={version_ts.date().isoformat()} ({version_ts_source})")
+        else:
+            version_ts = datetime.now(timezone.utc)
+            logger.info(f"  📅 version_ts=now() (no_match en filename ni contenido)")
     except Exception as e:
         emit(EventType.INGEST_FAILED, source_agent=Agent.INGESTOR,
              tenant_id=tenant_id, operation_id=operation_id,
@@ -205,8 +217,10 @@ def ingest_document(
         "version_ts":       version_ts.isoformat(),
         "status":           "active",
     }
-    if source_metadata:
-        doc_payload["source_metadata"] = source_metadata
+    # Trazabilidad de la extracción de fecha (auditoría)
+    sm = dict(source_metadata) if source_metadata else {}
+    sm["version_ts_source"] = version_ts_source
+    doc_payload["source_metadata"] = sm
 
     chunk_payloads = [
         {
