@@ -334,7 +334,14 @@ def _dispatch_tenant_batch(
         # Cargar los textos de los chunks (puede haber cambiado el estado pero el texto no)
         new_chunk_text = ""
         existing_chunk_text = ""
+        new_filename = ""
         try:
+            if r.get("new_document_id"):
+                fr = db.client.table("documents").select("filename").eq(
+                    "id", r["new_document_id"]
+                ).single().execute()
+                if fr.data:
+                    new_filename = fr.data.get("filename", "")
             if new_chunk_id:
                 ct = db.client.table("embeddings").select("chunk_text").eq(
                     "id", int(new_chunk_id)
@@ -352,6 +359,7 @@ def _dispatch_tenant_batch(
 
         conflicts_payload.append({
             "review_id":            review_id,
+            "new_filename":         new_filename,
             "existing_filename":    r.get("existing_filename", ""),
             "similarity_pct":       int((r.get("similarity") or 0) * 100),
             "resolution_reason":    r.get("resolution_reason", ""),

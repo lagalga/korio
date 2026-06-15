@@ -400,6 +400,68 @@ El early binding es el corazón del sistema. Nunca saltarlo:
 | Company Brain proceso completo | https://app.notion.com/p/3782e8533b448012bf1ecd77aee3c9c6 | Descripción funcional |
 | Stack, costes e infraestructura | https://app.notion.com/p/3782e8533b4481f6a98ed9b46877d170 | Detalle costes |
 
+## Checklist de cierre de sesión (actualizar SIEMPRE que aplique)
+
+Cuando el usuario pida "cierra sesión" / "actualiza todo" / similar, repasar
+esta lista en orden. Cada destino lleva una pista de QUÉ actualizar y CUÁNDO
+omitir. Si la sesión no tocó algo, marcarlo explícitamente como "sin cambios"
+en el resumen final en lugar de saltar silenciosamente.
+
+### Notion
+1. **Roadmap & Tareas — Korio TFM**
+   `https://app.notion.com/p/3792e8533b44814b8fa9cdc8de668533`
+   — añadir sección `## ✅ Sesión <N> (<fecha>)` al final con bullet por
+   tarea cerrada y `🔲 Pendientes`. Aplica siempre que la sesión cierre
+   tareas técnicas, migre algo a producción o defina nueva work.
+2. **Log y Troubleshooting** (DB `collection://c83daaa3-9c54-4368-88f4-cb7a63f95592`)
+   `https://app.notion.com/p/3782e8533b4480a98142c8fedb52c9e1`
+   — una entrada por hallazgo: Tipo (Problema / Resolución / Bug / Éxito /
+   Aprendizaje), Status (Done / In Progress / Bloqueado), Fecha, Descripción
+   con causa raíz + fix + verificación. Una entrada por problema (no por
+   sesión). Aplica siempre que se descubra un bug, se cierre una resolución
+   o se aprenda algo no obvio sobre el sistema.
+3. **Estado técnico — Síntesis para TFM**
+   `https://app.notion.com/p/3792e8533b4481719aeddd9d2eb94b8a`
+   — añadir sección `## <N>. Hitos sesión <X> (<fecha>, vY.Y.Y)` al final,
+   con resumen ejecutivo. Aplica cuando haya cambios de arquitectura,
+   nuevas migraciones, nuevos workflows o nuevos hitos demostrables. NO
+   aplica para correcciones triviales o sólo de documentación.
+4. **Stack, costes e infraestructura**
+   `https://app.notion.com/p/3782e8533b4481f6a98ed9b46877d170`
+   — sólo si cambian los costes (VPS, Supabase, Mistral, etc.), aparecen
+   nuevos servicios facturables (n8n cloud, Stripe, dominio adicional) o
+   se reduce/amplia el tier de algún proveedor. La mayoría de sesiones NO
+   requieren tocar esta página.
+
+### Repo Korio (`lagalga/korio` rama `main`)
+5. **`ROADMAP.md`**
+   — añadir línea en el bloque correspondiente (Phase activa o Backlog).
+   Marcar `[x]` lo cerrado, mover Pendientes a futuro. Aplica si la sesión
+   modifica el plan o cierra algún ítem ya enumerado.
+6. **`docs/SESSION-STARTER.md`**
+   — al cierre de cada sesión: mover el bloque "Próxima sesión" anterior a
+   "Estado al cierre de sesión <N>" y abrir nuevo bloque "Próxima sesión
+   <N+1>". Aplica SIEMPRE.
+7. **`CLAUDE.md`** (este archivo)
+   — añadir bloque `**Sesión <N> (<fecha>)**` al final con resumen
+   compacto (migraciones, workflows, commits, pendientes). Mantener el pie
+   `*Actualizado: …*` reflejando última versión. Aplica SIEMPRE.
+
+### Otros repos / artefactos
+8. **`CHANGELOG.md`** — entrada `[vX.Y.Z] — YYYY-MM-DD · sesión <N>` con
+   secciones Added / Changed / Fixed / Security / Operational según
+   corresponda. Bump version sólo si la sesión cierra una unidad
+   coherente que merezca tag.
+9. **MEMORY.md auto-memory** (en
+   `~/.claude/projects/-Users-berto-Claude-Code-korio/memory/MEMORY.md`) —
+   añadir o actualizar entradas tipo `feedback_*`, `project_*` o
+   `reference_*` con lo aprendido que aplique a sesiones futuras. NO usar
+   esta memoria para estado efímero — sólo para reglas / hechos
+   duraderos.
+
+### Orden recomendado
+GitHub commits + push → CLAUDE.md → SESSION-STARTER → CHANGELOG → Notion (4 páginas en bloque). MEMORY al final si hubo aprendizajes.
+
 ---
 
 ## Reglas

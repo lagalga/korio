@@ -109,6 +109,7 @@ class ConflictItem:
     """
     new_chunk_id:           int
     new_chunk_text:         str
+    new_filename:           str
     existing_chunk_id:      int
     existing_chunk_text:    str
     existing_document_id:   str
@@ -256,6 +257,7 @@ def detect_conflicts(
     new_doc_authority: int,
     new_doc_version_ts: datetime,
     db,
+    new_filename: str = "",
 ) -> ConflictReport:
     """
     Detecta y resuelve conflictos entre los nuevos chunks y los existentes en el espacio.
@@ -458,6 +460,7 @@ def detect_conflicts(
             conflict = ConflictItem(
                 new_chunk_id=chunk_id,
                 new_chunk_text=chunk_text,
+                new_filename=new_filename,
                 existing_chunk_id=existing_chunk_id,
                 existing_chunk_text=existing_chunk_text,
                 existing_document_id=existing_doc_id,
@@ -553,6 +556,7 @@ def _trigger_hitl_email(
         "conflicts": [
             {
                 "review_id":            c.review_id,
+                "new_filename":         c.new_filename,
                 "existing_filename":    c.existing_filename,
                 "similarity_pct":       int(c.similarity * 100),
                 "resolution_reason":    c.resolution_reason,

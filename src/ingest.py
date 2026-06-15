@@ -371,6 +371,7 @@ def ingest_document(
                 new_doc_authority=authority_weight,
                 new_doc_version_ts=version_ts,
                 db=supabase,
+                new_filename=filename,
             )
             if conflict_report.has_conflicts:
                 logger.info(
