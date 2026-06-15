@@ -169,12 +169,74 @@ curl https://korio.es/health                      # health check
 
 ---
 
-## Próxima sesión — **sesión 13c · Demo Regla 4 (políticas) + retoques UI HITL + commit final**
+## Próxima sesión — **sesión 13c · Demo Regla 4 (políticas) + cierre QA antes del vídeo**
 
-### Plan
-1. **Demo regla 4 (políticas reutilizables)** (30 min): crear par de docs sintéticos R8/R9 sin fecha extraíble (mismo espacio), conflict pending, admin resuelve vía email HITL ANTES del timeout. Verificar que se persiste policy en tabla `policies`. Ingestar R10 similar → policy se aplica automáticamente (logs `📚 Policy`).
-2. **Retoque UI email HITL** (en curso): mejoras al template del email enviado al admin para que sea más legible y refleje el branding Korio.
-3. **Sesión cierre**: actualizar CHANGELOG con v0.3.5, etiquetar release, mover SESSION-STARTER a la siguiente fase.
+Tras 13b: 11 docs reset+ingesta + multi-canal real (Gmail/Drive/Slack) + RLS
+por canal + fix ivfflat + extractor `version_ts` + UI HITL email con
+`new_filename` + logo PNG + dark mode. Quedan 3 cosas concretas para sentar
+el sistema antes del vídeo.
+
+### Plan 13c (estimación ~2 h)
+
+1. **Demo Regla 4 — políticas reutilizables** (40 min) — única casuística
+   del E3 sin demostrar todavía.
+   - Crear `R8` y `R9` sintéticos sobre un mismo tema RRHH (sin fecha
+     extraíble — extractor devuelve `no_match` → ambos `now()` → conflict
+     pending).
+   - Ingestar R8 → ingestar R9 → conflict pending → email HITL llega al
+     admin (verificar nuevo template con `new_filename` ✅).
+   - Admin clica un botón del email → `/review` aplica decisión + persiste
+     fila en `policies` con `subject_pattern`, `decision`, `times_applied=1`.
+   - Crear `R10` con mismo subject_pattern (otra versión del mismo tema) →
+     ingestar → logs `📚 Policy aplicada · times_applied=2` → el conflict
+     se resuelve automáticamente SIN abrir HITL nuevo. Métrica defensa.
+   - Verificar en BD: `SELECT subject_pattern, decision, times_applied
+     FROM policies` muestra la policy con `times_applied >= 2`.
+
+2. **Validación semántica LLM en detector ingesta** (45 min) — Phase 9 ítem
+   movido aquí para evitar falsos positivos en el vídeo (G1↔G2 caso despacho
+   con sim 0.78-0.85 marcados como conflict sin serlo).
+   - `conflict_detector.py`: tras encontrar candidato `(new_chunk,
+     existing_chunk)` con sim ≥ `CONFLICT_THRESHOLD`, llamar
+     `llm_client.is_semantic_contradiction(text_a, text_b)` (ya existe
+     para CONTRADICTS del grafo). Si responde NO → descartar, no crear
+     review.
+   - Coste: +1 llamada Mistral por candidato. Mitigar con caché por
+     `(chunk_id_a, chunk_id_b)` y short-circuit si sim ≥ 0.95 (asumir
+     contradicción real).
+   - Test E2E: re-ingestar G1/G2 → no más conflict pending.
+
+3. **Workflow Slack doc-ya-existe → DM en lugar de errorWorkflow** (15 min)
+   — UX fix anotado en 13b. Detalles:
+   - Tras `POST /upload` añadir nodo `IF` que mire `$json.statusCode` ó
+     `error.detail`. Si 400 + texto "ya estaba" → enviar mensaje ephemeral
+     al `user` que compartió el archivo ("este archivo ya está en Korio")
+     y cancelar la cadena sin tocar `errorWorkflow`.
+   - Verificar re-subiendo a Slack un PDF ya ingerido → DM al usuario, sin
+     errorWorkflow.
+
+### Casuística cubierta al cierre de 13c (las 6 reglas del E3)
+
+| Regla | Sesión cerrada |
+|---|---|
+| 1 ACID | 13b ✅ |
+| 2 Detección | 13b ✅ + 13c refinada con LLM |
+| 3 Auto-resolución por fecha/autoridad | 13b ✅ |
+| **4 Políticas reutilizables** | **13c (objetivo)** |
+| 5 Inconclusive por timeout | 13b ✅ |
+| 6 Silent conflict same-space | 13b ✅ |
+
+### Tras 13c — semana del 25 jun
+- **13d (grabación vídeo demo)** 3-4 min cubriendo todo el ciclo con n8n
+  event-bus visible.
+- **14 (slide deck)** 10-15 slides.
+- **15-16 (memoria TFM)** capítulos 4-9.
+- **17 (ensayo defensa)**.
+
+### NO entran en 13c
+- Logo dark mode email — Phase 10 (variante white-on-dark o SVG inline).
+- Reintroducir índice vectorial — Phase 9 (cuando vol > 1000 chunks).
+- Multi-tenant OAuth ingesta — Phase 8 post-defensa.
 
 ---
 
