@@ -1,0 +1,25 @@
+-- Migración 019: eliminar índice ivfflat de embeddings.vector
+--
+-- Sesión 13b detectó que tras el reset completo (18 documentos, 19 chunks)
+-- la RPC `search_embeddings` devolvía 0 matches incluso con threshold = -10
+-- excepto para el self-match exacto del query vector. Causa raíz: el índice
+--
+--   CREATE INDEX idx_embeddings_vector
+--     ON embeddings USING ivfflat (vector vector_cosine_ops) WITH (lists = 100);
+--
+-- definido en `001_initial_schema.sql` esperaba ~lists*10 = 1000 filas. Con
+-- 19 chunks repartidos en 100 listas, casi cada chunk cae en su propia lista
+-- y `ivfflat.probes = 1` (default) sólo recorre una lista → no encuentra los
+-- vecinos próximos que están en otras listas.
+--
+-- En esta fase (decenas de chunks, demo TFM) un sequential scan sobre la
+-- tabla `embeddings` es trivial (microsegundos) y siempre correcto. El índice
+-- vectorial se reintroducirá en Phase 9, cuando el volumen lo justifique, con
+-- alguna de estas alternativas:
+--   - `ivfflat` con `lists = ceil(sqrt(N))` y `SET ivfflat.probes = lists/10`
+--   - `hnsw` (más memoria, sin lists/probes, recomendado para producción
+--     una vez superada la fase de prototipado)
+--
+-- Por ahora, eliminamos el índice y dejamos que el planner use seq scan.
+
+DROP INDEX IF EXISTS idx_embeddings_vector;
