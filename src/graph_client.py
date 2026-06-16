@@ -307,26 +307,25 @@ class GraphClient:
         review_id: Optional[str] = None,
     ) -> int:
         """
-        Crea aristas CONTRADICTS entre claims de dos chunks con MISMO predicate
-        y VALORES distintos, validando semánticamente con Mistral que sean
-        incompatibles antes de crear la arista.
+        Crea aristas CONTRADICTS entre claims de dos chunks, validando
+        semánticamente con Mistral que sean incompatibles.
 
-        El filtro de subject se eliminó: era demasiado estricto y bloqueaba
-        pares reales como "política vacaciones" vs "política de vacaciones para
-        empleados asalariados" (mismo concepto, nombre ligeramente distinto).
-        La validación semántica actúa como filtro de calidad.
+        Estrategia en 2 pasadas:
+        1. Pares con mismo predicate y valor distinto (alta probabilidad).
+        2. Cross-join completo limitado a 30 pares (cubre predicados
+           extraídos con nombres distintos por el LLM).
+        En ambas, el LLM decide si realmente hay contradicción.
 
         Returns:
             Número de aristas CONTRADICTS creadas
         """
         try:
-            from src.llm_client import get_llm_client  # desde raíz del proyecto
+            from src.llm_client import get_llm_client
         except ModuleNotFoundError:
-            from llm_client import get_llm_client  # desde scripts/ con src/ en sys.path
+            from llm_client import get_llm_client
         llm = get_llm_client()
 
         try:
-            # Recuperar todos los pares candidatos: mismo predicate, valor distinto
             candidates = self.graph.query(
                 f"""
                 MATCH (cA:Claim {{tenant_id: '{tenant_id}', chunk_id: {new_chunk_id}}}),
@@ -337,16 +336,33 @@ class GraphClient:
                        id(cB) AS idB, cB.subject, cB.predicate, cB.value
                 """
             )
+
+            if not candidates.result_set:
+                candidates = self.graph.query(
+                    f"""
+                    MATCH (cA:Claim {{tenant_id: '{tenant_id}', chunk_id: {new_chunk_id}}}),
+                          (cB:Claim {{tenant_id: '{tenant_id}', chunk_id: {existing_chunk_id}}})
+                    WHERE cA.value <> cB.value
+                    RETURN id(cA) AS idA, cA.subject, cA.predicate, cA.value,
+                           id(cB) AS idB, cB.subject, cB.predicate, cB.value
+                    LIMIT 30
+                    """
+                )
+
             if not candidates.result_set:
                 return 0
 
             added = 0
+            seen = set()
             for row in candidates.result_set:
                 idA, sA, pA, vA, idB, sB, pB, vB = row
+                pair_key = (idA, idB)
+                if pair_key in seen:
+                    continue
+                seen.add(pair_key)
                 if not llm.is_semantic_contradiction(sA, pA, vA, sB, pB, vB):
                     logger.debug(f"  ⬜ No contradicción semántica: [{sA}]--{pA}-->[{vA}] vs [{sB}]--{pB}-->[{vB}]")
                     continue
-                # Crear arista
                 self.graph.query(
                     f"""
                     MATCH (cA:Claim {{tenant_id: '{tenant_id}', chunk_id: {new_chunk_id}}}),
