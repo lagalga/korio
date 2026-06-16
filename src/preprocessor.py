@@ -20,6 +20,12 @@ except ImportError:
     print("⚠️ MarkItDown no instalado. Instalalo con: pip install markitdown")
 
 try:
+    import pymupdf
+    PYMUPDF_AVAILABLE = True
+except ImportError:
+    PYMUPDF_AVAILABLE = False
+
+try:
     from presidio_analyzer import AnalyzerEngine
     from presidio_analyzer.nlp_engine import NlpEngineProvider
     from presidio_anonymizer import AnonymizerEngine
@@ -92,7 +98,23 @@ class Preprocessor:
             with open(path, "r", encoding="utf-8") as f:
                 return f.read()
 
-        # Si es PDF, DOCX, XLSX, etc.
+        # PDF: pymupdf produce texto limpio (pdfminer/pdfplumber pegan palabras)
+        if path.suffix.lower() == ".pdf":
+            if PYMUPDF_AVAILABLE:
+                try:
+                    doc = pymupdf.open(str(path))
+                    pages = [page.get_text() for page in doc]
+                    doc.close()
+                    return "\n\n".join(pages)
+                except Exception as e:
+                    raise ValueError(f"Error extrayendo PDF {path.name}: {e}") from e
+            elif MARKITDOWN_AVAILABLE:
+                result = self.markdown_converter.convert(str(path))
+                return result.text_content
+            else:
+                raise ImportError("Ni pymupdf ni MarkItDown disponibles para PDF")
+
+        # DOCX, XLSX, etc.: MarkItDown
         if MARKITDOWN_AVAILABLE:
             try:
                 result = self.markdown_converter.convert(str(path))
@@ -191,7 +213,7 @@ class Preprocessor:
 
     def clean_text(self, text: str) -> str:
         """
-        Limpia el texto: elimina espacios, caracteres especiales, etc.
+        Limpia el texto preservando la estructura de párrafos.
 
         Args:
             text: Texto a limpiar
@@ -199,13 +221,9 @@ class Preprocessor:
         Returns:
             str: Texto limpio
         """
-        # Eliminar espacios múltiples
-        text = re.sub(r"\s+", " ", text)
-
-        # Eliminar caracteres de control
         text = "".join(char for char in text if ord(char) >= 32 or char in "\n\t")
-
-        # Trim
+        text = re.sub(r"[^\S\n]+", " ", text)
+        text = re.sub(r"\n{3,}", "\n\n", text)
         text = text.strip()
 
         return text

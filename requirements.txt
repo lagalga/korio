@@ -16,6 +16,7 @@ numpy>=1.26.0
 
 # Procesamiento de documentos
 markitdown[pdf,docx,xlsx,pptx]>=0.1.0
+pymupdf>=1.25.0
 
 # Anonimización PII
 presidio-analyzer>=2.2.351
