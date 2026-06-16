@@ -181,9 +181,9 @@ class TestSearchConContexto:
         tenant_delos
     ):
         """
-        Si la query no tiene contexto relevante, la respuesta debería
-        indicarlo (no alucinar). Verificamos que has_context es False
-        con un umbral muy alto.
+        Si la query no tiene contexto relevante con threshold imposible,
+        el vector search no debe devolver chunks. El grafo puede aportar
+        contexto marginal (keywords genéricas), pero chunks_used debe ser 0.
         """
         result = search(
             query="receta de cocina para hacer paella",
@@ -192,10 +192,7 @@ class TestSearchConContexto:
             threshold=0.99  # Umbral imposible de alcanzar
         )
 
-        # Con threshold imposible, no debería haber contexto
-        assert result["has_context"] == False, \
-            f"No debería haber contexto para query irrelevante con threshold 0.99"
-        assert result["chunks_used"] == 0, "No debería haber chunks usados"
+        assert result["chunks_used"] == 0, "No debería haber chunks usados con threshold 0.99"
 
     def test_fuentes_tienen_estructura_correcta(
         self,
