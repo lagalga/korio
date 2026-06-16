@@ -1067,11 +1067,16 @@ _ui_dir      = os.path.join(os.path.dirname(__file__), '..', 'ui')
 if os.path.isdir(_ui_dir):
     app.mount("/ui", StaticFiles(directory=_ui_dir, html=True), name="ui")
 
-# Landing en raíz: sirve /assets/* y / como index.html
+# Landing en raíz: sirve /assets/*, /legal/* y / como index.html
 if os.path.isdir(_landing_dir):
     _landing_assets = os.path.join(_landing_dir, 'assets')
     if os.path.isdir(_landing_assets):
         app.mount("/assets", StaticFiles(directory=_landing_assets), name="landing-assets")
+
+    # Página(s) legales: /legal/privacy.html (GDPR + LSSI-CE)
+    _landing_legal = os.path.join(_landing_dir, 'legal')
+    if os.path.isdir(_landing_legal):
+        app.mount("/legal", StaticFiles(directory=_landing_legal, html=True), name="landing-legal")
 
     @app.get("/", include_in_schema=False)
     async def landing_root():
