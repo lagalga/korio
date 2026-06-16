@@ -610,7 +610,7 @@ Pendiente sesión 7 (Phase 8 candidatos): detección query-time, estado `inconcl
 - Regla 4 (políticas reutilizables): sin caso demostrado aún, queda para 13c.
 - Reintroducir índice vectorial con volumen >1000 chunks.
 
-*Actualizado: 16 junio 2026 (sesión 13c) — v0.3.6. Regla 4 demostrada (policy auto-resolve sin HITL), inconclusive visible en RAG con aviso, admin puede overridear timeout. 20 migraciones, 8 workflows n8n, 18 docs producción. Pendiente: vídeo demo (semana 25 jun), slide deck, memoria TFM.*
+*Actualizado: 16 junio 2026 (sesión 14) — v0.3.7. Implementación cerrada. 31/31 tests, 20 migraciones, 8 workflows n8n, 18 docs producción, 27 aristas CONTRADICTS, snapshot pre_demo guardado. Próximo: vídeo demo (sesión 15), slide deck (sesión 16), memoria TFM en Claude Projects.*
 
 ---
 
@@ -628,3 +628,18 @@ Pendiente sesión 7 (Phase 8 candidatos): detección query-time, estado `inconcl
 - Validación semántica LLM en detector ingesta (falsos positivos G1↔G2).
 - Workflow Slack: doc-ya-existe → DM en lugar de errorWorkflow.
 - Reintroducir índice vectorial con volumen >1000 chunks.
+
+---
+
+**Sesión 14 (16 jun 2026)** — Cierre implementación + herramientas de demo (v0.3.7):
+
+- **Aristas CONTRADICTS visibles en grafo** — chunk 241 (R6, chunk 1) tenía 0 claims por truncamiento JSON de Mistral. Insertados 10 claims manuales + ejecutado `link_contradictions_between_chunks(243, 241)` → 14 aristas CONTRADICTS nuevas. **Total 27 aristas CONTRADICTS** en grafo (13 del par resuelto 242↔240 + 14 del par pendiente 243↔241).
+- **`scripts/demo_snapshot.py`** — herramienta save/restore para la grabación del vídeo demo. Captura: 5 tablas Supabase (documents, embeddings, conflict_reviews, policies, pipeline_events) + grafo FalkorDB completo (925 nodos, 1475 aristas). Permite resetear al estado pre-demo con `python scripts/demo_snapshot.py restore --name pre_demo_v036`.
+- **Fix test `test_busqueda_sin_contexto`** — con RAG híbrido, el grafo puede aportar contexto marginal (keywords genéricas) aunque vector search devuelva 0 chunks. Test ajustado para verificar solo `chunks_used == 0`.
+- **31/31 tests verdes** (antes 30/31).
+- **Snapshot `pre_demo_v036`** guardado en VPS: 18 docs, 63 chunks, 925 nodos grafo, 1475 aristas, 2 policies, 1 conflict_review.
+- **1 commit a `main`**: `d4a23e3`.
+
+**🏁 IMPLEMENTACIÓN CERRADA** — a partir de aquí, sesiones de contenido (vídeo, slides, memoria TFM con parte de negocio).
+
+*Actualizado: 16 junio 2026 (sesión 14) — v0.3.7. Implementación cerrada. 31/31 tests, 20 migraciones, 8 workflows n8n, 18 docs producción, 27 aristas CONTRADICTS, snapshot pre_demo guardado. Próximo: vídeo demo (sesión 15), slide deck (sesión 16), memoria TFM en Claude Projects.*

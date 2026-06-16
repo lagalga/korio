@@ -158,13 +158,38 @@ curl https://korio.es/health                      # health check
 
 ---
 
-## Próxima sesión — **sesión 13d · Grabación vídeo demo**
+## Estado al cierre de sesión 14 · 16 jun 2026 · v0.3.7 · 🏁 Implementación cerrada
 
-Tras 13c: las 6 reglas del E3 están demostradas en producción. 18 docs,
-20 migraciones, 8 workflows n8n. El sistema está listo para la grabación
-del vídeo demo.
+✅ **Sesión 14 (16 jun) — Cierre implementación + herramientas de demo**:
+- **27 aristas CONTRADICTS** en grafo: 13 (242↔240 resuelto) + 14 (243↔241 pendiente). Claims manuales para chunk 241 (LLM truncaba JSON).
+- **`scripts/demo_snapshot.py`** — save/restore de Supabase + FalkorDB. Snapshot `pre_demo_v036` guardado (18 docs, 63 chunks, 925 nodos, 1475 aristas).
+- **Fix test** `test_busqueda_sin_contexto` — adaptado a RAG híbrido. **31/31 tests verdes**.
+- **1 commit a `main`**: `d4a23e3`.
 
-### Plan 13d (estimación ~3-4 h)
+**🏁 Implementación cerrada.** A partir de aquí: contenido (vídeo, slides, memoria con parte de negocio).
+
+Uso del snapshot:
+```bash
+ssh korio-vps
+cd /root/korio && source .venv/bin/activate
+
+# Antes de grabar: verificar que el snapshot existe
+python scripts/demo_snapshot.py list
+
+# Si algo sale mal durante la grabación:
+python scripts/demo_snapshot.py restore --name pre_demo_v036 -y
+systemctl restart korio-api
+```
+
+---
+
+## Próxima sesión — **sesión 15 · Grabación vídeo demo**
+
+Implementación cerrada en sesión 14. El sistema está listo para la grabación
+del vídeo demo. 18 docs, 20 migraciones, 8 workflows n8n, 31/31 tests,
+snapshot de seguridad guardado.
+
+### Plan sesión 15 (estimación ~3-4 h)
 
 1. **Preparar guion final del vídeo** (~3-4 min):
    - Gmail (R2) llega → label `korio/rrhh` → 30s después consultable en `/search`
@@ -174,7 +199,7 @@ del vídeo demo.
    - Query con `inconclusive` → R6/R7 ambos visibles con aviso complementario
    - Claude Desktop con MCP: misma query, respuesta con citas
    - `graph.html`: nodos, arista CONTRADICTS roja, hover en sidebar
-   - **NUEVO**: demostrar policy auto-resolve en vivo (re-ingesta de R7)
+   - Demostrar policy auto-resolve en vivo (re-ingesta de R7)
 
 2. **Grabar vídeo** con grabación de pantalla.
 
@@ -182,11 +207,11 @@ del vídeo demo.
 
 ### Sesiones posteriores
 
-| Sesión | Objetivo | Estimación |
-|---|---|---|
-| **14** | **Slide deck** (10-15 slides) | 6-8h |
-| **15-16** | **Memoria TFM** (capítulos 4-9) | 20-30h |
-| **17** | **Ensayo defensa** (9 jul) | 2-3h |
+| Sesión | Objetivo | Estimación | Herramienta |
+|---|---|---|---|
+| **16** | **Slide deck** (10-15 slides) | 6-8h | Claude Code |
+| **17+** | **Memoria TFM** (negocio + técnico) | 20-30h | Claude Projects |
+| **18** | **Ensayo defensa** (9 jul) | 2-3h | — |
 
 ### Casuística cubierta (las 6 reglas del E3)
 
@@ -195,7 +220,7 @@ del vídeo demo.
 | 1 ACID | 13b ✅ |
 | 2 Detección | 13b ✅ |
 | 3 Auto-resolución por fecha/autoridad | 13b ✅ |
-| 4 Políticas reutilizables | **13c ✅** |
+| 4 Políticas reutilizables | 13c ✅ |
 | 5 Inconclusive por timeout | 13b ✅ + 13c fix RAG |
 | 6 Silent conflict same-space | 13b ✅ |
 

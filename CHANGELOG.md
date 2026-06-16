@@ -10,7 +10,26 @@ semántico [SemVer](https://semver.org/lang/es/).
 
 ## [Unreleased]
 
-## [0.3.6] — 2026-06-16 · sesión 13c (Regla 4 demo + inconclusive en RAG)
+## [0.3.7] — 2026-06-16 · sesión 14 (Cierre implementación + herramientas demo)
+
+### Added
+- **`scripts/demo_snapshot.py`** — save/restore del estado de datos (Supabase +
+  FalkorDB) para la grabación del vídeo demo. Snapshot `pre_demo_v036` guardado
+  con 18 docs, 63 chunks, 925 nodos grafo, 1475 aristas.
+- **27 aristas CONTRADICTS** en grafo de conocimiento: 13 (par resuelto 242↔240) +
+  14 (par pendiente 243↔241). Claims manuales insertados para chunk 241 tras fallo
+  persistente del LLM (JSON truncado por Mistral).
+
+### Fixed
+- **Test `test_busqueda_sin_contexto`** — ajustado para RAG híbrido: el grafo puede
+  aportar contexto marginal con keywords genéricas. Solo verifica `chunks_used == 0`.
+- **31/31 tests verdes** (antes 30/31 por el test de arriba).
+
+### Operational
+- **Implementación cerrada** — a partir de esta versión, sesiones de contenido
+  (vídeo demo sesión 15, slide deck sesión 16, memoria TFM en Claude Projects).
+
+## [0.3.6] — 2026-06-16 · sesión 13c (Regla 4 demo + inconclusive en RAR)
 
 ### Added
 - **Migración 020** — `search_embeddings` RPC incluye `chunk_status = 'inconclusive'`

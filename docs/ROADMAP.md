@@ -1,6 +1,6 @@
 # Korio — Roadmap
 
-> Estado actual: **v0.3.0 · Phases 1–7.3 + las 6 reglas del Entregable 3 cumplidas · feedback profesor del E4 cerrado · Caso extremo del E4 cubierto** · Demo TFM: 2 julio 2026 · Defensa: 9 julio 2026
+> Estado actual: **v0.3.7 · Phases 1–7.3 + las 6 reglas del Entregable 3 cumplidas · 🏁 Implementación cerrada** · Demo TFM: 2 julio 2026 · Defensa: 9 julio 2026
 
 ---
 
@@ -149,14 +149,20 @@
 
 ## Pendiente antes del 2 julio 2026 (demo) y 9 julio 2026 (defensa)
 
-### Críticos para la defensa
-| Tarea | Prioridad | Estimación | Notas |
+### Implementación técnica ✅ CERRADA (sesión 14, v0.3.7)
+| Tarea | Estado |
+|---|---|
+| QA end-to-end: 10+ queries en ambos tenants | ✅ sesión 10 (10/10) |
+| Benchmark formal p50/p95 | ✅ sesión 10 (p50=1983ms, p95=3053ms) |
+| 31/31 tests verdes | ✅ sesión 14 |
+| Snapshot de seguridad para demo | ✅ sesión 14 (`pre_demo_v036`) |
+
+### Contenido para defensa
+| Tarea | Prioridad | Estimación | Herramienta |
 |---|---|---|---|
-| QA end-to-end: 10+ queries en ambos tenants | 🔴 Alta | 2-3h | Manual con script |
-| Benchmark formal p50/p95 | 🔴 Alta | 1h | `scripts/benchmark.py` listo |
-| Vídeo demo del ciclo completo | 🔴 Alta | 3-4h | Gmail → ingesta → consulta → grafo |
-| Presentation deck (10-15 slides) | 🔴 Alta | 6-8h | Para defensa |
-| Memoria TFM (escritura) | 🔴 Alta | 20-30h | Incluye capítulos Phase 8 y guardrails |
+| Vídeo demo del ciclo completo | 🔴 Alta | 3-4h | Claude Code (sesión 15) |
+| Presentation deck (10-15 slides) | 🔴 Alta | 6-8h | Claude Code (sesión 16) |
+| Memoria TFM (negocio + técnico + research) | 🔴 Alta | 20-30h | Claude Projects |
 
 ### Mejoras de sesión 4 (10 jun 2026 tarde) ✅ CERRADAS
 | Tarea | Estado | Notas |
@@ -245,4 +251,4 @@
 
 ---
 
-*Actualizado: 11 junio 2026 (sesiones 6-9, v0.3.0) — Phases 1-7.3 + transaccionalidad ACID + bus de eventos agéntico + fachada `src/agents/*` + detección query-time + estado `inconclusive` post-timeout + políticas reutilizables. 8/8 tests verdes. Cierre explícito del feedback del profesor (Entregable 4) y del Caso extremo del E4. Quedan: QA E2E, benchmark, vídeo, slides, memoria TFM.*
+*Actualizado: 16 junio 2026 (sesión 14, v0.3.7) — 🏁 Implementación cerrada. 31/31 tests, 20 migraciones, 8 workflows n8n, 18 docs producción, snapshot demo guardado. Próximo: vídeo (sesión 15), slides (sesión 16), memoria TFM (Claude Projects).*
