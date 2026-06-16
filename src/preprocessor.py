@@ -165,7 +165,7 @@ class Preprocessor:
 
         Args:
             text: Texto a anonimizar
-            method: "replace" (reemplaza con <ENTITY_TYPE>), "redact" (borra)
+            method: "replace" (reemplaza con <TIPO_ENTIDAD>), "redact" (borra)
 
         Returns:
             Tuple[str, List[Dict]]: (texto anonimizado, lista de PII encontrados)
@@ -178,34 +178,36 @@ class Preprocessor:
             return text, []
 
         try:
-            # Detectar PII
-            results = self.analyzer.analyze(text, language="es")
+            from presidio_anonymizer.entities import OperatorConfig
 
+            results = self.analyzer.analyze(text, language="es")
             if not results:
                 return text, []
 
-            # Anonimizar
             if method == "replace":
-                # Reemplazar con <TIPO>
-                anonymized = self.anonymizer.replace(text, results)
+                operators = {"DEFAULT": OperatorConfig("replace", {"new_value": "<REDACTED>"})}
             elif method == "redact":
-                # Borrar completamente
-                anonymized = self.anonymizer.remove(text, results)
+                operators = {"DEFAULT": OperatorConfig("redact", {})}
             else:
                 raise ValueError(f"Método desconocido: {method}")
 
-            # Retornar con lista de PII encontrados
+            anonymized_result = self.anonymizer.anonymize(
+                text=text,
+                analyzer_results=results,
+                operators=operators,
+            )
+
             pii_found = [
                 {
-                    "type": result.entity_type,
-                    "start": result.start,
-                    "end": result.end,
-                    "score": result.score
+                    "type": r.entity_type,
+                    "start": r.start,
+                    "end": r.end,
+                    "score": r.score,
                 }
-                for result in results
+                for r in results
             ]
 
-            return anonymized, pii_found
+            return anonymized_result.text, pii_found
 
         except Exception as e:
             print(f"⚠️ Error anonimizando: {e}. Retornando texto original.")

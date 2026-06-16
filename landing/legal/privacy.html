@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Política de Privacidad — Korio</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex">
+  <link rel="icon" type="image/png" href="/assets/favicon.png">
+  <style>
+    :root {
+      --brand: #4f46e5;
+      --bg: #0f0f13;
+      --surface: #1a1a24;
+      --text: #e2e2f0;
+      --muted: #9898b8;
+      --border: #2a2a3a;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.7;
+      font-size: 1rem;
+    }
+    header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 1rem 2rem;
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+    header a { color: var(--brand); text-decoration: none; font-weight: 600; font-size: 1.25rem; }
+    header span { color: var(--muted); font-size: 0.9rem; }
+    main {
+      max-width: 780px;
+      margin: 0 auto;
+      padding: 3rem 2rem 6rem;
+    }
+    h1 { font-size: 2rem; font-weight: 700; margin-bottom: 0.5rem; }
+    .meta { color: var(--muted); font-size: 0.9rem; margin-bottom: 3rem; }
+    h2 {
+      font-size: 1.2rem;
+      font-weight: 600;
+      color: var(--brand);
+      margin: 2.5rem 0 0.75rem;
+      padding-bottom: 0.4rem;
+      border-bottom: 1px solid var(--border);
+    }
+    p { margin-bottom: 1rem; color: var(--text); }
+    ul { margin: 0.75rem 0 1rem 1.5rem; }
+    li { margin-bottom: 0.4rem; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 1rem 0 1.5rem;
+      font-size: 0.9rem;
+    }
+    th {
+      background: var(--surface);
+      color: var(--brand);
+      padding: 0.6rem 1rem;
+      text-align: left;
+      border: 1px solid var(--border);
+    }
+    td {
+      padding: 0.6rem 1rem;
+      border: 1px solid var(--border);
+      vertical-align: top;
+    }
+    .badge {
+      display: inline-block;
+      background: #1e293b;
+      color: #38bdf8;
+      font-size: 0.8rem;
+      padding: 0.2rem 0.5rem;
+      border-radius: 4px;
+      font-family: monospace;
+    }
+    a { color: var(--brand); }
+    footer {
+      text-align: center;
+      padding: 2rem;
+      color: var(--muted);
+      font-size: 0.85rem;
+      border-top: 1px solid var(--border);
+    }
+    @media (max-width: 600px) {
+      main { padding: 2rem 1rem 4rem; }
+      h1 { font-size: 1.5rem; }
+      table { font-size: 0.8rem; }
+      td, th { padding: 0.4rem 0.6rem; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <a href="/">Korio</a>
+  <span>/ Política de Privacidad</span>
+</header>
+
+<main>
+  <h1>Política de Privacidad</h1>
+  <p class="meta">Última actualización: 16 de junio de 2026 &nbsp;·&nbsp; Versión 1.0</p>
+
+  <p>
+    Esta política describe cómo Korio (operado por <strong>Heriberto Noguera</strong>,
+    contacto@lagalga.es) trata los datos cuando usas el servicio
+    <a href="https://korio.es">korio.es</a>.
+    Cumple el <strong>Reglamento General de Protección de Datos (RGPD / GDPR)</strong> de la UE
+    y la <strong>Ley de Servicios de la Sociedad de la Información (LSSI-CE)</strong> española.
+  </p>
+
+  <h2>1. Responsable del tratamiento</h2>
+  <table>
+    <tr><th>Campo</th><th>Dato</th></tr>
+    <tr><td>Responsable</td><td>Heriberto Noguera</td></tr>
+    <tr><td>Email de contacto</td><td><a href="mailto:contacto@lagalga.es">contacto@lagalga.es</a></td></tr>
+    <tr><td>Rol RGPD</td><td>Encargado del tratamiento (Processor) para los datos de sus clientes</td></tr>
+    <tr><td>Base legal</td><td>Art. 6.1.b RGPD — ejecución contractual (SaaS)</td></tr>
+  </table>
+  <p>
+    Tus <strong>documentos corporativos son propiedad de tu empresa</strong> (Responsable /
+    Controller). Korio actúa como Encargado (Processor) que los procesa para ofrecerte
+    el servicio de búsqueda semántica.
+  </p>
+
+  <h2>2. Qué datos tratamos</h2>
+  <table>
+    <tr><th>Categoría</th><th>Detalle</th><th>Finalidad</th></tr>
+    <tr>
+      <td>Documentos corporativos</td>
+      <td>Archivos PDF, DOCX, MD que el usuario sube</td>
+      <td>Indexación semántica (RAG)</td>
+    </tr>
+    <tr>
+      <td>Embeddings vectoriales</td>
+      <td>Vectores matemáticos de 768 dimensiones derivados del texto</td>
+      <td>Búsqueda por similitud semántica</td>
+    </tr>
+    <tr>
+      <td>Metadatos</td>
+      <td>user_id, tenant_id, timestamps, canal de origen</td>
+      <td>Control de acceso (RLS), auditoría</td>
+    </tr>
+    <tr>
+      <td>Logs de búsqueda</td>
+      <td>Query cifrada, documentos usados, latencia, modelo</td>
+      <td>Auditoría de seguridad, mejora del servicio</td>
+    </tr>
+  </table>
+  <p>
+    <strong>Minimización activa de PII</strong>: antes de indexar cualquier documento,
+    el sistema aplica <span class="badge">Presidio</span> para detectar y redactar
+    automáticamente emails, números de teléfono, NIFs, nombres de personas y otros
+    identificadores. Los embeddings vectoriales <em>nunca contienen PII en claro</em>.
+  </p>
+  <p>
+    <strong>Antes de enviar contexto al modelo de lenguaje en la nube</strong>, Korio
+    aplica una segunda capa de redacción PII sobre los fragmentos de texto recuperados,
+    de modo que el proveedor de LLM no recibe datos personales identificables.
+  </p>
+
+  <h2>3. Sub-encargados (sub-processors)</h2>
+  <table>
+    <tr><th>Sub-processor</th><th>Servicio</th><th>País / Región</th><th>Base legal RGPD</th></tr>
+    <tr>
+      <td><a href="https://supabase.com/legal/dpa" target="_blank">Supabase</a></td>
+      <td>Base de datos vectorial (pgvector), RLS</td>
+      <td>Frankfurt, EU</td>
+      <td>DPA incluido en plan Pro &nbsp;<span class="badge">✓</span></td>
+    </tr>
+    <tr>
+      <td><a href="https://www.hetzner.com/legal/privacy-policy" target="_blank">Hetzner</a></td>
+      <td>Cómputo VPS (embeddings, grafo)</td>
+      <td>Frankfurt, EU</td>
+      <td>DPA disponible bajo solicitud</td>
+    </tr>
+    <tr>
+      <td><a href="https://mistral.ai/terms/" target="_blank">Mistral AI</a></td>
+      <td>Generación de texto (LLM cloud)</td>
+      <td>París, EU</td>
+      <td>Texto enviado <strong>con PII redactada</strong>. DPA en negociación para clientes enterprise.</td>
+    </tr>
+  </table>
+  <p>
+    Los tres sub-processors operan en la Unión Europea — no se producen transferencias
+    internacionales fuera del EEE.
+  </p>
+
+  <h2>4. Derechos del interesado (RGPD Arts. 15–22)</h2>
+  <ul>
+    <li><strong>Acceso</strong>: puedes solicitar qué datos tienes indexados en Korio.</li>
+    <li><strong>Rectificación</strong>: puedes actualizar un documento re-ingiriéndolo.</li>
+    <li><strong>Supresión (derecho al olvido)</strong>: <code>DELETE /document/{id}</code> elimina el documento de la base vectorial y del grafo de conocimiento en cascada completa.</li>
+    <li><strong>Portabilidad</strong>: exportación JSON disponible bajo solicitud (endpoint <code>/export</code> en Phase 9).</li>
+    <li><strong>Oposición / Limitación</strong>: contacta con <a href="mailto:contacto@lagalga.es">contacto@lagalga.es</a>.</li>
+  </ul>
+  <p>Responderemos en un plazo máximo de <strong>30 días</strong> conforme al Art. 12 RGPD.</p>
+
+  <h2>5. Seguridad técnica</h2>
+  <ul>
+    <li>Cifrado en tránsito: TLS 1.3 en todas las conexiones.</li>
+    <li>Cifrado en reposo: Supabase AES-256 a nivel de disco.</li>
+    <li>Control de acceso por fila (RLS): cada usuario solo puede ver los documentos de su departamento.</li>
+    <li>Claves API con hash SHA-256; plaintext visible solo en el momento de creación.</li>
+    <li>Webhook HITL protegido con Basic Auth.</li>
+    <li>Auditoría: todas las búsquedas se registran en <code>audit_log</code> con user_id y timestamp.</li>
+  </ul>
+
+  <h2>6. Gobernanza activa con supervisión humana</h2>
+  <p>
+    Korio implementa un sistema de gobernanza activa sobre los documentos indexados.
+    Cuando el sistema detecta información potencialmente contradictoria entre dos documentos,
+    un revisor humano (administrador de tu organización) revisa y decide antes de que
+    la IA actúe sobre esa información. Este diseño cumple el <strong>Art. 22 RGPD</strong>
+    (las decisiones significativas requieren intervención humana) y los requisitos de
+    transparencia del <strong>AI Act 2024/1689 Art. 13</strong>.
+  </p>
+
+  <h2>7. Cookies y tecnologías de rastreo</h2>
+  <p>
+    Korio <strong>no usa cookies de terceros ni píxeles de seguimiento</strong>. La interfaz
+    de chat usa <code>sessionStorage</code> del navegador para el historial de conversación
+    de la sesión activa. Al cerrar el navegador, este historial se elimina.
+  </p>
+
+  <h2>8. Conservación de datos</h2>
+  <p>
+    Los documentos se conservan mientras la cuenta del tenant esté activa o hasta que
+    el usuario los elimine. Los logs de auditoría se conservan <strong>12 meses</strong>
+    por requisitos de seguridad. Al cancelar el servicio, todos los datos se eliminan
+    en un plazo de <strong>30 días</strong>.
+  </p>
+
+  <h2>9. Notificación de brechas de seguridad</h2>
+  <p>
+    En caso de brecha de seguridad que afecte a datos personales, notificaremos a la
+    <strong>AEPD</strong> (Agencia Española de Protección de Datos) en un máximo de
+    72 horas conforme al Art. 33 RGPD, y a los afectados si el riesgo es alto
+    (Art. 34 RGPD).
+  </p>
+
+  <h2>10. Cambios en esta política</h2>
+  <p>
+    Publicaremos los cambios materiales en esta página con al menos 14 días de antelación.
+    La fecha de "última actualización" siempre refleja la versión vigente.
+  </p>
+
+  <h2>11. Contacto y reclamaciones</h2>
+  <p>
+    Para cualquier consulta sobre privacidad: <a href="mailto:contacto@lagalga.es">contacto@lagalga.es</a>
+  </p>
+  <p>
+    Si no recibes respuesta satisfactoria, puedes presentar una reclamación ante la
+    <a href="https://www.aepd.es" target="_blank">Agencia Española de Protección de Datos (AEPD)</a>.
+  </p>
+</main>
+
+<footer>
+  &copy; 2026 Korio &nbsp;·&nbsp;
+  <a href="/">Inicio</a> &nbsp;·&nbsp;
+  <a href="/legal/privacy.html">Privacidad</a> &nbsp;·&nbsp;
+  <a href="mailto:contacto@lagalga.es">Contacto</a>
+</footer>
+
+</body>
+</html>

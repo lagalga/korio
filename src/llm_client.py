@@ -33,6 +33,33 @@ OLLAMA_MODEL = "mistral:7b-instruct-q4_K_M" # Modelo local (descargado en VPS)
 DEFAULT_TEMPERATURE = 0.2   # Baja para RAG (menos alucinaciones)
 DEFAULT_MAX_TOKENS = 1024   # Respuestas concisas
 
+# Redacción PII antes de enviar texto a LLM cloud (Mistral).
+# Por defecto activado (=1). Desactivar solo con DPA formal firmado con Mistral.
+REDACT_MISTRAL = os.getenv("KORIO_REDACT_MISTRAL", "1") == "1"
+
+
+def _redact_for_mistral(text: str) -> str:
+    """Redacta PII del texto antes de enviarlo al LLM cloud (GDPR Art. 5)."""
+    if not REDACT_MISTRAL:
+        return text
+    try:
+        import sys
+        import os as _os
+        _src = _os.path.dirname(_os.path.abspath(__file__))
+        if _src not in sys.path:
+            sys.path.insert(0, _src)
+        from preprocessor import get_preprocessor
+        pp = get_preprocessor()
+        if pp.analyzer is None:
+            return text
+        redacted, pii_found = pp.anonymize_pii(text)
+        if pii_found:
+            logger.info(f"  🔒 PII redactada antes de Mistral: {len(pii_found)} entidad(es)")
+        return redacted
+    except Exception as e:
+        logger.warning(f"PII redaction falló (enviando original): {e}")
+        return text
+
 
 class LLMClient:
     """
@@ -90,10 +117,15 @@ class LLMClient:
         """Genera texto usando Mistral API (La Plateforme). Reintenta hasta 3 veces en 429."""
         url = "https://api.mistral.ai/v1/chat/completions"
 
+        # Redactar PII del contexto antes de enviarlo a cloud (GDPR Art. 5).
+        # Activo por defecto (KORIO_REDACT_MISTRAL=1). El system_prompt no
+        # contiene datos de usuario, solo instrucciones — no se redacta.
+        safe_prompt = _redact_for_mistral(prompt)
+
         messages = []
         if system_prompt:
             messages.append({"role": "system", "content": system_prompt})
-        messages.append({"role": "user", "content": prompt})
+        messages.append({"role": "user", "content": safe_prompt})
 
         payload = {
             "model": self.model,
