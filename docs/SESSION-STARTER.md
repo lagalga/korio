@@ -139,104 +139,65 @@ journalctl -u korio-api -f                        # logs tiempo real
 curl https://korio.es/health                      # health check
 ```
 
-## Estado al cierre de sesión 13b · 15 jun 2026 · v0.3.5 · multi-canal real + ivfflat fix
+## Estado al cierre de sesión 13c · 16 jun 2026 · v0.3.6 · Regla 4 demostrada + inconclusive en RAG
 
-✅ **Sesión 13b (15 jun) — QA E2E con multi-canal real + ivfflat fix**:
-- **18 docs en producción** (13 Delos + 5 García). Auto-resoluciones limpias en 5 pares por fecha extraída del contenido.
-- **R6/R7 nuevos** (normativa uniformes RRHH sin fecha) → conflict pending → `/escalate-reviews` → chunks `inconclusive` ✅ regla 5 cubierta.
-- **García 5 docs nuevos** (G1-G5) con conflict fiscal IRPF 2023↔2025 auto-resuelto.
-- **Multi-canal real** verificado E2E:
-  - Gmail label `korio/rrhh` → R2 → space RRHH ✅
-  - Drive `input/medico` → M2 → space Médico ✅
-  - Slack `#clinica-delos-legal` → L3 → space Legal ✅
-- **4 service users Slack** (`slack_{rrhh,medico,legal,admin}@delos`) con scope por user_spaces. Workflow `/korio` mapea `channel_id → user_id` → RLS automático.
-- **Fixes raíz aplicados** (5 commits):
-  - `e5ea543` — `src/version_extractor.py` extrae fecha del documento (filename + content)
-  - `68760ff` — R6/R7 + migración 016 silent conflict same-space (evita falsos cross-departamento)
-  - `be13a45` — García 5 docs + migración 017 space Admin + 018 service users Slack + **019 DROP ivfflat** (causa raíz RPC=0)
-- **Bug crítico ivfflat resuelto**: índice `lists=100` con 19 chunks → cada chunk en su propia lista → `ivfflat.probes=1` solo encontraba self-match. DROP del índice. Sin índice el seq scan es trivial con decenas de chunks. Reintroducir en Phase 9 con `lists=sqrt(N)` o HNSW.
-- **Workflows n8n parametrizados**:
-  - Slack: `channel_id → space_id` mapping (4 canales `#clinica-delos-{rrhh,medico,legal,admin}`)
-  - Drive: 4 triggers paralelos (uno por subcarpeta `input/{rrhh,medico,legal,admin}`)
-  - Gmail: filtro por label (`korio/{rrhh,medico,legal,admin}`) en lugar de `unread`, idempotencia vía `korio/procesado`
-- **Notion troubleshooting actualizado**: 6 entradas (4 resoluciones, 2 problemas Phase 9, 1 aprendizaje).
+✅ **Sesión 13c (16 jun) — Regla 4 (políticas reutilizables) demostrada + fix inconclusive en RAG**:
+- **Regla 4 verificada** — ciclo completo: admin resolvió R6↔R7 → policy `policy_new_wins` creada → re-ingesta R6+R7 → chunk 242↔240 (sim=0.98) auto-resuelto por policy sin HITL. `times_applied=1`.
+- **Las 6 reglas del E3 cerradas con evidencia de producción**.
+- **Migración 020** — `search_embeddings` RPC incluye `inconclusive`. Chunks `inconclusive` ahora visibles en RAG con badge ⚠️.
+- **`src/search.py`** — `inconclusive` tratado igual que `disputed` (badge + aviso).
+- **`src/db.py`** — `resolve_conflict_review()` acepta `timeout_inconclusive` → admin puede overridear decisiones de timeout.
+- **Fix PyMuPDF** — `pymupdf.open()` para extracción de PDFs (mejor calidad que MarkItDown).
+- **18 docs expandidos** a 550-950 palabras para mayor riqueza semántica.
+- **3 commits a `main`**: `544e75f`, `0ac0d72`, `7ee4c57`.
 
 🔲 **Pendientes Phase 9 (no bloqueantes para vídeo)**:
-- Detector ingesta: falsos positivos entre docs temáticamente similares pero no contradictorios (G1↔G2 caso despacho). Fix: validación semántica LLM antes de declarar conflict.
-- Workflow Slack: doc-ya-existe → DM al usuario en lugar de disparar errorWorkflow.
-- Regla 4 (políticas reutilizables): no se cubrió aún, requiere admin resolviendo HITL vía email antes del timeout para que policy se persista.
-- Reintroducir índice vectorial cuando volumen > 1000 chunks (ivfflat con `lists=sqrt(N)` o HNSW).
+- Validación semántica LLM en detector ingesta (falsos positivos G1↔G2).
+- Workflow Slack: doc-ya-existe → DM en lugar de errorWorkflow.
+- Reintroducir índice vectorial con volumen >1000 chunks.
 
 ---
 
-## Próxima sesión — **sesión 13c · Demo Regla 4 (políticas) + cierre QA antes del vídeo**
+## Próxima sesión — **sesión 13d · Grabación vídeo demo**
 
-Tras 13b: 11 docs reset+ingesta + multi-canal real (Gmail/Drive/Slack) + RLS
-por canal + fix ivfflat + extractor `version_ts` + UI HITL email con
-`new_filename` + logo PNG + dark mode. Quedan 3 cosas concretas para sentar
-el sistema antes del vídeo.
+Tras 13c: las 6 reglas del E3 están demostradas en producción. 18 docs,
+20 migraciones, 8 workflows n8n. El sistema está listo para la grabación
+del vídeo demo.
 
-### Plan 13c (estimación ~2 h)
+### Plan 13d (estimación ~3-4 h)
 
-1. **Demo Regla 4 — políticas reutilizables** (40 min) — única casuística
-   del E3 sin demostrar todavía.
-   - Crear `R8` y `R9` sintéticos sobre un mismo tema RRHH (sin fecha
-     extraíble — extractor devuelve `no_match` → ambos `now()` → conflict
-     pending).
-   - Ingestar R8 → ingestar R9 → conflict pending → email HITL llega al
-     admin (verificar nuevo template con `new_filename` ✅).
-   - Admin clica un botón del email → `/review` aplica decisión + persiste
-     fila en `policies` con `subject_pattern`, `decision`, `times_applied=1`.
-   - Crear `R10` con mismo subject_pattern (otra versión del mismo tema) →
-     ingestar → logs `📚 Policy aplicada · times_applied=2` → el conflict
-     se resuelve automáticamente SIN abrir HITL nuevo. Métrica defensa.
-   - Verificar en BD: `SELECT subject_pattern, decision, times_applied
-     FROM policies` muestra la policy con `times_applied >= 2`.
+1. **Preparar guion final del vídeo** (~3-4 min):
+   - Gmail (R2) llega → label `korio/rrhh` → 30s después consultable en `/search`
+   - Bus de eventos en `n8n.korio.es`: ejecuciones visibles
+   - Chat en `korio.es/ui`: "¿Cuánto se trabaja a la semana?" → grafo aporta 35h
+   - Query "¿Cuántos días de vacaciones?" → R2 gana, R1 disputed (badge ⚠️)
+   - Query con `inconclusive` → R6/R7 ambos visibles con aviso complementario
+   - Claude Desktop con MCP: misma query, respuesta con citas
+   - `graph.html`: nodos, arista CONTRADICTS roja, hover en sidebar
+   - **NUEVO**: demostrar policy auto-resolve en vivo (re-ingesta de R7)
 
-2. **Validación semántica LLM en detector ingesta** (45 min) — Phase 9 ítem
-   movido aquí para evitar falsos positivos en el vídeo (G1↔G2 caso despacho
-   con sim 0.78-0.85 marcados como conflict sin serlo).
-   - `conflict_detector.py`: tras encontrar candidato `(new_chunk,
-     existing_chunk)` con sim ≥ `CONFLICT_THRESHOLD`, llamar
-     `llm_client.is_semantic_contradiction(text_a, text_b)` (ya existe
-     para CONTRADICTS del grafo). Si responde NO → descartar, no crear
-     review.
-   - Coste: +1 llamada Mistral por candidato. Mitigar con caché por
-     `(chunk_id_a, chunk_id_b)` y short-circuit si sim ≥ 0.95 (asumir
-     contradicción real).
-   - Test E2E: re-ingestar G1/G2 → no más conflict pending.
+2. **Grabar vídeo** con grabación de pantalla.
 
-3. **Workflow Slack doc-ya-existe → DM en lugar de errorWorkflow** (15 min)
-   — UX fix anotado en 13b. Detalles:
-   - Tras `POST /upload` añadir nodo `IF` que mire `$json.statusCode` ó
-     `error.detail`. Si 400 + texto "ya estaba" → enviar mensaje ephemeral
-     al `user` que compartió el archivo ("este archivo ya está en Korio")
-     y cancelar la cadena sin tocar `errorWorkflow`.
-   - Verificar re-subiendo a Slack un PDF ya ingerido → DM al usuario, sin
-     errorWorkflow.
+3. **QA final rápido** (5 queries E2E) para confirmar que todo sigue estable.
 
-### Casuística cubierta al cierre de 13c (las 6 reglas del E3)
+### Sesiones posteriores
+
+| Sesión | Objetivo | Estimación |
+|---|---|---|
+| **14** | **Slide deck** (10-15 slides) | 6-8h |
+| **15-16** | **Memoria TFM** (capítulos 4-9) | 20-30h |
+| **17** | **Ensayo defensa** (9 jul) | 2-3h |
+
+### Casuística cubierta (las 6 reglas del E3)
 
 | Regla | Sesión cerrada |
 |---|---|
 | 1 ACID | 13b ✅ |
-| 2 Detección | 13b ✅ + 13c refinada con LLM |
+| 2 Detección | 13b ✅ |
 | 3 Auto-resolución por fecha/autoridad | 13b ✅ |
-| **4 Políticas reutilizables** | **13c (objetivo)** |
-| 5 Inconclusive por timeout | 13b ✅ |
+| 4 Políticas reutilizables | **13c ✅** |
+| 5 Inconclusive por timeout | 13b ✅ + 13c fix RAG |
 | 6 Silent conflict same-space | 13b ✅ |
-
-### Tras 13c — semana del 25 jun
-- **13d (grabación vídeo demo)** 3-4 min cubriendo todo el ciclo con n8n
-  event-bus visible.
-- **14 (slide deck)** 10-15 slides.
-- **15-16 (memoria TFM)** capítulos 4-9.
-- **17 (ensayo defensa)**.
-
-### NO entran en 13c
-- Logo dark mode email — Phase 10 (variante white-on-dark o SVG inline).
-- Reintroducir índice vectorial — Phase 9 (cuando vol > 1000 chunks).
-- Multi-tenant OAuth ingesta — Phase 8 post-defensa.
 
 ---
 
@@ -328,8 +289,10 @@ Capítulos clave:
 | ~~Grafo UI: highlight aristas CONTRADICTS + fix scale~~ | ~~2-3h~~ | ✅ Sesión 12 |
 | ~~Captura errores n8n (tabla Supabase + Slack DM)~~ | ~~1-2h~~ | ✅ Sesión 12 |
 | ~~Hardening seguridad (auditoría 21 hallazgos, 7 cerrados)~~ | ~~3h~~ | ✅ Sesión 13a |
-| **Dry-run demo con docs nuevos** | 2-2.5h | 🔲 Sesión 13b (mañana) |
-| **Grabación vídeo demo** (3-4 min) | 3-4h | 🔲 Sesión 13c |
+| ~~Dry-run demo con docs nuevos~~ | ~~2-2.5h~~ | ✅ Sesión 13b |
+| ~~Regla 4 (políticas reutilizables) demo~~ | ~~1h~~ | ✅ Sesión 13c |
+| ~~Inconclusive visible en RAG~~ | ~~30min~~ | ✅ Sesión 13c |
+| **Grabación vídeo demo** (3-4 min) | 3-4h | 🔲 Sesión 13d |
 | **Slide deck** (10-15 slides) | 6-8h | 🔲 Sesión 14 |
 | **Memoria TFM** (capítulos 4-9) | 20-30h | 🔲 Sesiones 15-16 |
 | **Ensayo defensa** | 2-3h | 🔲 Sesión 17 |

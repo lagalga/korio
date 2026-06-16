@@ -10,6 +10,28 @@ semántico [SemVer](https://semver.org/lang/es/).
 
 ## [Unreleased]
 
+## [0.3.6] — 2026-06-16 · sesión 13c (Regla 4 demo + inconclusive en RAG)
+
+### Added
+- **Migración 020** — `search_embeddings` RPC incluye `chunk_status = 'inconclusive'`
+  en el filtro. Chunks con timeout HITL ahora visibles en el RAG como información
+  complementaria con aviso de contradicción pendiente.
+
+### Changed
+- **`src/search.py`** — `inconclusive` tratado igual que `disputed`: badge ⚠️ +
+  aviso en la respuesta al usuario.
+- **`src/db.py`** — `resolve_conflict_review()` acepta `timeout_inconclusive`
+  además de `pending`. El admin puede overridear decisiones de timeout.
+- **`src/preprocessor.py`** — PyMuPDF (`pymupdf.open()`) como extractor
+  principal de PDFs. Mejor calidad que MarkItDown/pdfminer para texto pegado.
+- **18 docs demo** expandidos a 550-950 palabras para mayor riqueza semántica.
+
+### Verified
+- **Regla 4 (políticas reutilizables)** demostrada en producción: admin resuelve
+  R6↔R7 → policy `policy_new_wins` creada → re-ingesta R6+R7 → chunk auto-resuelto
+  por policy sin HITL. `times_applied=1`. Las 6 reglas del E3 cerradas con
+  evidencia de producción.
+
 ## [0.3.5] — 2026-06-15 · sesión 13b (multi-canal real + ivfflat fix + extractor version_ts)
 
 ### Added

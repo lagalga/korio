@@ -610,4 +610,21 @@ Pendiente sesión 7 (Phase 8 candidatos): detección query-time, estado `inconcl
 - Regla 4 (políticas reutilizables): sin caso demostrado aún, queda para 13c.
 - Reintroducir índice vectorial con volumen >1000 chunks.
 
-*Actualizado: 15 junio 2026 (sesión 13b) — v0.3.5. Multi-canal real con 4 service users RLS, ivfflat DROP, 3 commits, 6 entradas Notion troubleshooting. 16 migraciones, 8 workflows n8n parametrizados, 18 docs producción. Pendiente: regla 4 demo (sesión 13c), vídeo (semana 25 jun), slide deck, memoria TFM.*
+*Actualizado: 16 junio 2026 (sesión 13c) — v0.3.6. Regla 4 demostrada (policy auto-resolve sin HITL), inconclusive visible en RAG con aviso, admin puede overridear timeout. 20 migraciones, 8 workflows n8n, 18 docs producción. Pendiente: vídeo demo (semana 25 jun), slide deck, memoria TFM.*
+
+---
+
+**Sesión 13c (16 jun 2026)** — Regla 4 demo + fix inconclusive en RAG (v0.3.6):
+
+- **Regla 4 demostrada en producción** — ciclo completo: admin resolvió R6↔R7 como `approved_new` → policy `policy_new_wins` creada (subject_pattern="nota interna sobre uniformes…") → borrado R6+R7 → re-ingesta R6 (chunks activos) → re-ingesta R7 → `📚 Política 4 aplicada` chunk 242↔240 (sim=0.98) auto-resuelto por policy. `times_applied=1`. Segundo par (243↔241 sim=0.91) no matcheó → HITL email enviado. Las 6 reglas del E3 **cerradas con evidencia de producción**.
+- **Migración 020** — `search_embeddings` RPC incluye `inconclusive` en el filtro. Fix: el diseño de gobernanza dice "conservar ambos documentos como información complementaria" pero la RPC solo devolvía `active`/`disputed`.
+- **`src/search.py`** — `inconclusive` tratado igual que `disputed`: badge ⚠️ + aviso en respuesta. Chunks inconclusive ya no desaparecen del RAG.
+- **`src/db.py`** — `resolve_conflict_review()` acepta `timeout_inconclusive` además de `pending`. El admin puede overridear decisiones de timeout.
+- **Fix preprocessor PyMuPDF** — `pymupdf.open()` para extracción de PDFs (mejor calidad que MarkItDown/pdfminer para texto pegado).
+- **18 docs expandidos** a 550-950 palabras cada uno para mayor riqueza semántica en chunks.
+- **3 commits a `main`**: `544e75f` (pymupdf + docs expandidos), `0ac0d72` (mig 020 + search.py inconclusive), `7ee4c57` (db.py override timeout).
+
+🔲 **Pendientes Phase 9** (no bloqueantes para vídeo):
+- Validación semántica LLM en detector ingesta (falsos positivos G1↔G2).
+- Workflow Slack: doc-ya-existe → DM en lugar de errorWorkflow.
+- Reintroducir índice vectorial con volumen >1000 chunks.
