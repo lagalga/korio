@@ -345,7 +345,6 @@ class GraphClient:
                     WHERE cA.value <> cB.value
                     RETURN id(cA) AS idA, cA.subject, cA.predicate, cA.value,
                            id(cB) AS idB, cB.subject, cB.predicate, cB.value
-                    LIMIT 30
                     """
                 )
 
