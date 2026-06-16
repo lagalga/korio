@@ -352,7 +352,8 @@ class SupabaseClient:
             if not check.data:
                 return None  # No existe o token inválido
 
-            if check.data.get("resolution") != "pending":
+            current = check.data.get("resolution")
+            if current not in ("pending", "timeout_inconclusive"):
                 return check.data  # Ya resuelto — idempotente
 
             # Actualizar resolución
