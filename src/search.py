@@ -273,15 +273,16 @@ def search(
     DISPUTED_BANNER_MIN_SIM = float(os.getenv("KORIO_DISPUTED_BANNER_MIN_SIM", "0.6"))
     disputed_chunks = [
         c for c in raw_chunks
-        if c.get("chunk_status") == "disputed"
+        if c.get("chunk_status") in ("disputed", "inconclusive")
         and float(c.get("similarity") or 0) >= DISPUTED_BANNER_MIN_SIM
     ]
     has_conflict = len(disputed_chunks) > 0
     if has_conflict:
         logger.warning(
-            f"  ⚠️ {len(disputed_chunks)} chunk(s) en estado 'disputed' con sim>={DISPUTED_BANNER_MIN_SIM} — "
+            f"  ⚠️ {len(disputed_chunks)} chunk(s) en estado 'disputed'/'inconclusive' con sim>={DISPUTED_BANNER_MIN_SIM} — "
             f"se presentarán ambas versiones del contenido en conflicto"
         )
+
 
     # Step 2.5: Detección de conflictos silenciosos en query-time (Phase 8 / sesión 7)
     # Cubre el "Caso extremo" del Entregable 4: dos docs activos sin disputa
@@ -513,7 +514,7 @@ def _format_sources(chunks: list, filename_map: dict = None) -> list:
     for chunk in chunks:
         doc_id = chunk.get("document_id", "")
         similarity = chunk.get("similarity", 0)
-        is_disputed = chunk.get("chunk_status") == "disputed"
+        is_disputed = chunk.get("chunk_status") in ("disputed", "inconclusive")
 
         if doc_id not in docs_seen or similarity > docs_seen[doc_id]["similarity"]:
             docs_seen[doc_id] = {
