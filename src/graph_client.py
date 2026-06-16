@@ -312,8 +312,8 @@ class GraphClient:
 
         Estrategia en 2 pasadas:
         1. Pares con mismo predicate y valor distinto (alta probabilidad).
-        2. Cross-join completo limitado a 30 pares (cubre predicados
-           extraídos con nombres distintos por el LLM).
+        2. Cross-join completo si pasada 1 no produjo aristas (cubre
+           predicados extraídos con nombres distintos por el LLM).
         En ambas, el LLM decide si realmente hay contradicción.
 
         Returns:
@@ -325,32 +325,7 @@ class GraphClient:
             from llm_client import get_llm_client
         llm = get_llm_client()
 
-        try:
-            candidates = self.graph.query(
-                f"""
-                MATCH (cA:Claim {{tenant_id: '{tenant_id}', chunk_id: {new_chunk_id}}}),
-                      (cB:Claim {{tenant_id: '{tenant_id}', chunk_id: {existing_chunk_id}}})
-                WHERE cA.predicate = cB.predicate
-                  AND cA.value <> cB.value
-                RETURN id(cA) AS idA, cA.subject, cA.predicate, cA.value,
-                       id(cB) AS idB, cB.subject, cB.predicate, cB.value
-                """
-            )
-
-            if not candidates.result_set:
-                candidates = self.graph.query(
-                    f"""
-                    MATCH (cA:Claim {{tenant_id: '{tenant_id}', chunk_id: {new_chunk_id}}}),
-                          (cB:Claim {{tenant_id: '{tenant_id}', chunk_id: {existing_chunk_id}}})
-                    WHERE cA.value <> cB.value
-                    RETURN id(cA) AS idA, cA.subject, cA.predicate, cA.value,
-                           id(cB) AS idB, cB.subject, cB.predicate, cB.value
-                    """
-                )
-
-            if not candidates.result_set:
-                return 0
-
+        def _evaluate_candidates(candidates, chunk_a, chunk_b, sim, rev_id):
             added = 0
             seen = set()
             for row in candidates.result_set:
@@ -364,16 +339,51 @@ class GraphClient:
                     continue
                 self.graph.query(
                     f"""
-                    MATCH (cA:Claim {{tenant_id: '{tenant_id}', chunk_id: {new_chunk_id}}}),
-                          (cB:Claim {{tenant_id: '{tenant_id}', chunk_id: {existing_chunk_id}}})
+                    MATCH (cA:Claim {{tenant_id: '{tenant_id}', chunk_id: {chunk_a}}}),
+                          (cB:Claim {{tenant_id: '{tenant_id}', chunk_id: {chunk_b}}})
                     WHERE id(cA) = {idA} AND id(cB) = {idB}
                     MERGE (cA)-[r:CONTRADICTS]->(cB)
-                    SET r.similarity = {float(similarity)},
-                        r.review_id  = '{review_id or ""}'
+                    SET r.similarity = {float(sim)},
+                        r.review_id  = '{rev_id or ""}'
                     """
                 )
                 logger.info(f"  🔴 CONTRADICTS: [{sA}]--{pA}-->[{vA}] vs [{sB}]--{pB}-->[{vB}]")
                 added += 1
+            return added
+
+        try:
+            added = 0
+
+            same_pred = self.graph.query(
+                f"""
+                MATCH (cA:Claim {{tenant_id: '{tenant_id}', chunk_id: {new_chunk_id}}}),
+                      (cB:Claim {{tenant_id: '{tenant_id}', chunk_id: {existing_chunk_id}}})
+                WHERE cA.predicate = cB.predicate
+                  AND cA.value <> cB.value
+                RETURN id(cA) AS idA, cA.subject, cA.predicate, cA.value,
+                       id(cB) AS idB, cB.subject, cB.predicate, cB.value
+                """
+            )
+            if same_pred.result_set:
+                added = _evaluate_candidates(
+                    same_pred, new_chunk_id, existing_chunk_id, similarity, review_id
+                )
+
+            if added == 0:
+                cross = self.graph.query(
+                    f"""
+                    MATCH (cA:Claim {{tenant_id: '{tenant_id}', chunk_id: {new_chunk_id}}}),
+                          (cB:Claim {{tenant_id: '{tenant_id}', chunk_id: {existing_chunk_id}}})
+                    WHERE cA.value <> cB.value
+                    RETURN id(cA) AS idA, cA.subject, cA.predicate, cA.value,
+                           id(cB) AS idB, cB.subject, cB.predicate, cB.value
+                    """
+                )
+                if cross.result_set:
+                    added = _evaluate_candidates(
+                        cross, new_chunk_id, existing_chunk_id, similarity, review_id
+                    )
+
             return added
         except Exception as e:
             logger.warning(f"Error vinculando contradicciones en grafo: {e}")
