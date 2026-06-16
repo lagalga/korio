@@ -644,4 +644,28 @@ Pendiente sesión 7 (Phase 8 candidatos): detección query-time, estado `inconcl
 
 **🏁 IMPLEMENTACIÓN CERRADA** — a partir de aquí, sesiones de contenido (vídeo, slides, memoria TFM con parte de negocio).
 
-*Actualizado: 16 junio 2026 (sesión 14) — v0.3.7. Implementación cerrada. 31/31 tests, 20 migraciones, 8 workflows n8n, 18 docs producción, 27 aristas CONTRADICTS, snapshot pre_demo guardado. Próximo: vídeo demo (sesión 15), slide deck (sesión 16), memoria TFM en Claude Projects.*
+---
+
+**Sesión 14b (16 jun · tarde 2026)** — Compliance AI Act + GDPR (v0.3.8):
+
+- **Fix crítico Presidio API** (`src/preprocessor.py`) — `anonymize_pii()` usaba `.replace()`/`.remove()` que no existen; fallaba silenciosamente y devolvía texto sin redactar. Fix: `anonymizer.anonymize(operators=OperatorConfig)`. Efecto: PII ahora se redacta de verdad durante ingesta.
+- **Redacción PII pre-Mistral cloud** (`src/llm_client.py`) — flag `KORIO_REDACT_MISTRAL=1` (default) + `_redact_for_mistral(text)`. Solo afecta path cloud, Ollama local sin cambios. GDPR Art. 5 minimización.
+- **Privacy Policy** desplegada en `korio.es/legal/privacy.html` — RGPD + LSSI-CE, Controller/Processor, sub-processors, derechos Art.15-22, gobernanza HITL vs Art.22.
+- **Fix mount `/legal` FastAPI** (`api/server.py`) — sin él, nginx proxy_pass devolvía 404.
+- **`docs/COMPLIANCE-AI-ACT-GDPR.md`** — capítulo §6 memoria TFM "Gobernanza, seguridad y cumplimiento normativo".
+- Commits: `990b8d7` (doc) + `d3ae49d` (fix Presidio + PII Mistral + Privacy HTML) + `bbd4454` (mount /legal).
+
+🔲 Pendientes Phase 9 (post-TFM): bias audit, DPA formal Mistral, endpoints export/subject-access, admin dashboard audit-log, ROPA.
+
+---
+
+**Sesión 14c (16 jun · noche 2026)** — Fix grafo vacío recurrente (v0.3.9):
+
+- **Causa raíz "hay que resetear el grafo cada poco"** — bug en `scripts/demo_snapshot.py`. Sintaxis Cypher `CREATE (n:Label $props)` con parámetros NO soportada por FalkorDB actual (`Encountered unhandled type in inlined properties`). Cada restore borraba el grafo y abortaba en el primer CREATE → 0 nodos.
+- **Fix permanente** (commit `bf6b4c5`) — `CREATE (n:L) SET n = $props` + `CREATE (a)-[r:R]->(b) SET r = $r_props` para aristas. Filtrar None/dict. Try/except por nodo. Conteo creados/saltados.
+- **Verificado en producción**: 925/925 nodos + 1475/1475 aristas restauradas desde snapshot `pre_demo_v036`. UI `korio.es/ui/graph.html` operativa.
+- **Persistencia FalkorDB sana** (AOF everysec + 48 BGSAVE OK). No era pérdida — era restore mal hecho.
+
+**Aprendizaje TFM**: la especificación Cypher es teórica; FalkorDB ≠ Neo4j en queries con `$params` inline. Documentar deuda en `docs/AUDIT-2026-06-14.md`.
+
+*Actualizado: 16 junio 2026 (sesiones 14a-14c) — v0.3.9. Cierre compliance + fix root cause grafo vacío. Próximo: vídeo demo (s15), slide deck (s16).*
