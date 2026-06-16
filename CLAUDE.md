@@ -66,14 +66,16 @@ Resultado verificado en producción y vía Claude Desktop:
 
 ### 🔲 Pendiente antes del 2 julio (demo) + 9 julio (defensa)
 
-- **QA end-to-end**: 10+ queries en ambos tenants vía `korio.es/ui` + Claude Desktop con MCP
-- **Benchmark formal** de latencias (`scripts/benchmark.py`) — métricas p50/p95 + comparar con MCP
+- ~~**QA end-to-end**~~ ✅ sesión 10 (10/10 casos)
+- ~~**Benchmark formal**~~ ✅ sesión 10 (p50=1983ms, p95=3053ms)
 - **Vídeo demo** del ciclo completo (Gmail llega → 30s después consultable → conflicto → email HITL → grafo → MCP en Claude Desktop)
 - **Slide deck** (10–15 slides) + ensayo presentación
-- **Memoria TFM** — escritura completa con capítulos Phase 8 (`MULTI-TENANT-INGESTION.md`, `CHAT-PIPELINE-GUARDRAILS.md`) y Phase 7.3 (`MCP-SERVER.md`)
-- ~~**Memoria de chat**~~ ✅ sesión 4
-- ~~**Fix CONTRADICTS falsos positivos**~~ ✅ sesión 4
-- ~~**Phase 7.3 MCP Server**~~ ✅ sesión 5
+- **Compliance audit** ✅ sesión 13a (7/7 CRIT+HIGH cerrados). Ver `docs/COMPLIANCE-AI-ACT-GDPR.md`
+- **Memoria TFM** — escritura con capítulos:
+  - ✅ Phase 7.1–7.3 (grafo, MCP server) → `docs/MCP-SERVER.md`
+  - ✅ Phase 6–9 (ingesta agéntica, E3 rules) → `docs/AGENTIC-INGESTION.md`
+  - ✅ **Compliance** (AI Act + GDPR) → `docs/COMPLIANCE-AI-ACT-GDPR.md` (sesión 14)
+  - 🔲 Defensa negocio + entrevistas (sesión 15+)
 
 ---
 
