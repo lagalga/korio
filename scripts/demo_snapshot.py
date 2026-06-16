@@ -186,19 +186,35 @@ def cmd_restore(args):
     nodes_file = src / "graph_nodes.json"
     if nodes_file.exists():
         nodes = json.loads(nodes_file.read_text())
+        created_nodes = 0
+        failed_nodes = 0
         for node in nodes:
             labels_str = ":".join(node["labels"])
             props = node["props"]
             props_clean = {}
             for k, v in props.items():
+                # Filtrar embeddings (768 dims) y otras listas grandes
                 if isinstance(v, list) and len(v) > 100:
                     continue
+                # Filtrar nulls y tipos no soportados por inline properties
+                if v is None or isinstance(v, dict):
+                    continue
                 props_clean[k] = v
-            gc.graph.query(
-                f"CREATE (n:{labels_str} $props)",
-                {"props": props_clean},
-            )
-        print(f"    ✓ {len(nodes)} nodos creados")
+            try:
+                # IMPORTANTE: FalkorDB no acepta `CREATE (n:L $props)` con
+                # parámetros — falla con "Encountered unhandled type in
+                # inlined properties". Hay que usar SET sobre el nodo recién
+                # creado, que sí acepta el map de parámetros.
+                gc.graph.query(
+                    f"CREATE (n:{labels_str}) SET n = $props",
+                    {"props": props_clean},
+                )
+                created_nodes += 1
+            except Exception as e:
+                failed_nodes += 1
+                if failed_nodes <= 3:
+                    print(f"    ⚠ Nodo {created_nodes+failed_nodes} falló ({labels_str}): {e}")
+        print(f"    ✓ {created_nodes}/{len(nodes)} nodos creados ({failed_nodes} saltados)")
 
     edges_file = src / "graph_edges.json"
     if edges_file.exists():
@@ -226,11 +242,20 @@ def cmd_restore(args):
             params = {**a_params, **b_params, "r_props": r_props}
 
             try:
-                gc.graph.query(
-                    f"MATCH {a_clause}, {b_clause} "
-                    f"CREATE (a)-[:{r_type} $r_props]->(b)",
-                    params,
-                )
+                # Mismo bug en aristas: el inline `[:R $props]` falla con
+                # parámetros. Solución: crear la arista y luego SET props.
+                if r_props:
+                    gc.graph.query(
+                        f"MATCH {a_clause}, {b_clause} "
+                        f"CREATE (a)-[r:{r_type}]->(b) SET r = $r_props",
+                        params,
+                    )
+                else:
+                    gc.graph.query(
+                        f"MATCH {a_clause}, {b_clause} "
+                        f"CREATE (a)-[:{r_type}]->(b)",
+                        params,
+                    )
                 created += 1
             except Exception:
                 skipped += 1
