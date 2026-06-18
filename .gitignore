@@ -62,3 +62,13 @@ data-synthetic/demo-tfm/.DS_Store
 
 # Snapshots de demo (datos sensibles)
 snapshots/
+
+# Secrets & keys
+*.key
+*.pem
+id_rsa
+id_ed25519
+*.gpg
+/secrets/
+*.keystore
+*.jks

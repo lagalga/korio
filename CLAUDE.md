@@ -157,8 +157,8 @@ MISTRAL_API_KEY=...
 
 # Gobernanza
 HITL_WEBHOOK_URL=https://n8n.korio.es/webhook/korio-hitl
-HITL_WEBHOOK_USER=HITL_USER_REDACTED                  # basic auth del webhook HITL
-HITL_WEBHOOK_PASS=HITL_PASS_REDACTED
+HITL_WEBHOOK_USER=<tu-usuario-hitl>                  # basic auth del webhook HITL (ve .env)
+HITL_WEBHOOK_PASS=<tu-contraseña-hitl>              # ve .env
 KORIO_BASE_URL=https://korio.es
 KORIO_ADMIN_API_KEY=...                  # para /escalate-reviews y DELETE /document/{id}
 ESCALATION_REMINDER_DAYS=3,7,14
