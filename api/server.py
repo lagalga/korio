@@ -996,6 +996,176 @@ async def delete_document(document_id: str):
     }
 
 
+# ─── Endpoints admin: panel de errores n8n ──────────────────────────────────
+
+
+@app.get("/admin/errors", tags=["Admin"], dependencies=[Depends(require_admin)])
+async def list_n8n_errors(
+    only_unreviewed: bool = Query(True, description="Si true, devuelve solo errores no revisados"),
+    workflow_id: Optional[str] = Query(None, description="Filtrar por workflow_id"),
+    limit: int = Query(100, ge=1, le=500),
+):
+    """
+    Lista errores capturados de workflows n8n.korio.es (tabla `n8n_errors`).
+
+    Pensado para alimentar el panel `/ui/admin-errors.html`.
+    Devuelve los más recientes primero.
+    """
+    from db import get_supabase_client
+    db = get_supabase_client()
+
+    q = db.client.table("n8n_errors").select(
+        "id, captured_at, workflow_id, workflow_name, execution_id, execution_mode, "
+        "error_message, error_node_name, error_node_type, reviewed_at, reviewed_by, notes"
+    )
+    if only_unreviewed:
+        q = q.is_("reviewed_at", "null")
+    if workflow_id:
+        q = q.eq("workflow_id", workflow_id)
+
+    try:
+        result = q.order("captured_at", desc=True).limit(limit).execute()
+        return {"count": len(result.data or []), "errors": result.data or []}
+    except Exception as e:
+        logger.exception("Error listando n8n_errors")
+        raise HTTPException(status_code=500, detail=f"Error consultando errores: {str(e)}")
+
+
+class ReviewErrorRequest(BaseModel):
+    """Body para marcar un error como revisado."""
+    reviewed_by: Optional[str] = Field(None, max_length=120, description="Quién revisó (admin / slack:U…)")
+    notes: Optional[str] = Field(None, max_length=2000, description="Notas opcionales del admin")
+
+
+@app.post("/admin/errors/{error_id}/review", tags=["Admin"], dependencies=[Depends(require_admin)])
+async def review_n8n_error(error_id: str, payload: Optional[ReviewErrorRequest] = None):
+    """
+    Marca un error de `n8n_errors` como revisado (sets `reviewed_at = now()`).
+
+    Idempotente: si ya estaba revisado, devuelve el estado actual sin error.
+    Reinicia el contador de throttling del workflow asociado (Phase 9): el
+    Code node del workflow `Korio - Gestión de errores n8n` cuenta solo filas
+    con `reviewed_at IS NULL`, así que marcar reviewed reduce el contador.
+    """
+    from db import get_supabase_client
+    db = get_supabase_client()
+
+    existing = db.client.table("n8n_errors").select(
+        "id, reviewed_at"
+    ).eq("id", error_id).execute()
+    if not existing.data:
+        raise HTTPException(status_code=404, detail=f"Error {error_id} no encontrado")
+
+    if existing.data[0].get("reviewed_at"):
+        return {"success": True, "already_reviewed": True, "id": error_id}
+
+    update = {
+        "reviewed_at": "now()",
+        "reviewed_by": (payload.reviewed_by if payload else None) or "admin",
+        "notes":       (payload.notes if payload else None),
+    }
+    try:
+        db.client.table("n8n_errors").update(update).eq("id", error_id).execute()
+        logger.info(f"n8n_error {error_id} marcado reviewed por {update['reviewed_by']}")
+        return {"success": True, "already_reviewed": False, "id": error_id}
+    except Exception as e:
+        logger.exception("Error marcando n8n_error reviewed")
+        raise HTTPException(status_code=500, detail=f"Error actualizando: {str(e)}")
+
+
+# ─── Slack interactivity: botón "Marcar reviewed" en el DM de error ─────────
+#
+# Slack POSTea a este endpoint cuando el admin pulsa el botón "✅ Marcar
+# reviewed" del Block Kit message. Verificamos firma con SLACK_SIGNING_SECRET
+# para asegurar que la petición viene de Slack. El action button lleva como
+# `value` el UUID del error_id en n8n_errors.
+#
+# Configurar en api.slack.com → Interactivity & Shortcuts → Request URL:
+#   https://korio.es/admin/errors/slack-action
+
+
+@app.post("/admin/errors/slack-action", tags=["Admin"])
+async def slack_error_action(request: Request):
+    """Recibe `block_actions` de Slack y marca el error como revisado."""
+    import hashlib
+    raw_body = await request.body()
+    signing_secret = os.getenv("SLACK_SIGNING_SECRET", "").encode()
+
+    if not signing_secret:
+        raise HTTPException(status_code=503, detail="SLACK_SIGNING_SECRET no configurado")
+
+    ts = request.headers.get("x-slack-request-timestamp", "")
+    sig = request.headers.get("x-slack-signature", "")
+    if not ts or not sig:
+        raise HTTPException(status_code=401, detail="Faltan cabeceras Slack")
+
+    # Anti-replay: rechazar requests >5 min
+    try:
+        if abs(time.time() - int(ts)) > 60 * 5:
+            raise HTTPException(status_code=401, detail="Timestamp Slack demasiado antiguo")
+    except ValueError:
+        raise HTTPException(status_code=401, detail="Timestamp Slack inválido")
+
+    basestring = b"v0:" + ts.encode() + b":" + raw_body
+    expected = "v0=" + hmac.new(signing_secret, basestring, hashlib.sha256).hexdigest()
+    if not hmac.compare_digest(expected, sig):
+        raise HTTPException(status_code=401, detail="Firma Slack inválida")
+
+    # Slack manda el payload como form-encoded `payload=<json>`
+    from urllib.parse import parse_qs
+    parsed = parse_qs(raw_body.decode())
+    payload_json = (parsed.get("payload") or [None])[0]
+    if not payload_json:
+        raise HTTPException(status_code=400, detail="Payload Slack vacío")
+
+    try:
+        slack_payload = json.loads(payload_json)
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=400, detail="Payload Slack no es JSON")
+
+    actions = slack_payload.get("actions") or []
+    if not actions or actions[0].get("action_id") != "mark_error_reviewed":
+        return {"ignored": True}
+
+    error_id = (actions[0].get("value") or "").strip()
+    slack_user = (slack_payload.get("user") or {}).get("id", "unknown")
+    response_url = slack_payload.get("response_url")
+
+    from db import get_supabase_client
+    db = get_supabase_client()
+
+    existing = db.client.table("n8n_errors").select("id, reviewed_at").eq("id", error_id).execute()
+    if not existing.data:
+        return {"ok": False, "error": "not_found"}
+
+    if not existing.data[0].get("reviewed_at"):
+        db.client.table("n8n_errors").update({
+            "reviewed_at": "now()",
+            "reviewed_by": f"slack:{slack_user}",
+        }).eq("id", error_id).execute()
+        logger.info(f"n8n_error {error_id} marcado reviewed via Slack por {slack_user}")
+
+    # Confirmar al usuario actualizando el mensaje original
+    if response_url:
+        import urllib.request
+        try:
+            req = urllib.request.Request(
+                response_url,
+                data=json.dumps({
+                    "replace_original": False,
+                    "response_type": "ephemeral",
+                    "text": f"✅ Error `{error_id[:8]}…` marcado como revisado.",
+                }).encode(),
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            urllib.request.urlopen(req, timeout=3).read()
+        except Exception as e:
+            logger.warning(f"No se pudo responder a Slack response_url: {e}")
+
+    return {"ok": True}
+
+
 # ─── Endpoint waitlist (landing teaser) ─────────────────────────────────────
 
 class WaitlistRequest(BaseModel):

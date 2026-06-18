@@ -216,6 +216,27 @@ systemctl restart korio-api
 
 ---
 
+## Estado al cierre de sesión 16a · 18 jun 2026 · throttling errores n8n
+
+✅ **Sesión 16a (18 jun · tarde)** — Phase 9 parcial: throttling anti-spam workflow `Korio - Gestión de errores n8n`:
+- Refactor `Error Trigger → Preparar → Supabase → Code (count + notify) → IF → Slack DM`. Antes paralelo, ahora secuencial con gate.
+- Code node consulta `n8n_errors?reviewed_at=is.null` con `Prefer: count=exact`, parsea `content-range`, calcula `notify = count===1 || count%10===0`.
+- Persistencia Supabase intacta (siempre se guarda); solo Slack se silencia entre el 2º y 9º error de un mismo workflow.
+- PUT vía API REST con `N8N_KORIO_API_KEY`, workflow activo. Verificado lookup count.
+
+🔲 **Restante Phase 9 errores**: panel `/admin/errors` UI Korio, botón "reviewed" Slack interactivity webhook.
+
+✅ **Sesión 16b (18 jun · tarde)** — Panel admin errores + Slack interactivity:
+- Backend: `GET /admin/errors` + `POST /admin/errors/{id}/review` (auth `require_admin`) + `POST /admin/errors/slack-action` (verifica firma Slack, anti-replay 5min).
+- UI: `ui/admin-errors.html` panel dark mode con tabla + filtros + botón "Marcar reviewed". Admin key en sessionStorage.
+- Workflow n8n: `Guardar en Supabase` con `return=representation`, Code node extrae `error_id`, Slack DM con 3 botones (Ver ejecución / Marcar reviewed / Panel admin).
+- **Pendiente operativo manual**:
+  1. `git pull` en VPS + `systemctl restart korio-api`.
+  2. `SLACK_SIGNING_SECRET=…` en `/root/korio/.env` (Slack app → Basic Information).
+  3. api.slack.com → Korio-Delos → Interactivity & Shortcuts → Enable + Request URL `https://korio.es/admin/errors/slack-action`.
+
+---
+
 ## Próxima sesión — **sesión 16 · Slide deck (10–15 slides)**
 
 Vídeo demo grabado en s15+15b. Sistema listo para empezar contenido.

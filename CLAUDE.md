@@ -699,3 +699,35 @@ Pendiente sesión 7 (Phase 8 candidatos): detección query-time, estado `inconcl
 🔲 **Aprendizaje para Phase 9**: chunker en ingesta debería excluir frontmatter YAML del texto que se embeda (mantener en metadata pero no en vector). Evitaría tener que re-embebir post-hoc.
 
 *Actualizado: 18 junio 2026 (sesión 15-15b) — v0.3.11. Vídeo demo grabado. 4 commits hoy: PII whitelist Mistral, grafo header, reembed frontmatter strip, PII whitelist preprocessor. Snapshot pre_demo_v038 limpio + R2/L3 fuera para próxima toma. Próximo: slide deck (s16).*
+
+---
+
+**Sesión 16a (18 jun · tarde 2026)** — Throttling anti-spam errores n8n (Phase 9 parcial):
+
+- **Workflow `Korio - Gestión de errores n8n`** (`KeUTpIk0ycbW1f3g`) actualizado vía PUT API REST. Pasa de paralelo Supabase||Slack a secuencial con throttling.
+- **Nueva estructura**: `Error Trigger → Preparar datos → Guardar en Supabase → Decidir notificación (Code) → IF → Avisar Slack DM`. 6 nodos (antes 4).
+- **Nodo Code `Decidir notificación (throttle)`**: tras insertar fila, hace `GET /n8n_errors?workflow_id=eq.X&reviewed_at=is.null&select=id&limit=1` con `Prefer: count=exact`. Parsea `content-range` header. Calcula `notify = count===1 || count%10===0`.
+- **Efecto**: 1 DM en el error 1, 10, 20, 30… del mismo workflow no-reviewed. Errores 2-9, 11-19… silenciados pero igualmente guardados en Supabase. Reset implícito al marcar `reviewed_at` desde admin.
+- **Slack DM** añade campo `errores acumulados: *N*` en context block para visibilidad.
+- **Verificado**: PUT 200 OK, workflow `active=true`, query Supabase devuelve `content-range: 0-0/5` (5 errores no-reviewed dispersos en 5 workflows distintos → cada uno notificaría una vez, throttling correcto).
+- **Sin commit a repo**: workflow vive en n8n.korio.es, no en git.
+
+🔲 **Restante Phase 9 errores**: panel `/admin/errors` en UI Korio, botón "reviewed" en Slack message (interactivity webhook).
+
+**Sesión 16b (18 jun · tarde 2026)** — Panel admin errores + botón Slack reviewed:
+
+- **Endpoints backend** (`api/server.py`):
+  - `GET /admin/errors?only_unreviewed=true&workflow_id=&limit=` — lista paginada por `captured_at DESC`. Auth `require_admin`.
+  - `POST /admin/errors/{id}/review` — body `{reviewed_by, notes}` opcional. Idempotente. Marca `reviewed_at=now()`.
+  - `POST /admin/errors/slack-action` — recibe `block_actions` de Slack. Verifica firma `v0:ts:body` con `SLACK_SIGNING_SECRET` y `hmac.compare_digest`. Anti-replay 5min. Marca reviewed + responde al `response_url` con DM ephemeral.
+- **UI `ui/admin-errors.html`** — panel dark mode independiente (no usa `css/styles.css`). Admin key persistida en `sessionStorage`. Tabla con captured_at, workflow, nodo, mensaje, botones "Ver en n8n" + "Marcar reviewed". Filtros: only_unreviewed + workflow_id. Acceso vía `https://korio.es/ui/admin-errors.html`.
+- **Workflow `Korio - Gestión de errores n8n`** actualizado:
+  - `Guardar en Supabase` ahora con `Prefer: return=representation` (devuelve fila con `id`).
+  - Code node extrae `error_id` del response y lo añade al output.
+  - Slack DM lleva 3 botones: "Ver ejecución" (url), "✅ Marcar reviewed" (`action_id=mark_error_reviewed`, `value=error_id`, style danger), "Panel admin" (url a `/ui/admin-errors.html`).
+- **Pendiente operativo**:
+  1. `git pull` en VPS + `systemctl restart korio-api`.
+  2. Añadir `SLACK_SIGNING_SECRET=<signing secret de Korio-Delos app>` a `/root/korio/.env` (Slack app → Basic Information → Signing Secret).
+  3. Configurar en api.slack.com → Korio-Delos → Interactivity & Shortcuts → Enable + Request URL `https://korio.es/admin/errors/slack-action`.
+
+*Actualizado: 18 junio 2026 (sesión 16a-16b) — v0.3.11 + throttling + panel admin errores. Próximo: deploy + config Slack interactivity, después slide deck (s16).*
