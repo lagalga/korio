@@ -176,3 +176,14 @@ Devuelve los espacios accesibles al usuario actual. Es el "índice" que un agent
 ## Mensaje para la memoria TFM
 
 > Phase 7.3 cierra el ciclo "Korio como producto SaaS conectable": el mismo RAG multi-tenant que sirve la UI de korio.es se expone vía MCP al ecosistema agéntico (Claude Desktop, ChatGPT, n8n, agentes propios). La autenticación por API key con SHA-256 + ContextVar reaprovecha el early binding de RLS sin duplicar código. La capa de seguridad realmente productizable (OAuth 2.1, rate limit, auditoría) queda diseñada como Phase 8 en este mismo documento.
+
+---
+
+## Continuidad post-7.3 (sesión 13a + 16)
+
+El sub-app `/mcp` montado con `MCPAuthASGI` convive sin conflicto con endpoints administrativos añadidos después:
+
+- **Sesión 13a (v0.3.4)** — `RLS sobre mcp_api_keys` (migración 015). Policies `self_read` / `self_update` (auth.uid) + `service_role_all`. Endurece el modelo de auth contra accesos cruzados a la tabla de keys.
+- **Sesión 16b (v0.3.12)** — endpoints admin paralelos (`GET /admin/errors`, `POST /admin/errors/{id}/review`, `POST /admin/errors/slack-action`) muestran que la API REST y el sub-app MCP comparten el mismo backend de seguridad (`require_admin` con `hmac.compare_digest`) y el mismo middleware ASGI para SSE. Lección operativa: cada vez que se añade un sub-app que use SSE o long-polling, hay que envolverlo con un middleware ASGI puro como `MCPAuthASGI` (nunca con `@app.middleware("http")` ni `BaseHTTPMiddleware`).
+
+*Actualizado: 18 junio 2026 · v0.3.12 · sesión 16. Continuidad con seguridad ASGI documentada.*

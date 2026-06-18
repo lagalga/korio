@@ -1,10 +1,29 @@
 # Korio — Roadmap
 
-> Estado actual: **v0.3.7 · Phases 1–7.3 + las 6 reglas del Entregable 3 cumplidas · 🏁 Implementación cerrada** · Demo TFM: 2 julio 2026 · Defensa: 9 julio 2026
+> **Estado: v0.3.12 (18 jun 2026) · 🏁 Implementación cerrada · Phase 9 flecos errores n8n cerrados**
+> Demo TFM: 2 julio 2026 · Defensa: 9 julio 2026
 
 ---
 
-## Estado actual (Phases 1–7.2 completadas)
+## Resumen ejecutivo
+
+Korio cubre **6 phases técnicas cerradas** (núcleo RAG, multi-tenancy, producción + gobernanza activa, cron HITL, grafo de conocimiento, ingesta multi-canal, MCP server) más **v0.3.0 con las 6 reglas del Entregable 3 materializadas** (pipeline ACID + bus de eventos + query-time + policies + inconclusive) y **v0.3.12 con los flecos operativos de Phase 9** (throttling errores, panel admin, Slack interactivity).
+
+**Roadmap restante hasta defensa (9 julio):**
+
+| Tarea | Estado | Herramienta |
+|---|---|---|
+| Vídeo demo grabado | ✅ sesión 15 + 15b | — |
+| Slide deck (10-15 slides) | 🔲 | Claude Projects (chat) |
+| Memoria TFM (negocio + técnico + research) | 🔲 | Claude Projects (chat) |
+| Ensayo defensa | 🔲 | — |
+| Flecos de implementación post-TFM | open backlog | Claude Code |
+
+**Phases post-TFM** (8, 9 SaaS, 10) tienen diseño documentado en `docs/MULTI-TENANT-INGESTION.md`, `docs/CHAT-PIPELINE-GUARDRAILS.md` y `docs/PHASE-10-MULTIMODAL-INGESTION.md`. No se ejecutarán antes de la defensa.
+
+---
+
+## Estado actual — Phases cerradas
 
 ### Phase 1–2 · Núcleo RAG y multi-tenancy ✅
 
@@ -12,214 +31,170 @@
 |---|---|
 | Pipeline ingesta (MarkItDown → Presidio → Chunking → pgvector) | ✅ |
 | Pipeline RAG (Query → Embed → RLS → pgvector → Mistral) | ✅ |
-| FastAPI server (`/search`, `/ingest`, `/health`) | ✅ |
-| Multi-tenancy real (RLS Supabase + early binding en aplicación) | ✅ |
+| FastAPI server | ✅ |
+| Multi-tenancy real (RLS Supabase + early binding) | ✅ |
 | 2 tenants con datos sintéticos (Delos + García) | ✅ |
-| Test suite 20/20 | ✅ |
-| PII detection con Presidio + spaCy español | ✅ |
 | Mistral API + Ollama fallback | ✅ |
 
-### Phase 3 · Documentación técnica ✅
+### Phase 3–4 · Documentación + UI ✅
 
 | Feature | Estado |
 |---|---|
-| `docs/ARCHITECTURE.md` | ✅ |
-| `docs/DEPLOYMENT.md` | ✅ |
-| `docs/ROADMAP.md` (este fichero) | ✅ |
-| README con quickstart + métricas reales | ✅ |
-
-### Phase 4 · Interfaz web ✅
-
-| Feature | Estado |
-|---|---|
-| Chat UI web (`ui/`) — HTML/CSS/JS vanilla | ✅ |
-| `POST /upload` — ingesta de ficheros desde el navegador | ✅ |
-| Logo Korio integrado | ✅ |
-| `scripts/benchmark.py` — medición de latencias | ✅ |
-| API_BASE dinámico (localhost vs same-origin producción) | ✅ |
+| `docs/ARCHITECTURE.md` · `docs/DEPLOYMENT.md` · `docs/ROADMAP.md` | ✅ |
+| Chat UI web (`ui/`) | ✅ |
+| `POST /upload` ingesta desde navegador | ✅ |
+| `scripts/benchmark.py` | ✅ |
 
 ### Phase 5 · Producción + Gobernanza activa + HITL email ✅
 
-#### Infraestructura
-| Feature | Estado |
-|---|---|
-| VPS Hetzner (**CPX32** AMD, Frankfurt) · €17.53/mes max | ✅ |
-| nginx + Let's Encrypt SSL (renovación automática) | ✅ |
-| FastAPI como systemd service (`korio-api`) | ✅ |
-| n8n en Docker (`korio-n8n`) | ✅ |
-| Dominio `korio.es` apuntando al VPS | ✅ |
-| `n8n.korio.es` con editor accesible | ✅ |
+- VPS Hetzner CPX32 AMD · nginx + TLS · systemd `korio-api`
+- n8n en Docker (`korio-n8n`)
+- Detección conflictos por similitud + auto-resolución (fecha/autoridad)
+- Estados `active` / `superseded` / `disputed`
+- HITL email con 3 botones de acción + token firmado
+- `tenants.admin_email` configurable
+- Landing teaser + waitlist
 
-#### Gobernanza activa (core value proposition)
-| Feature | Estado |
-|---|---|
-| `conflict_reviews` table + `find_conflicting_chunks` RPC | ✅ |
-| Detección de conflictos por similitud coseno (umbral 0.78) | ✅ |
-| Auto-resolución por fecha (>30 días) | ✅ |
-| Auto-resolución por autoridad (delta ≥3) | ✅ |
-| Chunks en estado `active` / `superseded` / `disputed` | ✅ |
-| Search incluye chunks `disputed` con flag de aviso | ✅ |
-| LLM prompt inyecta instrucción especial en caso de disputa | ✅ |
-| UI muestra banner ⚠️ + badge "EN DISPUTA" en source chips | ✅ |
+### Phase 6 · Cron escalada HITL ✅
 
-#### HITL via email
-| Feature | Estado |
-|---|---|
-| Tabla `conflict_reviews` con `review_token` firmado | ✅ |
-| Endpoint `GET /review/{id}?action=&token=` | ✅ |
-| Workflow n8n: Webhook → Code → Send Email (SMTP Gmail) | ✅ |
-| Email HTML bulletproof (Gmail + Outlook + Airmail) | ✅ |
-| Cuerpo del email incluye **textos reales de los 2 chunks en conflicto** | ✅ |
-| 3 botones de acción: approved_new / approved_existing / kept_both | ✅ |
-| Página HTML de confirmación tras clic | ✅ |
-| `tenants.admin_email` (configurable por tenant) | ✅ |
+- Migración 008: `reminders_sent`, `last_reminder_at`, `timeout_at`
+- `src/escalation.py` con cadencia 3/7/14 + timeout 21 (parametrizable)
+- Workflow n8n Schedule Trigger diario 09:00 Madrid
+- Email template adaptativo (initial / reminder / timeout)
 
-#### Landing teaser
-| Feature | Estado |
-|---|---|
-| `landing/` con HTML estático en `/` | ✅ |
-| OG image 1200×630 generada (SVG + PNG) | ✅ |
-| Form de waitlist con `POST /waitlist` | ✅ |
-| Tabla `waitlist` en Supabase | ✅ |
-| Script `deploy/refresh-landing.sh` para edits en producción | ✅ |
+### Phase 7.1 · Grafo de conocimiento ✅
 
-### Phase 6 · Cron de escalada HITL ✅
+- FalkorDB (Redis + Cypher) con AOF persistence
+- `src/graph_client.py` con schema multi-tenant
+- `src/entity_extractor.py` con Mistral structured JSON
+- `scripts/graph_backfill.py` — 237 claims sobre 10 docs en 116s
+- Search híbrido vector + grafo
+- UI `/ui/graph.html` con vis-network
+- Hito demo: query rephrase "jornada mínima" → 35h/semana vía grafo
 
-| Feature | Estado |
-|---|---|
-| Migración 008: `reminders_sent`, `last_reminder_at`, `timeout_at` | ✅ |
-| Enum resolution amplía con `timeout_kept_both` | ✅ |
-| `src/escalation.py` con cadencia 3/7/14 + timeout 21 (parametrizable) | ✅ |
-| `POST /escalate-reviews` con auth `X-Korio-Admin-Key` | ✅ |
-| Workflow n8n Schedule Trigger diario 09:00 Madrid | ✅ |
-| Email template adaptativo: initial / reminder / timeout | ✅ |
-| Probado E2E con 5 reviews: cadencia 4/8/15/22 días | ✅ |
+### Phase 7.2 · Ingesta automática multi-canal ✅
 
-### Phase 7.1 · Grafo de conocimiento ✅ CERRADA
+- Migración 009: `documents.source_metadata` JSONB
+- `DELETE /document/{id}` admin con cascade Postgres + FalkorDB cleanup
+- 8 workflows n8n en producción (ver `docs/ARCHITECTURE.md`)
+- Mapping `channel_id → space_id` por workflow (Slack file_shared, /korio, Gmail label, Drive subfolders)
 
-| Feature | Estado |
-|---|---|
-| FalkorDB (Redis + Cypher) en docker-compose | ✅ |
-| Driver Python `falkordb>=1.0.10` | ✅ |
-| `src/graph_client.py` con schema multi-tenant | ✅ |
-| `src/entity_extractor.py` con Mistral structured JSON | ✅ |
-| Integración opt-in en `ingest.py` (Step 6) | ✅ |
-| `scripts/graph_backfill.py` — pobló 233 claims en 107s | ✅ |
-| Search híbrido vector + grafo en `search.py` | ✅ |
-| Endpoints `/graph/contradictions`, `/graph/entity`, `/graph/subgraph` | ✅ |
-| UI `/ui/graph.html` con vis-network + panel contradicciones | ✅ |
-| Query rephrase ("jornada mínima") resuelta por el grafo | ✅ |
-| **3 puntos de acceso al grafo desde la app (banner / modal / sidebar)** | ✅ |
-| **Sync en vivo del grafo desde conflict_detector + /review + escalation** | ✅ |
-| **Polish visual: disputed rojo, superseded blanco outlined, CONTRADICTS rojo width 4** | ✅ |
-| **Fix LIMIT que truncaba CONTRADICTS en /graph/subgraph** | ✅ |
+### Phase 7.3 · MCP Server ✅
 
-### Phase 7.2 · Ingesta automática multi-canal ✅ CERRADA (10 jun · sesión 3 tarde)
+- Migración 010 `mcp_api_keys` (SHA-256, FK users+tenants, soft revoke)
+- `api/mcp_server.py` FastMCP con 3 tools
+- `MCPAuthASGI` puro (compat con SSE)
+- `scripts/mcp_create_key.py` CLI
+- Claude Desktop conectado vía `mcp-remote@latest`
+- Detalle: `docs/MCP-SERVER.md`
 
-#### Backend
-| Feature | Estado |
-|---|---|
-| Migración 009: `documents.source_metadata` (JSONB) + índice parcial por `via` | ✅ |
-| `ingest_document()` acepta `source_metadata: Optional[dict]` | ✅ |
-| `/upload` acepta Form fields `source_type` y `source_metadata` (JSON string) | ✅ |
-| `DELETE /document/{id}` (admin) — borra Postgres en cascada + FalkorDB | ✅ |
-| `APIKeyHeader` + dependency `require_admin()` — botón Authorize en Swagger | ✅ |
-| Fix crítico: Basic Auth en webhook HITL (`HITL_WEBHOOK_USER`/`PASS`) | ✅ |
+### v0.3.0 · Cumplimiento E3/E4 ✅
 
-#### Workflows n8n.korio.es
-| Feature | Estado |
-|---|---|
-| **Gmail → /upload (Delos RRHH)** — label `korio/ingesta` cada 5 min | ✅ |
-| **Drive → /upload (Delos RRHH)** — carpeta `Clínica Delos / input` cada 5 min | ✅ |
-| **Slack /korio → /search (Delos admin)** — slash command → reply en thread | ✅ |
+- Migración 011: `pipeline_events` + RPC `ingest_document_atomic` (ACID)
+- Migración 012: RPC `detect_silent_conflicts_among_chunks` (Caso extremo E4)
+- Migración 013: estado `inconclusive` + tabla `policies` (Reglas 4 y 5)
+- Fachada agéntica `src/agents/*` con docstring PEAS
+- Workflow `Korio · Pipeline event bus`
+- **Las 6 reglas del E3 materializadas con evidencia en producción** — ver `docs/AGENTIC-INGESTION.md` §"Cumplimiento de las 6 reglas".
 
-#### UI polish
-| Feature | Estado |
-|---|---|
-| Filenames de fuentes sin truncar (`flex: 1 + min-width: 0`) | ✅ |
-| Eliminado marcador `[grafo]` confuso del prompt + JS | ✅ |
+### v0.3.4 · Hardening de seguridad pre-demo ✅
 
-#### Documentación
-| Feature | Estado |
-|---|---|
-| `docs/MULTI-TENANT-INGESTION.md` — diseño Phase 8 SaaS multi-tenant configurable | ✅ |
-| Memoria local Claude Code: `feedback_n8n_instance.md`, `project_hitl_webhook_auth.md` | ✅ |
+- CORS whitelist (N1) · `hmac.compare_digest` (N2) · cross-tenant DELETE check (N3) · RLS sobre `mcp_api_keys` migración 015 (N4) · assert dim 768 al arranque (N5) · cleanup blindado tempfile (N6) · Cypher parametrizado (C2)
+- Auditoría completa con 21 hallazgos catalogados — ver `docs/AUDIT-2026-06-14.md`
+
+### v0.3.5 · QA multi-canal real + ivfflat fix ✅ (sesión 13b)
+
+- 18 docs reales (Delos + García) + space `Administración` + 4 service users Slack
+- Migración 016: silent conflicts SAME-space only
+- Migración 017–018: space Administración + service users Slack
+- **Migración 019: DROP `idx_embeddings_vector`** (probes=1 bug con <100 chunks)
+
+### v0.3.6 · Regla 4 demo + inconclusive en RAG ✅ (sesión 13c)
+
+- Demo end-to-end de Regla 4 con policy `policy_new_wins` aplicada automáticamente
+- Migración 020: search incluye `inconclusive` con badge ⚠️
+- `src/db.py` acepta override `timeout_inconclusive`
+
+### v0.3.7 · Cierre implementación + herramientas demo ✅ (sesión 14)
+
+- 27 aristas CONTRADICTS válidas en grafo (validación semántica LLM)
+- `scripts/demo_snapshot.py` save/restore Supabase + FalkorDB
+- Snapshot `pre_demo_v036` guardado
+
+### v0.3.8 · Compliance AI Act + GDPR ✅ (sesión 14b)
+
+- Fix crítico Presidio API
+- Redacción PII pre-Mistral cloud
+- Privacy Policy desplegada en `korio.es/legal/privacy.html`
+- Detalle: `docs/COMPLIANCE-AI-ACT-GDPR.md`
+
+### v0.3.9 · Fix restore grafo FalkorDB ✅ (sesión 14c)
+
+- `CREATE (n:L $props)` con parámetros NO soportado por FalkorDB. Cambio a `CREATE (n:L) SET n = $props`.
+
+### v0.3.10 / v0.3.11 · Fixes pre-vídeo + vídeo grabado ✅ (sesión 15 + 15b)
+
+- MCP `mcp-remote@latest` (bug timing en 0.1.38)
+- R4 chunks `superseded` falso positivo restaurados
+- PII whitelist Mistral (no garblea filenames)
+- Fix grafo header echoeado por Mistral
+- `scripts/reembed_strip_frontmatter.py` — chunks `idx=0` sin frontmatter (R4 sube de 3º a 1º)
+- Whitelist PII en preprocessor ingesta
+- Snapshots `pre_demo_v037` + `pre_demo_v038`
+
+### v0.3.12 · Phase 9 flecos errores n8n + Slack duplicate UX ✅ (sesión 16)
+
+| Tarea | Sesión | Notas |
+|---|---|---|
+| Throttling anti-spam Slack DM errores | 16a | Code node `count===1 || count%10===0` en workflow `KeUTpIk0ycbW1f3g` |
+| Panel UI `/admin/errors` con admin key | 16b | `ui/admin-errors.html` + `GET /admin/errors` + `POST /admin/errors/{id}/review` |
+| Botón "✅ Marcar reviewed" en Slack DM | 16b | `POST /admin/errors/slack-action` con firma `v0:ts:body` + anti-replay 5 min |
+| Workflow Slack file_shared: duplicate → DM thread | 16c | IF 200 / 409 / other; 409 ya no dispara `errorWorkflow` |
+| Verificación E2E real | 16b | Click usuario → BD actualizada en 14s, `reviewed_by: slack:U…` |
 
 ---
 
-## Pendiente antes del 2 julio 2026 (demo) y 9 julio 2026 (defensa)
+## Backlog · Flecos pendientes post-implementación
 
-### Implementación técnica ✅ CERRADA (sesión 14, v0.3.7)
-| Tarea | Estado |
-|---|---|
-| QA end-to-end: 10+ queries en ambos tenants | ✅ sesión 10 (10/10) |
-| Benchmark formal p50/p95 | ✅ sesión 10 (p50=1983ms, p95=3053ms) |
-| 31/31 tests verdes | ✅ sesión 14 |
-| Snapshot de seguridad para demo | ✅ sesión 14 (`pre_demo_v036`) |
+### No bloqueantes para defensa (Phase 9 deuda menor)
 
-### Sesión 16a/b/c (18 jun, v0.3.12) ✅ CERRADAS — Phase 9 flecos errores n8n
-| Tarea | Estado | Notas |
+| Tarea | Impacto | Esfuerzo |
 |---|---|---|
-| Throttling anti-spam Slack DM errores | ✅ s16a | Code node `count===1 || count%10===0` en workflow `KeUTpIk0ycbW1f3g` |
-| Panel UI `/admin/errors` con admin key | ✅ s16b | `ui/admin-errors.html` + endpoints `GET/POST /admin/errors` |
-| Botón "✅ Marcar reviewed" en DM Slack | ✅ s16b | `POST /admin/errors/slack-action` con firma `v0:ts:body` + anti-replay 5min |
-| Workflow Slack file_shared: duplicate → DM thread | ✅ s16c | IF 200 / 409 / other; 409 ya no dispara `errorWorkflow` |
-| Verificación E2E real con error de test | ✅ s16b | Click usuario → BD actualizada en 14s, `reviewed_by: slack:U…` |
+| Validación semántica LLM en detector de ingesta | Reduce falsos positivos G1↔G2 (docs estilo similar) | 3-4h |
+| Chunker excluir frontmatter YAML del embedding | Evita reembed post-hoc (deuda sesión 15b) | 2-3h |
+| Reintroducir índice vectorial cuando >1000 chunks | HNSW o `ivfflat lists=ceil(sqrt(N))` con probes calibradas | 2-3h |
 
-### Contenido para defensa
-| Tarea | Prioridad | Estimación | Herramienta |
-|---|---|---|---|
-| Vídeo demo del ciclo completo | 🔴 Alta | 3-4h | Claude Code (sesión 15) |
-| Presentation deck (10-15 slides) | 🔴 Alta | 6-8h | Claude Code (sesión 16) |
-| Memoria TFM (negocio + técnico + research) | 🔴 Alta | 20-30h | Claude Projects |
+### Operativa contenido TFM
 
-### Mejoras de sesión 4 (10 jun 2026 tarde) ✅ CERRADAS
-| Tarea | Estado | Notas |
+| Tarea | Estado | Herramienta |
 |---|---|---|
-| **Memoria de chat con query reformulation** | ✅ | `state.conversation` en frontend, `llm_client.reformulate_query()` antes del embed. Reset al cambiar tenant/usuario. Trazabilidad en `original_query`/`embedded_query`/`query_reformulated`. |
-| **Doc de diseño `CHAT-PIPELINE-GUARDRAILS.md`** | ✅ | Capítulo memoria TFM: n8n + Lakera/Rebuff/Presidio + rate limit + compliance por tenant. |
-| **Fix CONTRADICTS falsos positivos** | ✅ | Cypher exige `subject` igual o substring containment + diff `value` para crear arista. Aplicado en `graph_client` (live) y `graph_backfill.py` (batch). Limpiar aristas falsas existentes con `MATCH ()-[r:CONTRADICTS]->() DELETE r` + relink. |
-| **Sync local docs** | ✅ | CLAUDE.md, ROADMAP.md, ARCHITECTURE.md, DEPLOYMENT.md, README.md actualizados. |
-
-### Phase 7.3 — MCP Server (sesión 5, 11 jun 2026) ✅ CERRADA
-
-| Feature | Estado |
-|---|---|
-| Migración 010 `mcp_api_keys` (SHA-256, FK users+tenants, soft revoke) | ✅ |
-| `api/mcp_server.py` FastMCP con 3 tools | ✅ |
-| `MCPAuthASGI` puro (NO BaseHTTPMiddleware, compat con SSE) | ✅ |
-| `TransportSecuritySettings` con `allowed_hosts=[korio.es,...]` | ✅ |
-| `scripts/mcp_create_key.py` CLI create/list/revoke | ✅ |
-| `docs/MCP-SERVER.md` (capítulo memoria TFM) | ✅ |
-| Despliegue con `--workers 1` (sessions SSE in-memory por proceso) | ✅ |
-| Conectado Claude Desktop vía `mcp-remote` por npx (Node 20+) | ✅ |
-| Caso TFM "35 horas semanales" verificado vía MCP | ✅ |
-
-### Fixes encadenados del RAG híbrido (sesión 5) ✅ CERRADOS
-| Fix | Estado | Notas |
-|---|---|---|
-| **Grafo dentro del CONTEXTO del prompt** | ✅ | El bloque `[CONOCIMIENTO ESTRUCTURADO DEL GRAFO]` se inyectaba FUERA y Mistral lo descartaba. `build_rag_prompt(graph_context=...)` lo mete DENTRO; system_prompt actualizado para reconocer ambas fuentes. |
-| **Rerank de claims por relevancia** | ✅ | `find_claims_by_predicate` LIMIT 20 → 50 + rerank en Python (`3·predicate + 2·value + 1·subject` por keyword). Evita que keywords genéricas saturen el top-8. |
-| **Citación de fuentes en MCP** | ✅ | Docstring + `instructions` del FastMCP obligan al cliente a citar `filename` y avisar de `is_disputed`. |
-| **list_spaces -32602** | ✅ | Param `include_inactive` dummy para que FastMCP serialice el schema. |
+| Slide deck (10-15 slides) | 🔲 | Claude Projects (chat) — fuera de Claude Code |
+| Memoria TFM (negocio + técnico + research entrevistas) | 🔲 | Claude Projects (chat) — fuera de Claude Code |
+| Ensayo defensa cronometrado | 🔲 | — |
 
 ---
 
-## Fase 8 — Mitigaciones a limitaciones detectadas (post-defensa)
+## Phases post-TFM
 
-| Mejora | Impacto | Esfuerzo |
+### Phase 8 · Mitigaciones a limitaciones detectadas
+
+Diseños completos en `docs/`:
+
+| Bloque | Esfuerzo | Doc fuente |
 |---|---|---|
-| **Ingesta multi-tenant configurable** (OAuth + vault tokens + onboarding) | Producto SaaS real | ~6 semanas + verificación Google CASA en paralelo. Diseñado en `docs/MULTI-TENANT-INGESTION.md`. |
-| **Chat pipeline con guardrails** (n8n + Lakera/Rebuff) | Seguridad para producción | ~2 semanas. Diseñado en `docs/CHAT-PIPELINE-GUARDRAILS.md`. |
-| Validación semántica en aristas CONTRADICTS | Reduce falsos positivos del backfill (parcheado pre-demo si hay tiempo) | 2-3h |
-| Reranking cross-encoder | +20-30% calidad RAG en queries rephrasadas | 6-8h |
-| Query expansion con LLM antes del embed | Más cobertura | 4-6h. Solapado con memoria de chat (query reformulation). |
-| Fix Presidio anonymize parcial | Anonimización completa de PII | 3-5h. Bajo impacto en demo. |
-| Bajar threshold default 0.4 → 0.35 | Mejora recall | 30 min + verificación |
+| **Ingesta multi-tenant configurable** (OAuth + vault tokens + onboarding UI) | ~6 semanas + verificación Google CASA | `docs/MULTI-TENANT-INGESTION.md` |
+| **Chat pipeline con guardrails** (n8n + Lakera/Rebuff + Presidio egress + rate limit) | ~2 semanas | `docs/CHAT-PIPELINE-GUARDRAILS.md` |
+| Reranker cross-encoder | +20-30% calidad en queries rephrasadas | 6-8h |
+| Query expansion con LLM antes del embed | Más cobertura | 4-6h |
+| MCP Server OAuth 2.1 + rate limit + `mcp_audit_log` con PII-redaction | Producto-real | ~2 semanas |
+| MCP Streamable HTTP stateless o sticky sessions nginx (multi-worker) | Escala MCP | 3-5 días |
+| Bias audit embeddings RRHH/Legal (AI Act Art. 15) | Compliance | 1 semana — ver `docs/COMPLIANCE-AI-ACT-GDPR.md` |
+| DPA formal con Mistral | Compliance | bloqueado por proveedor |
+| Endpoints `/export/{tenant_id}` (RGPD Art. 20) y `/subject-access/{user_id}` (Art. 15) | Compliance | 3-4 días |
 
----
+Hallazgos diferidos de la auditoría 13a (14 issues) — ver `docs/AUDIT-2026-06-14.md`.
 
-## Fase 9 — Producto SaaS
+### Phase 9 · Producto SaaS
 
 | Feature | Descripción |
 |---|---|
@@ -230,24 +205,31 @@
 | Conectores nativos configurables | Drive, Slack, Notion, Gmail con OAuth multi-tenant (ver Phase 8) |
 | API keys por tenant | Para integrar Korio desde otras apps |
 | Límites de plan | Chunks máximos, queries/mes, usuarios |
-| **MCP Server OAuth + rate limit + audit** | Sustituir API keys (Phase 7.3) por OAuth 2.1 + token bucket por key + `mcp_audit_log` con PII-redaction |
 | Persistencia de chat por usuario | Conversaciones multi-sesión cross-device |
 | Reflejo de chat Slack ↔ chat web | Identidad compartida, conversaciones cross-canal |
-| ~~Throttling Slack DM errores n8n~~ | ✅ Cerrado en s16a (v0.3.12) |
-| ~~Panel `/admin/errors` UI + endpoints~~ | ✅ Cerrado en s16b (v0.3.12) |
-| ~~Botón Slack "Marcar reviewed"~~ | ✅ Cerrado en s16b (v0.3.12) — requiere `SLACK_SIGNING_SECRET` |
-| ~~Slack file_shared duplicate → DM thread~~ | ✅ Cerrado en s16c (v0.3.12) |
-| Validación semántica LLM en detector ingesta | Reduce falsos positivos G1↔G2 (docs estilo similar) |
-| Reintroducir índice vectorial con >1000 chunks | HNSW o `ivfflat lists=ceil(sqrt(N))` |
-| Chunker excluir frontmatter YAML del embedding | Evita reembed post-hoc |
+| ROPA + admin dashboard audit-log | Compliance (`docs/COMPLIANCE-AI-ACT-GDPR.md`) |
 
----
+Ya cerrados de Phase 9 dentro del TFM (flecos operativos):
 
-## Fase 10 — Escala y GPU
+- ✅ Throttling Slack DM errores n8n (s16a)
+- ✅ Panel `/admin/errors` UI + endpoints (s16b)
+- ✅ Botón Slack "Marcar reviewed" (s16b · firma HMAC + anti-replay)
+- ✅ Slack file_shared duplicate → DM thread (s16c)
+
+### Phase 10 · Ingesta multimodal + escala
+
+Diseño completo en `docs/PHASE-10-MULTIMODAL-INGESTION.md`:
+
+- Email body adapter (parsing local, sin LLM)
+- Slack/Teams thread adapter (reaction `📥 korio` ingiere thread completa)
+- Audio adapter ASR (Voxtral API → Whisper local cuando volumen >100 min/mes)
+- `src/adapters/` con interfaz común + 4 nuevos workflows n8n + 3 botones upload UI
+
+Escala y GPU:
 
 | Mejora | Impacto | Coste |
 |---|---|---|
-| GPU en Hetzner (GEX44) | Embed ~0.1s, LLM ~1s | ~€65/mes |
+| GPU en Hetzner (GEX44) | Embed ~0.1s · LLM ~1s | ~€65/mes |
 | Caché de embeddings (Redis) | Queries repetidas ~0s | ~€5/mes |
 | Postgres dedicado vs Supabase | Más control, menor coste a escala | Variable |
 
@@ -255,16 +237,38 @@
 
 ---
 
-### Sesiones 6-9 (11 jun · v0.3.0) ✅ CERRADAS — Cumplimiento E3/E4 completo
-| Sesión | Cierre principal | Tests |
-|---|---|---|
-| Sesión 6 | Transaccionalidad ACID — RPC `ingest_document_atomic` (migr. 011). Bus de eventos `pipeline_events` con `operation_id` UUID y webhook a n8n. **Cierra feedback profesor E4** | 3/3 atomicidad |
-| Sesión 7 | Workflow n8n `Korio · Pipeline event bus` + fachada agéntica `src/agents/{base,ingestor,detector,arbitrator,supervisor,curator,pipeline}.py` con docstring PEAS de los 5 roles del E3 | 2/2 agentic |
-| Sesión 8 | Migr. 012: RPC `detect_silent_conflicts_among_chunks`. search.py Step 2.5 con aviso al usuario y emisión de `CONFLICT_DETECTED triggered_by=query_time`. **Cierra Caso extremo del E4** | 1/1 query-time |
-| Sesión 9 | Migr. 013: estado `inconclusive` + tabla `policies`. `_apply_timeout` → `inconclusive` (Regla 5). `find_applicable_policy()` antes de `_decide_resolution` (Regla 4). Persistencia de policy desde `/review`. | 2/2 inconclusive+policies |
+## Métricas y stack (sesión 16, v0.3.12)
 
-**Las 6 reglas del Entregable 3 están materializadas en producción** (tabla detallada en `docs/AGENTIC-INGESTION.md` §"Cumplimiento de las 6 Reglas del E3").
+| Categoría | Valor |
+|---|---|
+| Tests | **31/31 verdes** (~30s) |
+| Migraciones aplicadas | 20 |
+| Workflows n8n activos | 8 |
+| Documentos en producción | 18+ (varía con ingesta automática) |
+| Aristas CONTRADICTS en grafo | 27 (13 resueltas + 14 pendientes) |
+| Benchmark p50 / p95 | **1983 ms / 3053 ms** (50/50 sin errores, sesión 10) |
+| Snapshot demo | `pre_demo_v038` (20 docs, 74 chunks, 1130 nodos, 1818 aristas) |
+| Endpoints admin | `/admin/errors`, `/admin/errors/{id}/review`, `/admin/errors/slack-action` (s16b) |
+| Compliance | Privacy Policy + PII redaction Mistral + whitelist Presidio (s14b) |
 
 ---
 
-*Actualizado: 16 junio 2026 (sesión 14, v0.3.7) — 🏁 Implementación cerrada. 31/31 tests, 20 migraciones, 8 workflows n8n, 18 docs producción, snapshot demo guardado. Próximo: vídeo (sesión 15), slides (sesión 16), memoria TFM (Claude Projects).*
+## Documentación TFM — mapa
+
+| Doc | Rol |
+|---|---|
+| `docs/ARCHITECTURE.md` | Capítulo arquitectura (base) |
+| `docs/AGENTIC-INGESTION.md` | Capítulo ingesta agéntica + las 6 reglas del E3/E4 |
+| `docs/MCP-SERVER.md` | Capítulo Korio como servidor MCP (Phase 7.3) |
+| `docs/COMPLIANCE-AI-ACT-GDPR.md` | Capítulo gobernanza + cumplimiento normativo |
+| `docs/AUDIT-2026-06-14.md` | Anexo seguridad y deuda técnica reconocida |
+| `docs/MULTI-TENANT-INGESTION.md` | Anexo roadmap Phase 8 — OAuth multi-tenant |
+| `docs/CHAT-PIPELINE-GUARDRAILS.md` | Anexo roadmap Phase 8 — guardrails chat |
+| `docs/PHASE-10-MULTIMODAL-INGESTION.md` | Anexo roadmap Phase 10 — multimodal + escala |
+| `docs/DEPLOYMENT.md` | Operativo: cómo redeployar desde cero |
+| `docs/SESSION-STARTER.md` | Operativo: estado de cierre por sesión + plan siguiente |
+| `docs/ROADMAP.md` (este fichero) | Operativo: visión global + backlog |
+
+---
+
+*Actualizado: 18 junio 2026 · v0.3.12 · sesión 16. 🏁 Implementación cerrada. Próximo: slide deck y memoria TFM (Claude Projects, fuera de Claude Code).*

@@ -1,6 +1,7 @@
 # Korio — Guía de despliegue en producción
 
 > Setup completo desde cero en Hetzner **CPX32** (AMD EPYC-Genoa) · Frankfurt
+> Estado: v0.3.12 · 20 migraciones · FalkorDB + n8n + Ollama dockerizados
 
 ---
 
@@ -11,9 +12,9 @@
 | Hetzner VPS **CPX32** | Hourly/Monthly | **€17.53/mes max** (€0.0281/h) | Frankfurt · AMD EPYC-Genoa · 4 vCPU / 8 GB / 160 GB SSD |
 | Supabase | Pro | $25/mes | Frankfurt (eu-central-1) — GDPR |
 | Mistral AI | Pay-per-use | ~€0.002/query | `mistral-small-latest` |
-| Dominio (opcional) | — | — | Para HTTPS en producción |
+| Dominio | — | — | Requerido para TLS + nginx + Slack webhooks |
 
-**Tiempo estimado:** 45–60 minutos para un setup limpio.
+**Tiempo estimado:** 60–90 minutos para un setup limpio.
 
 ---
 
@@ -31,32 +32,26 @@ En [console.hetzner.com](https://console.hetzner.com):
 ### 1.2 Acceso SSH
 
 ```bash
-# Añadir alias en ~/.ssh/config
+# ~/.ssh/config
 Host korio-vps
   HostName <IP_DEL_SERVIDOR>
   User root
   IdentityFile ~/.ssh/id_ed25519
 
-# Conectar
 ssh korio-vps
 ```
 
 ### 1.3 Setup inicial del servidor
 
 ```bash
-# Actualizar sistema
 apt update && apt upgrade -y
-
-# Instalar dependencias base
 apt install -y git curl wget python3 python3-pip python3-venv \
-               build-essential libpq-dev
+               build-essential libpq-dev nginx certbot python3-certbot-nginx
 
-# Instalar Docker
+# Docker
 curl -fsSL https://get.docker.com | sh
 systemctl enable docker
 systemctl start docker
-
-# Verificar
 docker --version
 ```
 
@@ -65,18 +60,14 @@ docker --version
 ## 2. Clonar repositorio y configurar entorno
 
 ```bash
-# Clonar repo
+cd /root
 git clone https://github.com/lagalga/korio.git
 cd korio
 
-# Crear entorno virtual Python
 python3 -m venv .venv
 source .venv/bin/activate
 
-# Instalar dependencias
 pip install -r requirements.txt
-
-# Descargar modelo spaCy (necesario para Presidio)
 python -m spacy download es_core_news_lg
 ```
 
@@ -89,123 +80,180 @@ cp .env.example .env
 nano .env
 ```
 
-Contenido de `.env`:
+`.env` completo (v0.3.12):
 
 ```env
-# Supabase
+# ─── Supabase ─────────────────────────────────────────────
 SUPABASE_URL=https://<PROJECT_ID>.supabase.co
 SUPABASE_ANON_KEY=<anon_key>
 SUPABASE_SERVICE_ROLE_KEY=<service_role_key>
 
-# Ollama (en este mismo VPS)
+# ─── Ollama (mismo VPS) ───────────────────────────────────
 OLLAMA_HOST=http://localhost:11434
 
-# Mistral API
+# ─── LLM (Mistral cloud + Ollama fallback) ────────────────
 MISTRAL_API_KEY=<tu_api_key>
+KORIO_REDACT_MISTRAL=1                       # PII whitelist pre-envío (Presidio)
 
-# Gobernanza HITL
+# ─── Búsqueda ─────────────────────────────────────────────
+KORIO_SEARCH_THRESHOLD=0.35                  # Cosine min (sesión 10)
+KORIO_QUERY_TIME_CONFLICT_ENABLED=1
+KORIO_QUERY_TIME_CONFLICT_THRESHOLD=0.80     # Caso extremo E4
+KORIO_DISPUTED_BANNER_MIN_SIM=0.6            # UI banner solo si supera (sesión 12)
+
+# ─── Gobernanza HITL ──────────────────────────────────────
 HITL_WEBHOOK_URL=https://n8n.korio.es/webhook/korio-hitl
-HITL_WEBHOOK_USER=<basic_auth_user>
+HITL_WEBHOOK_USER=<basic_auth_user>          # Webhook protegido Basic Auth
 HITL_WEBHOOK_PASS=<basic_auth_pass>
 KORIO_BASE_URL=https://korio.es
-KORIO_ADMIN_API_KEY=<random_token_para_endpoints_admin>
+KORIO_ADMIN_API_KEY=<random_token>           # Auth para endpoints /admin/*
+KORIO_ADMIN_TENANT_ID=<uuid>                 # Defensa en profundidad DELETE /document
 ESCALATION_REMINDER_DAYS=3,7,14
 ESCALATION_TIMEOUT_DAYS=21
 
-# Grafo de conocimiento (FalkorDB)
+# ─── Grafo de conocimiento (FalkorDB) ─────────────────────
 KORIO_GRAPH_ENABLED=1
 FALKORDB_HOST=127.0.0.1
 FALKORDB_PORT=6379
 KORIO_GRAPH_NAME=korio
 
-# n8n.korio.es (opcional, para crear workflows vía API REST)
-N8N_KORIO_API_KEY=<n8n_api_key>
-N8N_KORIO_BASE_URL=https://n8n.korio.es
+# ─── Pipeline event bus ───────────────────────────────────
+KORIO_EVENT_WEBHOOK_URL=https://n8n.korio.es/webhook/korio-events
 
-# Postgres local (opcional, solo para dev)
-POSTGRES_PASSWORD=korio
+# ─── Seguridad / Hardening (sesión 13a + 16b) ─────────────
+KORIO_ENV=prod
+KORIO_EXTRA_CORS_ORIGINS=                    # opcional, coma-separado
+SLACK_SIGNING_SECRET=<de api.slack.com>      # Verificación firma /admin/errors/slack-action
+
+# ─── n8n.korio.es (gestión de workflows vía API REST) ─────
+N8N_KORIO_API_KEY=<api_key>
+N8N_KORIO_BASE_URL=https://n8n.korio.es
 ```
 
 ---
 
-## 4. Levantar Ollama con Docker
+## 4. Docker compose: Ollama + FalkorDB + n8n
+
+Verifica `docker-compose.yml` (en el repo):
+- **`korio-ollama`** → modelos `nomic-embed-text` (768d) + `mistral:7b-instruct-q4_K_M` (fallback)
+- **`korio-falkordb`** → Redis 8.6.3 con módulo grafo, **AOF persistence** (`appendonly yes appendfsync everysec`)
+- **`korio-n8n`** → n8n v1.x
 
 ```bash
-# Arrancar servicios (solo Ollama para producción)
-docker compose up -d ollama
+docker compose up -d
+docker compose ps     # los 3 contenedores en running
 
-# Esperar a que el healthcheck pase
-docker compose ps
-
-# Descargar modelos
+# Descargar modelos Ollama (la primera vez)
 docker exec korio-ollama ollama pull nomic-embed-text
 docker exec korio-ollama ollama pull mistral:7b-instruct-q4_K_M
-
-# Verificar modelos instalados
 docker exec korio-ollama ollama list
+
+# Verificar FalkorDB
+docker exec korio-falkordb redis-cli PING
+
+# Verificar n8n
+curl -sI http://localhost:5678 | head -1
 ```
 
-> **Nota:** El modelo `nomic-embed-text` (~274MB) es el primero que hay que descargar. Es CRÍTICO para el funcionamiento del sistema (768 dims, nunca cambiar).
+> El modelo `nomic-embed-text` (~274MB · 768 dims · INMUTABLE) es crítico. Cambiarlo requiere re-ingestar TODA la BD.
 
 ---
 
 ## 5. Schema de Supabase
 
-En [supabase.com](https://supabase.com), ir a **SQL Editor** y ejecutar las migraciones en orden:
+20 migraciones en `supabase/migrations/`. Ejecutar en orden desde el SQL Editor de [supabase.com](https://supabase.com):
 
-```bash
-# Orden de ejecución (9 migraciones):
-# 1. supabase/migrations/001_initial_schema.sql     — schema + RLS + seed
-# 2. supabase/migrations/002_search_function.sql    — search_embeddings(vector(768))
-# 3. supabase/migrations/003_fix_vector_dims.sql    — 384 → 768 dims
-# 4. supabase/migrations/004_conflict_reviews.sql   — gobernanza activa
-# 5. supabase/migrations/005_search_with_disputed.sql
-# 6. supabase/migrations/006_tenant_admin_email.sql
-# 7. supabase/migrations/007_waitlist.sql           — landing
-# 8. supabase/migrations/008_escalation_tracking.sql — cron HITL
-# 9. supabase/migrations/009_source_metadata.sql    — canal de origen en ingesta
-#
-# IMPORTANTE tras aplicar cualquier migración:
-#   NOTIFY pgrst, 'reload schema';
-# (PostgREST cachea el schema; sin esto las nuevas columnas no son visibles)
-```
-
-### Verificar que el schema está correcto
-
-```sql
--- Debe devolver 'vector(768)'
-SELECT pg_typeof(embedding) FROM embeddings LIMIT 1;
-
--- Debe listar las tablas principales
-SELECT tablename FROM pg_tables WHERE schemaname = 'public'
-ORDER BY tablename;
--- Resultado esperado: audit_log, documents, embeddings, spaces, tenants, user_spaces, users
-```
-
-### Habilitar RLS en Supabase
-
-Las políticas RLS se crean en `001_initial_schema.sql`. Verificar:
+| # | Fichero | Propósito |
+|---|---|---|
+| 001 | `001_initial_schema.sql` | Schema base + RLS + seed |
+| 002 | `002_search_function.sql` | RPC `search_embeddings(vector(768), …)` |
+| 003 | `003_fix_vector_dims.sql` | Corrección 384 → 768 |
+| 004 | `004_conflict_reviews.sql` | Gobernanza activa |
+| 005 | `005_search_with_disputed.sql` | Incluye chunks `disputed` |
+| 006 | `006_tenant_admin_email.sql` | Email HITL configurable por tenant |
+| 007 | `007_waitlist.sql` | Landing teaser |
+| 008 | `008_escalation_tracking.sql` | Cron HITL escalada |
+| 009 | `009_source_metadata.sql` | `documents.source_metadata` JSONB |
+| 010 | `010_mcp_api_keys.sql` | API keys MCP server (SHA-256) |
+| 011 | `011_pipeline_events_atomic_ingest.sql` | Bus eventos + RPC ACID |
+| 012 | `012_silent_conflicts_query_time.sql` | Caso extremo E4 |
+| 013 | `013_inconclusive_state_and_policies.sql` | Estado + policies reutilizables |
+| 014 | `014_n8n_errors.sql` | Captura errores workflows |
+| 015 | `015_mcp_api_keys_rls.sql` | RLS sobre `mcp_api_keys` |
+| 016 | `016_silent_conflicts_same_space.sql` | Fix false positives cross-space |
+| 017 | `017_admin_space.sql` | Space `Administración` |
+| 018 | `018_slack_service_users.sql` | Service users multi-canal Slack |
+| 019 | `019_drop_ivfflat_index.sql` | DROP `idx_embeddings_vector` (probes=1 bug) |
+| 020 | `020_inconclusive_in_search.sql` | RPC incluye `inconclusive` con badge ⚠️ |
 
 ```sql
--- Debe devolver true para todas las tablas
-SELECT tablename, rowsecurity FROM pg_tables
-WHERE schemaname = 'public';
+-- IMPORTANTE tras cada migración:
+NOTIFY pgrst, 'reload schema';
+```
+
+### Verificar schema
+
+```sql
+-- Vector dim correcta
+SELECT pg_typeof(embedding) FROM embeddings LIMIT 1;   -- vector(768)
+
+-- Tablas esperadas
+SELECT tablename FROM pg_tables WHERE schemaname = 'public' ORDER BY tablename;
+-- audit_log, conflict_reviews, documents, embeddings, graph_sync_queue,
+-- mcp_api_keys, n8n_errors, pipeline_events, policies, spaces, tenants,
+-- user_spaces, users, waitlist
+
+-- RLS habilitado
+SELECT tablename, rowsecurity FROM pg_tables WHERE schemaname = 'public';
 ```
 
 ---
 
-## 6. Levantar la API
+## 6. nginx + TLS
 
-### Modo desarrollo (con hot-reload)
+`/etc/nginx/sites-available/korio.es`:
 
-```bash
-source .venv/bin/activate
-python -m uvicorn api.server:app --reload --host 0.0.0.0 --port 8000
+```nginx
+server {
+    listen 80;
+    server_name korio.es;
+    return 301 https://$server_name$request_uri;
+}
+
+server {
+    listen 443 ssl http2;
+    server_name korio.es;
+
+    ssl_certificate     /etc/letsencrypt/live/korio.es/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/korio.es/privkey.pem;
+
+    # Buffering OFF para SSE del MCP server
+    proxy_buffering off;
+    proxy_read_timeout 86400;
+
+    location / {
+        proxy_pass http://127.0.0.1:8000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+
+# Idem para n8n.korio.es → http://127.0.0.1:5678
 ```
 
-### Modo producción (proceso systemd)
+```bash
+ln -s /etc/nginx/sites-available/korio.es /etc/nginx/sites-enabled/
+certbot --nginx -d korio.es -d n8n.korio.es
+systemctl reload nginx
+```
 
-Crear `/etc/systemd/system/korio-api.service`:
+---
+
+## 7. FastAPI como systemd service
+
+`/etc/systemd/system/korio-api.service`:
 
 ```ini
 [Unit]
@@ -217,8 +265,10 @@ Requires=docker.service
 Type=simple
 User=root
 WorkingDirectory=/root/korio
+EnvironmentFile=/root/korio/.env
 Environment="PATH=/root/korio/.venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin"
-ExecStart=/root/korio/.venv/bin/uvicorn api.server:app --host 0.0.0.0 --port 8000 --workers 2
+# IMPORTANTE: --workers 1 mientras las sesiones SSE de MCP sean in-memory por proceso
+ExecStart=/root/korio/.venv/bin/uvicorn api.server:app --host 0.0.0.0 --port 8000 --workers 1
 Restart=always
 RestartSec=5
 
@@ -231,158 +281,176 @@ systemctl daemon-reload
 systemctl enable korio-api
 systemctl start korio-api
 systemctl status korio-api
+journalctl -u korio-api -f
 ```
 
 ---
 
-## 7. Verificar el sistema
+## 8. Verificación
 
 ### Health check
 
 ```bash
-curl http://localhost:8000/health
-# Respuesta esperada:
-# {"status": "ok", "services": {"supabase": "ok", "embedder": "ok", "llm": "ok (mistral/mistral-small-latest)"}}
+curl https://korio.es/health
+# {"status":"ok","services":{"supabase":"ok","embedder":"ok","llm":"ok (mistral_api/...)"}}
 ```
 
-### Test de ingesta
-
-```bash
-source .venv/bin/activate
-python src/ingest.py data-synthetic/delos_politica_rrhh.md \
-  --tenant-id a0000000-0000-0000-0000-000000000001 \
-  --space-id a1000000-0000-0000-0000-000000000001
-# Esperado: "✓ Ingestados X chunks"
-```
-
-### Test de búsqueda
-
-```bash
-python src/search.py "¿Cuántos días de vacaciones tienen los empleados?" \
-  --user-id a2000000-0000-0000-0000-000000000001 \
-  --tenant-id a0000000-0000-0000-0000-000000000001
-```
-
-### Tests automáticos
+### Tests
 
 ```bash
 source .venv/bin/activate
 python -m pytest tests/ -v
-# Esperado: 20/20 tests ✅ (~20s)
+# 31/31 verdes (~30s)
+```
+
+### Endpoints clave
+
+| URL | Propósito |
+|---|---|
+| `https://korio.es/` | Landing teaser |
+| `https://korio.es/ui` | Chat web |
+| `https://korio.es/ui/graph.html` | Visualización grafo |
+| `https://korio.es/ui/admin-errors.html` | Panel admin errores n8n |
+| `https://korio.es/docs` | Swagger (botón Authorize) |
+| `https://korio.es/mcp/sse` | MCP server (Phase 7.3) |
+| `https://korio.es/legal/privacy.html` | Privacy Policy GDPR |
+| `https://n8n.korio.es` | Editor n8n (8 workflows) |
+
+---
+
+## 9. Operaciones recurrentes
+
+### Crear MCP API key
+
+```bash
+ssh korio-vps
+cd /root/korio && source .venv/bin/activate
+python scripts/mcp_create_key.py create \
+  --user-id <uuid> --tenant-id <uuid> --name "Claude Desktop"
+# Plaintext mostrado UNA sola vez. Prefijo korio_
+```
+
+### Disparar cron HITL manualmente
+
+```bash
+curl -X POST https://korio.es/escalate-reviews \
+  -H "X-Korio-Admin-Key: $KORIO_ADMIN_API_KEY"
+```
+
+### Listar / marcar reviewed errores n8n
+
+UI: `https://korio.es/ui/admin-errors.html` (pega admin key).
+CLI:
+```bash
+curl -H "X-Korio-Admin-Key: $KORIO_ADMIN_API_KEY" \
+  "https://korio.es/admin/errors?only_unreviewed=true&limit=20"
+curl -X POST -H "X-Korio-Admin-Key: $KORIO_ADMIN_API_KEY" \
+  "https://korio.es/admin/errors/<id>/review"
+```
+
+### Snapshot / restore demo
+
+```bash
+python scripts/demo_snapshot.py list
+python scripts/demo_snapshot.py save --name pre_demo_v039
+python scripts/demo_snapshot.py restore --name pre_demo_v038 -y
+systemctl restart korio-api
+```
+
+### Borrar documento (admin)
+
+```bash
+curl -X DELETE https://korio.es/document/<doc_id> \
+  -H "X-Korio-Admin-Key: $KORIO_ADMIN_API_KEY"
+# Postgres cascade + FalkorDB cleanup
 ```
 
 ---
 
-## 8. Ingestar datos sintéticos de prueba
-
-Para tener el sistema completo con ambos tenants:
+## 10. Firewall
 
 ```bash
-source .venv/bin/activate
-
-# Tenant: Clínica Delos
-python src/ingest.py data-synthetic/delos_politica_rrhh.md \
-  --tenant-id a0000000-0000-0000-0000-000000000001 \
-  --space-id a1000000-0000-0000-0000-000000000001
-
-python src/ingest.py data-synthetic/delos_protocolo_admision.md \
-  --tenant-id a0000000-0000-0000-0000-000000000001 \
-  --space-id a1000000-0000-0000-0000-000000000002
-
-python src/ingest.py data-synthetic/delos_acta_junta_directiva.md \
-  --tenant-id a0000000-0000-0000-0000-000000000001 \
-  --space-id a1000000-0000-0000-0000-000000000003
-
-# Tenant: Despacho García
-python src/ingest.py data-synthetic/garcia_caso_laboral.md \
-  --tenant-id b0000000-0000-0000-0000-000000000002 \
-  --space-id b1000000-0000-0000-0000-000000000001
-
-python src/ingest.py data-synthetic/garcia_dictamen_fiscal.md \
-  --tenant-id b0000000-0000-0000-0000-000000000002 \
-  --space-id b1000000-0000-0000-0000-000000000002
-
-python src/ingest.py data-synthetic/garcia_protocolo_clientes.md \
-  --tenant-id b0000000-0000-0000-0000-000000000002 \
-  --space-id b1000000-0000-0000-0000-000000000001
-```
-
----
-
-## 9. Firewall (opcional para producción)
-
-```bash
-# Instalar ufw
 apt install -y ufw
-
-# Reglas básicas
 ufw default deny incoming
 ufw default allow outgoing
 ufw allow ssh
-ufw allow 8000/tcp    # API Korio
-# ufw allow 443/tcp   # HTTPS si tienes dominio + nginx
-
+ufw allow 80/tcp
+ufw allow 443/tcp
+# Puertos internos (8000 FastAPI, 5678 n8n, 6379 FalkorDB, 11434 Ollama) NO se exponen
 ufw enable
 ufw status
 ```
 
 ---
 
+## 11. Configuración Slack (post-deploy)
+
+### Slack app "Korio-Delos"
+
+1. https://api.slack.com/apps → app de Korio.
+2. **OAuth & Permissions** → Bot Token Scopes:
+   `chat:write, commands, files:read, reactions:write, app_mentions:read`
+3. **Slash Commands** → `/korio` con Request URL `https://n8n.korio.es/webhook/korio-slack`
+4. **Event Subscriptions** → ON · Request URL `https://n8n.korio.es/webhook/korio-slack-events` · Bot events: `file_shared`
+5. **Interactivity & Shortcuts** → ON · Request URL `https://korio.es/admin/errors/slack-action`
+6. **Basic Information** → copiar `Signing Secret` → añadir a `.env` como `SLACK_SIGNING_SECRET` + `systemctl restart korio-api`
+7. **Install / Reinstall to Workspace**
+8. `/invite @Korio-Delos` en canales relevantes
+
+---
+
 ## Comandos de mantenimiento
 
 ```bash
-# Ver logs de la API
+# Logs en vivo
 journalctl -u korio-api -f
+docker logs korio-ollama --tail 50
+docker logs korio-falkordb --tail 50
+docker logs korio-n8n --tail 50
 
 # Reiniciar API
 systemctl restart korio-api
 
-# Ver logs de Ollama
-docker logs korio-ollama --tail 50
+# Estado contenedores
+docker ps --format '{{.Names}}\t{{.Status}}'
 
-# Verificar modelos Ollama
-docker exec korio-ollama ollama list
-
-# Ver espacio en disco
+# Espacio disco / RAM
 df -h
-
-# Ver uso de RAM
 free -h
+docker system df    # uso de Docker
 ```
 
 ---
 
 ## Troubleshooting
 
-### Error: "vector dimension mismatch"
-```
-El schema tiene vector(384) pero el modelo genera 768 dims.
-Solución: ejecutar supabase/migrations/003_fix_vector_dims.sql
-```
+### `vector dimension mismatch`
+Schema con `vector(384)` pero el modelo genera 768. Ejecutar migración `003_fix_vector_dims.sql`.
 
-### Error: "Ollama connection refused"
+### `Ollama connection refused`
 ```bash
-# Verificar que el contenedor está corriendo
 docker ps | grep ollama
-# Si no está: docker compose up -d ollama
+docker compose up -d ollama
 ```
 
-### Error: "Supabase connection failed"
-```bash
-# Verificar variables de entorno
-grep SUPABASE .env
-# Verificar conectividad
-curl https://<PROJECT_ID>.supabase.co/rest/v1/tenants \
-  -H "apikey: <anon_key>"
-```
+### `Supabase connection failed`
+Verificar `.env` + `curl https://<PROJECT>.supabase.co/rest/v1/tenants -H "apikey: $ANON"`.
 
-### Tests fallando por RLS
-```
-Verificar que en conftest.py los UUIDs de tenants/users/spaces
-coinciden con los datos seed de Supabase.
-Los datos seed se crean en 001_initial_schema.sql.
-```
+### RPC `search_embeddings` devuelve 0 con datos en BD
+Sesión 13b — el índice `ivfflat lists=100` con `probes=1` y <100 chunks dispersos saltaba matches. Migración 019 dropea el índice. Reintroducir solo con >1000 chunks (HNSW preferido).
+
+### MCP SSE rompe con `Unexpected message http.response.start`
+`BaseHTTPMiddleware` bufferea el stream. Usar `MCPAuthASGI` puro (ya implementado).
+
+### `mcp-remote` cliente alucina respuestas sin llamar al tool
+Bug timing en `mcp-remote@0.1.38`. Upgrade a `@latest` en `claude_desktop_config.json`.
+
+### n8n API PUT workflow devuelve 400 "additional properties"
+La API rechaza campos como `binaryMode`, `timeSavedMode`, `availableInMCP`. Filtrar `settings` a whitelist: `executionOrder, saveDataErrorExecution, saveDataSuccessExecution, saveManualExecutions, saveExecutionProgress, executionTimeout, errorWorkflow, timezone, callerPolicy, callerIds`.
+
+### n8n API activate devuelve 400 "Cannot activate an archived workflow"
+Llamar primero `POST /workflows/{id}/unarchive`.
 
 ---
 
-*Actualizado: junio 2026*
+*Actualizado: 18 junio 2026 · v0.3.12 · sesión 16. 20 migraciones · 8 workflows · 31/31 tests.*
