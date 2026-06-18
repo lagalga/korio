@@ -181,6 +181,15 @@ class Preprocessor:
             from presidio_anonymizer.entities import OperatorConfig
 
             results = self.analyzer.analyze(text, language="es")
+            # Solo redactar PII real (GDPR Art. 5). ORG, LOC, MISC, CARDINAL
+            # son conocimiento de negocio, NO PII. Redactarlos garblea documentos.
+            _PII_TYPES = {
+                "PERSON", "EMAIL_ADDRESS", "PHONE_NUMBER", "NRP",
+                "CREDIT_CARD", "IBAN_CODE", "MEDICAL_LICENSE",
+                "US_SSN", "US_PASSPORT", "UK_NHS",
+                "ES_NIF", "ES_NIE",
+            }
+            results = [r for r in results if r.entity_type in _PII_TYPES]
             if not results:
                 return text, []
 
