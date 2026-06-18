@@ -683,3 +683,19 @@ Pendiente sesión 7 (Phase 8 candidatos): detección query-time, estado `inconcl
 - **1 commit a `main`**: `6dcd804`.
 
 *Actualizado: 18 junio 2026 (sesión 15) — v0.3.10. Fixes pre-vídeo: MCP timing bug, R4 false-positive superseded, PII redaction whitelist, grafo header echo. Snapshot pre_demo_v037 guardado (20 docs, 74 chunks). Próximo: grabar vídeo demo (s16), slide deck (s17).*
+
+---
+
+**Sesión 15b (18 jun · tarde 2026)** — Recovery durante grabación + ranking fix (v0.3.11):
+
+- **Problema en grabación**: query trivial "¿cuántas horas hay que trabajar?" en Claude Desktop devolvía "No encuentro información" con ranking weird (M3_ibuprofeno top 0.620 por ruido lexical "horas"). R4 (doc correcto con "35 horas semanales") salía 3º (0.607).
+- **Causa raíz**: chunks `chunk_index=0` incluían frontmatter YAML (title/author/role/date/version, ~250-300 chars) que diluía el embedding semántico. nomic-embed-text rankeaba mal.
+- **`scripts/reembed_strip_frontmatter.py`** — re-embebido sin frontmatter de 4 chunks activos con YAML (R4 id=185 + 3 más). R4 sube de 3º (0.607) a 1º (0.632). Query vaga "horas hay que trabajar" pasa de "No encuentro" a respuesta correcta con cita R4.
+- **`src/preprocessor.py`** — segundo bug Presidio: ingesta redactaba ORG/LOC/MISC, generando chunks con `Dpto. <REDACTED>`, `Clínica Delos · <REDACTED>`, `Camisola <REDACTED>` visible en preview email HITL. Aplicada misma whitelist `_PII_TYPES` (PERSON, EMAIL, PHONE, ES_NIF, ES_NIE, IBAN, MEDICAL_LICENSE, etc.). Docs viejos mantienen `<REDACTED>` en disco; nuevas ingestas limpias.
+- **Snapshot `pre_demo_v038`** — 20 docs, 74 chunks, 1130 nodos, 1818 aristas (post re-embed).
+- **Reset post-grabación**: restaurado snapshot `v038` + borrado R2 + L3 (Postgres + grafo) para que la próxima toma re-ingiera por Gmail (R2 label `korio/rrhh`) y Drive (L3 en `input/legal`).
+- **3 commits a `main`**: `87a75fc` (reembed script), `753e75b` (preprocessor whitelist), `<docs>` (este cierre).
+
+🔲 **Aprendizaje para Phase 9**: chunker en ingesta debería excluir frontmatter YAML del texto que se embeda (mantener en metadata pero no en vector). Evitaría tener que re-embebir post-hoc.
+
+*Actualizado: 18 junio 2026 (sesión 15-15b) — v0.3.11. Vídeo demo grabado. 4 commits hoy: PII whitelist Mistral, grafo header, reembed frontmatter strip, PII whitelist preprocessor. Snapshot pre_demo_v038 limpio + R2/L3 fuera para próxima toma. Próximo: slide deck (s16).*

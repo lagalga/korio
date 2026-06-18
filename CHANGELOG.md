@@ -10,6 +10,35 @@ semántico [SemVer](https://semver.org/lang/es/).
 
 ## [Unreleased]
 
+## [0.3.11] — 2026-06-18 · sesión 15-15b (Vídeo demo + fixes)
+
+### Added
+- **`scripts/reembed_strip_frontmatter.py`** — re-embebe chunks `idx=0` quitando
+  frontmatter YAML (title/author/role/date) que diluía el embedding semántico.
+  R4 (jornada laboral mínima) pasa de 3º (sim 0.607) a 1º (0.632) en query del guion.
+- **Snapshot `pre_demo_v037`** y **`pre_demo_v038`** — 20 docs, 74 chunks,
+  1130 nodos, 1818 aristas. v038 incluye chunks re-embebidos sin frontmatter.
+
+### Fixed
+- **`src/llm_client.py:_redact_for_mistral`** — whitelist `_PII_ENTITY_TYPES`
+  (PERSON, EMAIL_ADDRESS, PHONE_NUMBER, NRP, CREDIT_CARD, IBAN_CODE,
+  MEDICAL_LICENSE, ES_NIF, ES_NIE…). Antes redactaba ORG/LOC/MISC →
+  `[R4_<REDACTED>]` en citas. Ahora `[R4_convenio-colectivo-sanitario-resumen.md]`.
+- **`src/preprocessor.py:anonymize_pii`** — misma whitelist en ingesta. Antes
+  generaba chunks con `Dpto. <REDACTED> Recursos Humanos`, `Camisola <REDACTED>`
+  visible en preview email HITL. Docs nuevos limpios.
+- **`src/search.py:_graph_context`** — eliminado header literal
+  `[CONOCIMIENTO ESTRUCTURADO DEL GRAFO]` que Mistral echoeba en respuestas.
+- **R4 chunks `superseded` → `active`** — falso positivo detector (35h asalariados
+  vs 35h médicos residentes, distinto subject). Restaurados ids 185, 186.
+
+### Operational
+- **Vídeo demo grabado** (3 actos) durante sesión 15-15b.
+- **MCP `mcp-remote@latest`** en Claude Desktop config (antes `0.1.38` con timing bug).
+- **Reset post-grabación**: snapshot v038 restaurado + R2 + L3 borrados para
+  permitir re-ingesta natural por Gmail/Drive en próxima toma.
+- **Aprendizaje Phase 9**: chunker debe excluir frontmatter YAML del texto a embebir.
+
 ## [0.3.7] — 2026-06-16 · sesión 14 (Cierre implementación + herramientas demo)
 
 ### Added

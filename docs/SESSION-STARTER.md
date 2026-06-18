@@ -205,25 +205,40 @@ systemctl restart korio-api
 
 ---
 
-## Próxima sesión — **sesión 16 · Grabación vídeo demo**
+## Estado al cierre de sesión 15b · 18 jun 2026 · v0.3.11 · Vídeo grabado
 
-Sistema listo para grabación. Snapshot `pre_demo_v037` guardado (20 docs, 74 chunks).
+✅ **Sesión 15b (18 jun · tarde) — Recovery durante grabación + ranking fix**:
+- **Bug ranking detectado en directo**: M3_ibuprofeno top 0.620 para query de "horas semanales" por ruido lexical. R4 (doc correcto) 3º.
+- **Fix**: `scripts/reembed_strip_frontmatter.py` — re-embeber 4 chunks `idx=0` sin frontmatter YAML. R4 sube de 3º (0.607) a 1º (0.632). Query vaga "cuántas horas hay que trabajar" pasa de "No encuentro" a respuesta correcta.
+- **Bug Presidio ingesta**: chunks con `Dpto. <REDACTED>`, `Clínica Delos · <REDACTED>` visible en preview HITL. Aplicada misma whitelist `_PII_TYPES` en `src/preprocessor.py`. Ingestas nuevas limpias.
+- **Snapshot `pre_demo_v038`** guardado (20 docs, 74 chunks, 1130 nodos, 1818 aristas).
+- **Reset post-grabación** ejecutado: restore v038 + borrado R2 + L3 (Postgres + grafo). Próxima toma re-ingestará por Gmail/Drive con PII fix activo (sin `<REDACTED>` cosmético).
+- **3 commits a `main`**: `87a75fc`, `753e75b`, `<docs>`.
 
-### Plan sesión 16 (estimación ~3-4 h)
+🔲 **Aprendizaje Phase 9**: el chunker debería excluir frontmatter YAML del embedding (mantener en metadata). Evita reembed post-hoc.
 
-1. **Preparar guion final del vídeo** (~3-4 min):
-   - Gmail (R2) llega → label `korio/rrhh` → 30s después consultable en `/search`
-   - Bus de eventos en `n8n.korio.es`: ejecuciones visibles
-   - Chat en `korio.es/ui`: "¿Cuánto se trabaja a la semana?" → grafo aporta 35h
-   - Query "¿Cuántos días de vacaciones?" → R2 gana, R1 disputed (badge ⚠️)
-   - Query con `inconclusive` → R6/R7 ambos visibles con aviso complementario
-   - Claude Desktop con MCP: misma query, respuesta con citas y fuentes limpias
-   - `graph.html`: nodos, arista CONTRADICTS roja, hover en sidebar
-   - Demostrar policy auto-resolve en vivo (re-ingesta de R7)
+---
 
-2. **Grabar vídeo** con ScreenFlow/Loom.
+## Próxima sesión — **sesión 16 · Slide deck (10–15 slides)**
 
-3. **QA final rápido** (5 queries E2E) para confirmar que todo sigue estable.
+Vídeo demo grabado en s15+15b. Sistema listo para empezar contenido.
+
+### Plan sesión 16 (estimación ~6-8 h)
+
+1. **Outline slide deck** (estructura clásica TFM):
+   - Portada + cover (Korio, autor, máster, fechas)
+   - Problema (~2 slides): caos documental en pymes, RAG vainilla insuficiente
+   - Estado del arte (~2 slides): vector RAG, multi-tenant, gobernanza
+   - Arquitectura (~3 slides): pipeline ingesta, RLS dos capas, RAG híbrido
+   - Las 6 reglas del E3 (1 slide cada una con micro-demo): ACID, detección, auto-resolución, policies, inconclusive, silent conflict
+   - Resultados (~2 slides): métricas p50/p95, casos demostrados
+   - Compliance (~1 slide): AI Act + GDPR
+   - Limitaciones y futuro (~1 slide): Phase 8 multi-tenant OAuth, Phase 9 ranking/bias
+   - Cierre (~1 slide): demo en vivo (vídeo)
+
+2. **Generar slides** (Keynote/PowerPoint/`pptx` skill).
+
+3. **Ensayo cronometrado** (~20 min defensa).
 
 ### Sesiones posteriores
 
