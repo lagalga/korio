@@ -10,6 +10,54 @@ semántico [SemVer](https://semver.org/lang/es/).
 
 ## [Unreleased]
 
+## [0.3.12] — 2026-06-18 · sesión 16a/b/c (Phase 9 errores n8n + Slack duplicate)
+
+### Added
+- **Throttling anti-spam en workflow `Korio - Gestión de errores n8n`**
+  (`KeUTpIk0ycbW1f3g`): Code node consulta `n8n_errors?reviewed_at=is.null`
+  con `Prefer: count=exact`, calcula `notify = count===1 || count%10===0`.
+  Slack DM solo en errores 1, 10, 20…; resto silenciados (pero persistidos).
+- **Endpoints admin** en `api/server.py`:
+  - `GET /admin/errors` — lista paginada con filtros `only_unreviewed`,
+    `workflow_id`, `limit`. Auth `require_admin`.
+  - `POST /admin/errors/{id}/review` — idempotente, body opcional
+    `{reviewed_by, notes}`. Devuelve `already_reviewed`.
+  - `POST /admin/errors/slack-action` — recibe `block_actions` de Slack,
+    verifica firma `v0:ts:body` con `SLACK_SIGNING_SECRET` y
+    `hmac.compare_digest`, anti-replay 5 min. Marca reviewed + DM ephemeral
+    de confirmación al usuario.
+- **UI `ui/admin-errors.html`** — panel dark mode independiente. Admin key
+  en `sessionStorage`. Tabla con filtros + botones "Ver en n8n" y "Marcar
+  reviewed". Acceso vía `https://korio.es/ui/admin-errors.html`.
+- **Workflow `Korio - Gestión de errores n8n`**: `Guardar en Supabase` con
+  `Prefer: return=representation`. Code node extrae `error_id` recién
+  insertado. Slack DM con 3 botones (Ver ejecución / ✅ Marcar reviewed /
+  Panel admin).
+
+### Changed
+- **Workflow `Korio · Slack file_shared → /upload (Delos multi-space)`**
+  (`81GO5BjXj0ZNYmhO`): `POST /upload` con `fullResponse=true` + `neverError=true`.
+  IF `¿200 OK?` → Reaccion OK + Notificar uploader (lee `$json.body.document_id`).
+  Si false → IF `¿409 duplicado?`:
+  - 409 → nodo Slack `Avisar duplicado (thread)` publica en `thread_ts` del
+    file_shared `⚠️ X ya estaba en Korio — no se ha vuelto a ingestar`.
+  - Otros 4xx/5xx → nodo Code `Re-lanzar error` → activa `errorWorkflow`.
+- Antes: cualquier 409 del backend disparaba `errorWorkflow` → falso positivo
+  en DM de admin. Ahora 409 se trata como respuesta legítima en el thread.
+
+### Security
+- `POST /admin/errors/slack-action`: verificación HMAC SHA-256 con
+  `hmac.compare_digest` (constant-time) y rechazo de timestamps con drift
+  >5 min (mitiga replay attacks). 503 si `SLACK_SIGNING_SECRET` no configurado.
+
+### Operational
+- **`SLACK_SIGNING_SECRET`** añadido a `/root/korio/.env` del VPS.
+- **api.slack.com → Korio-Delos → Interactivity & Shortcuts** configurado
+  con Request URL `https://korio.es/admin/errors/slack-action`.
+- Verificado E2E: error real de workflow test → DM Slack con botón → click
+  usuario → BD marcada `reviewed_by: slack:U0A97H29E8J` en 14 segundos.
+- Snapshot `pre_demo_v038` consistente tras borrar L3 de test duplicate.
+
 ## [0.3.11] — 2026-06-18 · sesión 15-15b (Vídeo demo + fixes)
 
 ### Added

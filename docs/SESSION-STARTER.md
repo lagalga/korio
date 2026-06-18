@@ -216,38 +216,42 @@ systemctl restart korio-api
 
 ---
 
-## Estado al cierre de sesión 16a · 18 jun 2026 · throttling errores n8n
+## Estado al cierre de sesión 16 · 18 jun 2026 · v0.3.12 · Phase 9 errores + Slack duplicate UX
 
-✅ **Sesión 16a (18 jun · tarde)** — Phase 9 parcial: throttling anti-spam workflow `Korio - Gestión de errores n8n`:
-- Refactor `Error Trigger → Preparar → Supabase → Code (count + notify) → IF → Slack DM`. Antes paralelo, ahora secuencial con gate.
+✅ **Sesión 16a — Throttling anti-spam en workflow `Korio - Gestión de errores n8n`** (`KeUTpIk0ycbW1f3g`):
+- Refactor: `Error Trigger → Preparar → Supabase → Code (count + notify) → IF → Slack DM`.
 - Code node consulta `n8n_errors?reviewed_at=is.null` con `Prefer: count=exact`, parsea `content-range`, calcula `notify = count===1 || count%10===0`.
-- Persistencia Supabase intacta (siempre se guarda); solo Slack se silencia entre el 2º y 9º error de un mismo workflow.
-- PUT vía API REST con `N8N_KORIO_API_KEY`, workflow activo. Verificado lookup count.
+- Persistencia Supabase intacta; Slack silenciado entre el 2º y 9º error de un mismo workflow no-reviewed.
 
-🔲 **Restante Phase 9 errores**: panel `/admin/errors` UI Korio, botón "reviewed" Slack interactivity webhook.
+✅ **Sesión 16b — Panel admin + Slack interactivity**:
+- Backend: `GET /admin/errors`, `POST /admin/errors/{id}/review`, `POST /admin/errors/slack-action` (verifica firma `v0:ts:body` con `SLACK_SIGNING_SECRET` + anti-replay 5min).
+- UI `ui/admin-errors.html` dark mode con tabla + filtros + botón "Marcar reviewed". Admin key en sessionStorage.
+- Workflow `KeUTpIk0ycbW1f3g`: `Guardar en Supabase` con `return=representation`, Code node extrae `error_id`, Slack DM con 3 botones (Ver / Marcar reviewed / Panel admin).
+- Verificación E2E real: error de workflow test → DM Slack con botón → click usuario → BD `reviewed_by: slack:U…` en 14s. ✅
 
-✅ **Sesión 16c (18 jun · tarde)** — Slack file_shared: duplicate → DM thread (no errorWorkflow):
-- Workflow `81GO5BjXj0ZNYmhO`: `POST /upload` con `fullResponse + neverError`, IF 200/409/other.
-- 409 → mensaje en thread del file_shared al uploader con texto "ya estaba en Korio".
+✅ **Sesión 16c — Workflow Slack file_shared duplicate → DM thread** (`81GO5BjXj0ZNYmhO`):
+- `POST /upload` con `fullResponse + neverError`, IF `¿200 OK?` + IF `¿409 duplicado?`.
+- 409 → mensaje en thread del file_shared al uploader: `⚠️ X ya estaba en Korio — no se ha vuelto a ingestar`.
 - Otros 4xx/5xx → nodo Code re-lanza error → activa errorWorkflow normal.
-- Reaccion OK y Notificar al uploader ahora leen `$json.body.document_id`.
+- `Reaccion OK` y `Notificar al uploader` ahora leen `$json.body.document_id`.
 
-✅ **Sesión 16b (18 jun · tarde)** — Panel admin errores + Slack interactivity:
-- Backend: `GET /admin/errors` + `POST /admin/errors/{id}/review` (auth `require_admin`) + `POST /admin/errors/slack-action` (verifica firma Slack, anti-replay 5min).
-- UI: `ui/admin-errors.html` panel dark mode con tabla + filtros + botón "Marcar reviewed". Admin key en sessionStorage.
-- Workflow n8n: `Guardar en Supabase` con `return=representation`, Code node extrae `error_id`, Slack DM con 3 botones (Ver ejecución / Marcar reviewed / Panel admin).
-- **Pendiente operativo manual**:
-  1. `git pull` en VPS + `systemctl restart korio-api`.
-  2. `SLACK_SIGNING_SECRET=…` en `/root/korio/.env` (Slack app → Basic Information).
-  3. api.slack.com → Korio-Delos → Interactivity & Shortcuts → Enable + Request URL `https://korio.es/admin/errors/slack-action`.
+✅ **Config operativa aplicada**:
+- `SLACK_SIGNING_SECRET=…` añadido a `/root/korio/.env` del VPS.
+- api.slack.com → Korio-Delos → Interactivity & Shortcuts: ON + Request URL `https://korio.es/admin/errors/slack-action`.
+- Snapshot `pre_demo_v038` consistente (L3 de test duplicate borrado en cierre).
+
+🔲 **Pendientes Phase 9 (post-defensa, no bloqueantes)**:
+- Validación semántica LLM en detector ingesta (G1↔G2 falsos positivos).
+- Chunker excluir frontmatter YAML del embedding (evita reembed post-hoc).
+- Reintroducir índice vectorial con volumen >1000 chunks.
 
 ---
 
-## Próxima sesión — **sesión 16 · Slide deck (10–15 slides)**
+## Próxima sesión — **sesión 17 · Slide deck (10–15 slides)**
 
 Vídeo demo grabado en s15+15b. Sistema listo para empezar contenido.
 
-### Plan sesión 16 (estimación ~6-8 h)
+### Plan sesión 17 (estimación ~6-8 h)
 
 1. **Outline slide deck** (estructura clásica TFM):
    - Portada + cover (Korio, autor, máster, fechas)

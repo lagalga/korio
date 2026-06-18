@@ -157,6 +157,15 @@
 | 31/31 tests verdes | ✅ sesión 14 |
 | Snapshot de seguridad para demo | ✅ sesión 14 (`pre_demo_v036`) |
 
+### Sesión 16a/b/c (18 jun, v0.3.12) ✅ CERRADAS — Phase 9 flecos errores n8n
+| Tarea | Estado | Notas |
+|---|---|---|
+| Throttling anti-spam Slack DM errores | ✅ s16a | Code node `count===1 || count%10===0` en workflow `KeUTpIk0ycbW1f3g` |
+| Panel UI `/admin/errors` con admin key | ✅ s16b | `ui/admin-errors.html` + endpoints `GET/POST /admin/errors` |
+| Botón "✅ Marcar reviewed" en DM Slack | ✅ s16b | `POST /admin/errors/slack-action` con firma `v0:ts:body` + anti-replay 5min |
+| Workflow Slack file_shared: duplicate → DM thread | ✅ s16c | IF 200 / 409 / other; 409 ya no dispara `errorWorkflow` |
+| Verificación E2E real con error de test | ✅ s16b | Click usuario → BD actualizada en 14s, `reviewed_by: slack:U…` |
+
 ### Contenido para defensa
 | Tarea | Prioridad | Estimación | Herramienta |
 |---|---|---|---|
@@ -224,6 +233,13 @@
 | **MCP Server OAuth + rate limit + audit** | Sustituir API keys (Phase 7.3) por OAuth 2.1 + token bucket por key + `mcp_audit_log` con PII-redaction |
 | Persistencia de chat por usuario | Conversaciones multi-sesión cross-device |
 | Reflejo de chat Slack ↔ chat web | Identidad compartida, conversaciones cross-canal |
+| ~~Throttling Slack DM errores n8n~~ | ✅ Cerrado en s16a (v0.3.12) |
+| ~~Panel `/admin/errors` UI + endpoints~~ | ✅ Cerrado en s16b (v0.3.12) |
+| ~~Botón Slack "Marcar reviewed"~~ | ✅ Cerrado en s16b (v0.3.12) — requiere `SLACK_SIGNING_SECRET` |
+| ~~Slack file_shared duplicate → DM thread~~ | ✅ Cerrado en s16c (v0.3.12) |
+| Validación semántica LLM en detector ingesta | Reduce falsos positivos G1↔G2 (docs estilo similar) |
+| Reintroducir índice vectorial con >1000 chunks | HNSW o `ivfflat lists=ceil(sqrt(N))` |
+| Chunker excluir frontmatter YAML del embedding | Evita reembed post-hoc |
 
 ---
 

@@ -746,4 +746,4 @@ Pendiente sesión 7 (Phase 8 candidatos): detección query-time, estado `inconcl
 
 🔲 **Pendiente Phase 9 restante (S13b)**: validación semántica LLM en detector ingesta (G1↔G2 falsos positivos), reintroducir índice vectorial con volumen >1000 chunks.
 
-*Actualizado: 18 junio 2026 (sesiones 16a-16c) — v0.3.11. Phase 9 errores n8n + Slack duplicate UX cerrado. Próximo: slide deck (s16).*
+*Actualizado: 18 junio 2026 (sesión 16 a/b/c) — v0.3.12. Phase 9 errores n8n + Slack duplicate UX cerrados. `SLACK_SIGNING_SECRET` configurado en VPS + api.slack.com Interactivity ON. Snapshot `pre_demo_v038` consistente (L3 test borrado al cierre). Próximo: slide deck (s17).*
