@@ -155,11 +155,8 @@ def _graph_context(
         if not lines:
             return ""
         return (
-            "[CONOCIMIENTO ESTRUCTURADO DEL GRAFO]\n"
-            "Estas afirmaciones provienen del grafo de conocimiento del tenant "
-            "(extraídas previamente por análisis semántico). Úsalas como fuente "
-            "complementaria al contexto de chunks. No incluyas marcadores ni "
-            "citas literales sobre el origen — responde de forma natural:\n"
+            "Afirmaciones del grafo de conocimiento del tenant "
+            "(extraídas por análisis semántico, tan válidas como los chunks):\n"
             + "\n".join(lines)
         )
     except Exception as e:

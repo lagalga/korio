@@ -38,8 +38,17 @@ DEFAULT_MAX_TOKENS = 1024   # Respuestas concisas
 REDACT_MISTRAL = os.getenv("KORIO_REDACT_MISTRAL", "1") == "1"
 
 
+# Solo redactar PII real (GDPR Art. 5 minimizacion).
+# ORG, LOC, MISC, CARDINAL etc. NO son PII son conocimiento de negocio.
+_PII_ENTITY_TYPES = {
+    "PERSON", "EMAIL_ADDRESS", "PHONE_NUMBER", "NRP",
+    "CREDIT_CARD", "IBAN_CODE", "MEDICAL_LICENSE",
+    "US_SSN", "US_PASSPORT", "UK_NHS",
+}
+
+
 def _redact_for_mistral(text: str) -> str:
-    """Redacta PII del texto antes de enviarlo al LLM cloud (GDPR Art. 5)."""
+    """Redacta solo PII personal antes del LLM cloud (GDPR Art. 5)."""
     if not REDACT_MISTRAL:
         return text
     try:
@@ -49,17 +58,25 @@ def _redact_for_mistral(text: str) -> str:
         if _src not in sys.path:
             sys.path.insert(0, _src)
         from preprocessor import get_preprocessor
+        from presidio_anonymizer.entities import OperatorConfig
         pp = get_preprocessor()
         if pp.analyzer is None:
             return text
-        redacted, pii_found = pp.anonymize_pii(text)
-        if pii_found:
-            logger.info(f"  🔒 PII redactada antes de Mistral: {len(pii_found)} entidad(es)")
-        return redacted
+        results = pp.analyzer.analyze(text, language="es")
+        pii_results = [r for r in results if r.entity_type in _PII_ENTITY_TYPES]
+        if not pii_results:
+            return text
+        anonymized = pp.anonymizer.anonymize(
+            text=text,
+            analyzer_results=pii_results,
+            operators={"DEFAULT": OperatorConfig("replace", {"new_value": "<PERSONA>"})},
+        )
+        n = len(pii_results)
+        logger.info(f"  Redactada PII antes de Mistral: {n} entidad(es)")
+        return anonymized.text
     except Exception as e:
-        logger.warning(f"PII redaction falló (enviando original): {e}")
+        logger.warning(f"PII redaction fallo (enviando original): {e}")
         return text
-
 
 class LLMClient:
     """
