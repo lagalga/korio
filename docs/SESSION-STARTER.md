@@ -4,11 +4,7 @@
 
 ---
 
-Hola. Arrancamos sesión nueva de **Korio** (mi TFM del Máster IA Business & Innovation de Nuclio). El repo es `lagalga/korio`, branch `main`. Trabajamos siempre en el worktree:
-
-```
-/Users/berto/Claude Code/korio/.claude/worktrees/dreamy-bose-cd8a36
-```
+Hola. Arrancamos sesión nueva de **Korio** (mi TFM del Máster IA Business & Innovation de Nuclio). El repo es `lagalga/korio`, branch `main`. Claude Code crea su propio worktree por sesión bajo `/Users/berto/Claude Code/korio/.claude/worktrees/<nombre-aleatorio>` — verifícalo con `git worktree list`. Trabaja contra el path del worktree de esta sesión.
 
 Configurado para que `git push` (sin args) publique directamente en `main`.
 
@@ -38,12 +34,13 @@ Si todo OK, dímelo en una línea. Si algo está raro, antes de tocar nada cuén
 4. **Install App** o **Reinstall to Workspace** para aplicar los nuevos scopes.
 5. Invitar al bot al canal donde se subirán archivos: `/invite @Korio-Delos`.
 
-Worktrees obsoletos pendientes de limpieza manual:
+Si quedan worktrees obsoletos de sesiones anteriores, limpiarlos al inicio:
 ```bash
 cd "/Users/berto/Claude Code/korio"
-git worktree remove .claude/worktrees/great-elbakyan-832d81
-git worktree remove .claude/worktrees/nifty-booth-0c25a5
-git worktree remove --force .claude/worktrees/silly-hofstadter-5e49c0
+git worktree list                                     # ver los activos
+git worktree remove --force .claude/worktrees/<NAME>  # borrar los que ya no se usan
+git branch -d claude/<NAME>                           # borrar branch local mergeada en main
+git push origin --delete claude/<NAME>                # borrar en remoto
 ```
 
 ## Estado al cierre de sesión 13a · 14 jun 2026 · v0.3.4 · hardening seguridad
