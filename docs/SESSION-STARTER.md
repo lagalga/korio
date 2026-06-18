@@ -226,6 +226,12 @@ systemctl restart korio-api
 
 🔲 **Restante Phase 9 errores**: panel `/admin/errors` UI Korio, botón "reviewed" Slack interactivity webhook.
 
+✅ **Sesión 16c (18 jun · tarde)** — Slack file_shared: duplicate → DM thread (no errorWorkflow):
+- Workflow `81GO5BjXj0ZNYmhO`: `POST /upload` con `fullResponse + neverError`, IF 200/409/other.
+- 409 → mensaje en thread del file_shared al uploader con texto "ya estaba en Korio".
+- Otros 4xx/5xx → nodo Code re-lanza error → activa errorWorkflow normal.
+- Reaccion OK y Notificar al uploader ahora leen `$json.body.document_id`.
+
 ✅ **Sesión 16b (18 jun · tarde)** — Panel admin errores + Slack interactivity:
 - Backend: `GET /admin/errors` + `POST /admin/errors/{id}/review` (auth `require_admin`) + `POST /admin/errors/slack-action` (verifica firma Slack, anti-replay 5min).
 - UI: `ui/admin-errors.html` panel dark mode con tabla + filtros + botón "Marcar reviewed". Admin key en sessionStorage.

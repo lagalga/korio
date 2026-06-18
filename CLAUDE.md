@@ -731,3 +731,19 @@ Pendiente sesión 7 (Phase 8 candidatos): detección query-time, estado `inconcl
   3. Configurar en api.slack.com → Korio-Delos → Interactivity & Shortcuts → Enable + Request URL `https://korio.es/admin/errors/slack-action`.
 
 *Actualizado: 18 junio 2026 (sesión 16a-16b) — v0.3.11 + throttling + panel admin errores. Próximo: deploy + config Slack interactivity, después slide deck (s16).*
+
+**Sesión 16c (18 jun · tarde 2026)** — Workflow Slack file_shared: duplicate → DM thread (no errorWorkflow):
+
+- Antes: si `/upload` devolvía 409 (DuplicateDocumentError), el nodo HTTP fallaba → `errorWorkflow` capturaba el error → DM al admin como si fuera un fallo del sistema.
+- **Workflow `Korio · Slack file_shared → /upload (Delos multi-space)`** (`81GO5BjXj0ZNYmhO`) refactorizado:
+  - `POST /upload Korio`: `options.response.response.fullResponse=true` + `neverError=true`. Ya no aborta en 4xx; devuelve `{statusCode, headers, body}`.
+  - Nuevo IF `¿200 OK?` (`statusCode === 200`):
+    - true → `Reaccion OK` + `Notificar al uploader` (texto ahora lee `$json.body.document_id`).
+    - false → IF `¿409 duplicado?`:
+      - true → nodo Slack **`Avisar duplicado (thread)`** publica en el mismo channel del file_shared con `thread_ts` del file y mensaje `⚠️ X ya estaba en Korio — no se ha vuelto a ingestar`.
+      - false → nodo Code `Re-lanzar error` (`throw new Error(...)`) → dispara `errorWorkflow` solo para errores reales (no duplicados).
+- **Efecto**: el usuario que sube un PDF duplicado a Slack recibe respuesta inmediata en thread; el admin deja de ver falsos positivos en su DM de errores.
+
+🔲 **Pendiente Phase 9 restante (S13b)**: validación semántica LLM en detector ingesta (G1↔G2 falsos positivos), reintroducir índice vectorial con volumen >1000 chunks.
+
+*Actualizado: 18 junio 2026 (sesiones 16a-16c) — v0.3.11. Phase 9 errores n8n + Slack duplicate UX cerrado. Próximo: slide deck (s16).*
