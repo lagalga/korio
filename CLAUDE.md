@@ -669,3 +669,17 @@ Pendiente sesión 7 (Phase 8 candidatos): detección query-time, estado `inconcl
 **Aprendizaje TFM**: la especificación Cypher es teórica; FalkorDB ≠ Neo4j en queries con `$params` inline. Documentar deuda en `docs/AUDIT-2026-06-14.md`.
 
 *Actualizado: 16 junio 2026 (sesiones 14a-14c) — v0.3.9. Cierre compliance + fix root cause grafo vacío. Próximo: vídeo demo (s15), slide deck (s16).*
+
+---
+
+**Sesión 15 (18 jun 2026)** — Fixes pre-vídeo + QA MCP (v0.3.10):
+
+- **Fix MCP no ejecutaba búsquedas** — bug de `mcp-remote@0.1.38` (timing SSE). Upgrade a `mcp-remote@latest` en Claude Desktop (`/Users/berto/Library/Application Support/Claude/claude_desktop_config.json`). El servidor ejecutaba correctamente desde el principio.
+- **Fix R4 chunks falso positivo `superseded`** — detector marcó id=185 y id=186 (35h jornada personal asalariado) como `superseded` por similitud con L1 chunk (35h médicos residentes). Restaurados a `active` en Supabase + FalkorDB.
+- **Fix PII redaction garblaba filenames** (`src/llm_client.py`) — `_redact_for_mistral()` redactaba ORG/LOC/MISC → garblaba "sanitario" en filename. Whitelist `_PII_ENTITY_TYPES` con solo PII real (PERSON, EMAIL, PHONE, NRP, CREDIT_CARD, IBAN, MEDICAL_LICENSE). Filenames y términos técnicos conservados.
+- **Fix header grafo echoed por Mistral** (`src/search.py`) — `_graph_context()` generaba header literal `[CONOCIMIENTO ESTRUCTURADO DEL GRAFO]` que Mistral copiaba en la respuesta. Eliminado; texto instructivo simplificado.
+- **Snapshot `pre_demo_v037`** — 20 docs, 74 chunks, 1130 nodos, 1818 aristas (snapshot `pre_demo_v036` también disponible como fallback).
+- **Demo query verificada**: "¿cuántas horas semanales mínimas?" → "35 horas semanales para el personal asalariado [R4_convenio-colectivo-sanitario-resumen.md]" con `graph_contributed: True`. Citas correctas.
+- **1 commit a `main`**: `6dcd804`.
+
+*Actualizado: 18 junio 2026 (sesión 15) — v0.3.10. Fixes pre-vídeo: MCP timing bug, R4 false-positive superseded, PII redaction whitelist, grafo header echo. Snapshot pre_demo_v037 guardado (20 docs, 74 chunks). Próximo: grabar vídeo demo (s16), slide deck (s17).*

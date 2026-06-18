@@ -183,13 +183,33 @@ systemctl restart korio-api
 
 ---
 
-## Próxima sesión — **sesión 15 · Grabación vídeo demo**
+## Estado al cierre de sesión 15 · 18 jun 2026 · v0.3.10 · Fixes pre-vídeo
 
-Implementación cerrada en sesión 14. El sistema está listo para la grabación
-del vídeo demo. 18 docs, 20 migraciones, 8 workflows n8n, 31/31 tests,
-snapshot de seguridad guardado.
+✅ **Sesión 15 (18 jun) — Correcciones críticas para demo**:
+- **Fix MCP `search_knowledge_base`** — era bug de `mcp-remote@0.1.38` (timing al iniciar SSE). Upgrade a `mcp-remote@latest` en Claude Desktop resolvió. El servidor ejecutaba correctamente desde el principio.
+- **Fix R4 chunks `superseded`** — falso positivo del detector: R4 chunk 0 (35h para asalariados, id=185) y R4 chunk 1 (id=186) marcados como `superseded` por similitud con L1 chunk 0 (35h para médicos residentes, distinto sujeto). Restaurados a `active` en Supabase + FalkorDB.
+- **Fix PII redaction garblaba filenames** (`src/llm_client.py`) — `_redact_for_mistral` usaba spaCy para redactar TODOS los tipos de entidad. El modelo `es_core_news_lg` etiquetaba "sanitario" como entidad → `[R4_<REDACTED>]`. Fix: whitelist `_PII_ENTITY_TYPES` con solo PERSON, EMAIL_ADDRESS, PHONE_NUMBER, NRP, CREDIT_CARD, IBAN_CODE, MEDICAL_LICENSE, etc. Filenames y términos técnicos conservados.
+- **Fix header grafo echoed por Mistral** (`src/search.py`) — `_graph_context()` generaba bloque con header literal `[CONOCIMIENTO ESTRUCTURADO DEL GRAFO]` que Mistral copiaba en la respuesta. Eliminado el header; texto instructivo simplificado.
+- **Snapshot `pre_demo_v037`** guardado — 20 docs, 74 chunks, 1130 nodos, 1818 aristas.
+- **Demo query verificada**: "¿cuántas horas semanales mínimas?" → "35 horas semanales para el personal asalariado **[R4_convenio-colectivo-sanitario-resumen.md]**" con `graph_contributed: True`. ✅
+- **1 commit a `main`**: `6dcd804`.
 
-### Plan sesión 15 (estimación ~3-4 h)
+Uso del snapshot actualizado:
+```bash
+ssh korio-vps
+cd /root/korio && source .venv/bin/activate
+python scripts/demo_snapshot.py list     # pre_demo_v037 + pre_demo_v036
+python scripts/demo_snapshot.py restore --name pre_demo_v037 -y
+systemctl restart korio-api
+```
+
+---
+
+## Próxima sesión — **sesión 16 · Grabación vídeo demo**
+
+Sistema listo para grabación. Snapshot `pre_demo_v037` guardado (20 docs, 74 chunks).
+
+### Plan sesión 16 (estimación ~3-4 h)
 
 1. **Preparar guion final del vídeo** (~3-4 min):
    - Gmail (R2) llega → label `korio/rrhh` → 30s después consultable en `/search`
@@ -197,11 +217,11 @@ snapshot de seguridad guardado.
    - Chat en `korio.es/ui`: "¿Cuánto se trabaja a la semana?" → grafo aporta 35h
    - Query "¿Cuántos días de vacaciones?" → R2 gana, R1 disputed (badge ⚠️)
    - Query con `inconclusive` → R6/R7 ambos visibles con aviso complementario
-   - Claude Desktop con MCP: misma query, respuesta con citas
+   - Claude Desktop con MCP: misma query, respuesta con citas y fuentes limpias
    - `graph.html`: nodos, arista CONTRADICTS roja, hover en sidebar
    - Demostrar policy auto-resolve en vivo (re-ingesta de R7)
 
-2. **Grabar vídeo** con grabación de pantalla.
+2. **Grabar vídeo** con ScreenFlow/Loom.
 
 3. **QA final rápido** (5 queries E2E) para confirmar que todo sigue estable.
 
