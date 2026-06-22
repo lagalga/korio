@@ -1,0 +1,220 @@
+{
+  "metrics": {
+    "TP": 6,
+    "FP": 0,
+    "FN": 0,
+    "TN": 6,
+    "precision": 1.0,
+    "recall": 1.0,
+    "F1": 1.0,
+    "n_positives": 6,
+    "n_negatives": 6,
+    "n_total": 12
+  },
+  "positives": [
+    {
+      "id": "EP1",
+      "tenant_uuid": "a0000000-0000-0000-0000-000000000001",
+      "tenant_key": "delos",
+      "doc_a": "eval_pol_teletrabajo_a",
+      "doc_b": "eval_pol_teletrabajo_b",
+      "space": "eval",
+      "detector": "ingest",
+      "label": "positive",
+      "rationale": "3 días/sem vs 2 días/sem",
+      "detected": true,
+      "edge_similarity": 0.995841354751407
+    },
+    {
+      "id": "EP2",
+      "tenant_uuid": "a0000000-0000-0000-0000-000000000001",
+      "tenant_key": "delos",
+      "doc_a": "eval_prot_primera_visita_a",
+      "doc_b": "eval_prot_primera_visita_b",
+      "space": "eval",
+      "detector": "ingest",
+      "label": "positive",
+      "rationale": "15 min vs 30 min",
+      "detected": true,
+      "edge_similarity": 0.997509420808768
+    },
+    {
+      "id": "EP3",
+      "tenant_uuid": "a0000000-0000-0000-0000-000000000001",
+      "tenant_key": "delos",
+      "doc_a": "eval_pol_gasto_comida_a",
+      "doc_b": "eval_pol_gasto_comida_b",
+      "space": "eval",
+      "detector": "ingest",
+      "label": "positive",
+      "rationale": "50 € vs 80 €",
+      "detected": true,
+      "edge_similarity": 0.998470068707547
+    },
+    {
+      "id": "EP4",
+      "tenant_uuid": "a0000000-0000-0000-0000-000000000001",
+      "tenant_key": "delos",
+      "doc_a": "eval_pol_caducidad_cert_a",
+      "doc_b": "eval_pol_caducidad_cert_b",
+      "space": "eval",
+      "detector": "ingest",
+      "label": "positive",
+      "rationale": "2 años vs 3 años",
+      "detected": true,
+      "edge_similarity": 0.998355210709801
+    },
+    {
+      "id": "EP5",
+      "tenant_uuid": "a0000000-0000-0000-0000-000000000001",
+      "tenant_key": "delos",
+      "doc_a": "eval_pol_descuento_a",
+      "doc_b": "eval_pol_descuento_b",
+      "space": "eval",
+      "detector": "ingest",
+      "label": "positive",
+      "rationale": "10% vs 15%",
+      "detected": true,
+      "edge_similarity": 0.997895896560214
+    },
+    {
+      "id": "EP6",
+      "tenant_uuid": "a0000000-0000-0000-0000-000000000001",
+      "tenant_key": "delos",
+      "doc_a": "eval_pol_horario_atencion_a",
+      "doc_b": "eval_pol_horario_atencion_b",
+      "space": "eval",
+      "detector": "ingest",
+      "label": "positive",
+      "rationale": "8:00-18:00 vs 9:00-19:00",
+      "detected": true,
+      "edge_similarity": 0.999309122521273
+    }
+  ],
+  "negatives": [
+    {
+      "id": "EN1",
+      "tenant_uuid": "a0000000-0000-0000-0000-000000000001",
+      "tenant_key": "delos",
+      "doc_a": "eval_pol_teletrabajo_a",
+      "doc_b": "eval_prot_primera_visita_a",
+      "space": "eval",
+      "detector": "ingest",
+      "label": "negative",
+      "rationale": "Mismo space, temas distintos (teletrabajo vs primera visita)",
+      "detected": false,
+      "edge_similarity": null
+    },
+    {
+      "id": "EN2",
+      "tenant_uuid": "a0000000-0000-0000-0000-000000000001",
+      "tenant_key": "delos",
+      "doc_a": "eval_pol_gasto_comida_a",
+      "doc_b": "eval_pol_caducidad_cert_a",
+      "space": "eval",
+      "detector": "ingest",
+      "label": "negative",
+      "rationale": "Mismo space, temas distintos (gasto vs caducidad cert)",
+      "detected": false,
+      "edge_similarity": null
+    },
+    {
+      "id": "EN3",
+      "tenant_uuid": "a0000000-0000-0000-0000-000000000001",
+      "tenant_key": "delos",
+      "doc_a": "eval_pol_descuento_a",
+      "doc_b": "eval_pol_horario_atencion_a",
+      "space": "eval",
+      "detector": "ingest",
+      "label": "negative",
+      "rationale": "Mismo space, temas distintos (descuento vs horario)",
+      "detected": false,
+      "edge_similarity": null
+    },
+    {
+      "id": "EN4",
+      "tenant_uuid": "a0000000-0000-0000-0000-000000000001",
+      "tenant_key": "delos",
+      "doc_a": "eval_pol_teletrabajo_a",
+      "doc_b": "eval_pol_gasto_comida_a",
+      "space": "eval",
+      "detector": "ingest",
+      "label": "negative",
+      "rationale": "Mismo space, temas distintos (teletrabajo vs gasto)",
+      "detected": false,
+      "edge_similarity": null
+    },
+    {
+      "id": "EN5",
+      "tenant_uuid": "a0000000-0000-0000-0000-000000000001",
+      "tenant_key": "delos",
+      "doc_a": "eval_prot_primera_visita_a",
+      "doc_b": "eval_pol_descuento_a",
+      "space": "eval",
+      "detector": "ingest",
+      "label": "negative",
+      "rationale": "Mismo space, temas distintos (primera visita vs descuento)",
+      "detected": false,
+      "edge_similarity": null
+    },
+    {
+      "id": "EN6",
+      "tenant_uuid": "a0000000-0000-0000-0000-000000000001",
+      "tenant_key": "delos",
+      "doc_a": "eval_pol_caducidad_cert_a",
+      "doc_b": "eval_pol_horario_atencion_a",
+      "space": "eval",
+      "detector": "ingest",
+      "label": "negative",
+      "rationale": "Mismo space, temas distintos (caducidad cert vs horario)",
+      "detected": false,
+      "edge_similarity": null
+    }
+  ],
+  "query_time_pairs": [],
+  "surprises_not_in_ground_truth": [
+    {
+      "tenant_uuid": "a0000000-0000-0000-0000-000000000001",
+      "doc_a": "r6_normativa-uniformes-personal-enfermeria",
+      "doc_b": "r7_nota-uniformes-personal-enfermeria",
+      "similarity": 0.98
+    },
+    {
+      "tenant_uuid": "a0000000-0000-0000-0000-000000000001",
+      "doc_a": "r7_nota-uniformes-personal-enfermeria",
+      "doc_b": "r7b_nota-uniformes-personal-enfermeria",
+      "similarity": 0.857006226299764
+    },
+    {
+      "tenant_uuid": "a0000000-0000-0000-0000-000000000001",
+      "doc_a": "eval_prot_primera_visita_a",
+      "doc_b": "eval_pol_teletrabajo_b",
+      "similarity": 0.890682034648264
+    },
+    {
+      "tenant_uuid": "a0000000-0000-0000-0000-000000000001",
+      "doc_a": "eval_prot_primera_visita_b",
+      "doc_b": "eval_pol_gasto_comida_a",
+      "similarity": 0.90139437897273
+    },
+    {
+      "tenant_uuid": "a0000000-0000-0000-0000-000000000001",
+      "doc_a": "eval_pol_gasto_comida_b",
+      "doc_b": "eval_pol_caducidad_cert_a",
+      "similarity": 0.920569371668068
+    },
+    {
+      "tenant_uuid": "a0000000-0000-0000-0000-000000000001",
+      "doc_a": "eval_pol_caducidad_cert_b",
+      "doc_b": "eval_pol_descuento_a",
+      "similarity": 0.934507445214404
+    },
+    {
+      "tenant_uuid": "a0000000-0000-0000-0000-000000000001",
+      "doc_a": "eval_pol_descuento_b",
+      "doc_b": "eval_pol_horario_atencion_a",
+      "similarity": 0.944535480626943
+    }
+  ],
+  "intra_document_pairs": []
+}

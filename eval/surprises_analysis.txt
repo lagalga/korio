@@ -1,0 +1,191 @@
+==========================================================================================
+INSPECCIÓN DE 5 PARES SORPRESA DEL EVAL CORPUS
+==========================================================================================
+
+--- SORPRESA 1: eval_prot_primera_visita_a  ↔  eval_pol_teletrabajo_b ---
+  similarity: 0.891  ·  resolution: pending
+  reason: Sin criterio claro de resolución automática (autoridad: 5 vs 5, fecha: 0 días de diferencia) — requiere revisión humana
+
+  CHUNK NUEVO (new_chunk_id=318):
+  ---
+title: Protocolo de primera visita en consulta externa
+author: Dra. <REDACTED>
+role: Coordinación operativa
+signed_date: 2025-04-15
+version: 1
+authority_level: medium
+space: Eval
+tenant: Clínica Delos
+---
+
+# Protocolo de primera visita en consulta externa
+
+Coordinación operativa · Clínica Delos
+
+
+  CHUNK EXISTENTE (existing_chunk_id=317):
+  ---
+title: Política interna de teletrabajo del personal administrativo
+author: Dra. Elena Castro Ortiz
+role: Coordinación operativa
+signed_date: 2025-04-15
+version: 1
+authority_level: medium
+space: Eval
+tenant: Clínica Delos
+---
+
+# Política interna de teletrabajo del personal administrativo
+
+Coordin
+
+
+--- SORPRESA 2: eval_prot_primera_visita_b  ↔  eval_pol_gasto_comida_a ---
+  similarity: 0.901  ·  resolution: pending
+  reason: Sin criterio claro de resolución automática (autoridad: 5 vs 5, fecha: 0 días de diferencia) — requiere revisión humana
+
+  CHUNK NUEVO (new_chunk_id=321):
+  ---
+title: Política de gasto de comida con cliente o proveedor
+author: Dra. <REDACTED>
+role: Coordinación operativa
+signed_date: 2025-04-15
+version: 1
+authority_level: medium
+space: Eval
+tenant: Clínica Delos
+---
+
+# Política de gasto de comida con cliente o proveedor
+
+Coordinación operativa · Clínic
+
+  CHUNK EXISTENTE (existing_chunk_id=320):
+  ---
+title: Protocolo de primera visita en consulta externa
+author: Dra. <REDACTED>
+role: Coordinación operativa
+signed_date: 2025-04-15
+version: 1
+authority_level: medium
+space: Eval
+tenant: Clínica Delos
+---
+
+# Protocolo de primera visita en consulta externa
+
+Coordinación operativa · Clínica Delos
+
+
+
+--- SORPRESA 3: eval_pol_gasto_comida_b  ↔  eval_pol_caducidad_cert_a ---
+  similarity: 0.921  ·  resolution: pending
+  reason: Sin criterio claro de resolución automática (autoridad: 5 vs 5, fecha: 0 días de diferencia) — requiere revisión humana
+
+  CHUNK NUEVO (new_chunk_id=323):
+  ---
+title: Política de caducidad de certificados de formación interna
+author: Dra. <REDACTED>
+role: Coordinación operativa
+signed_date: 2025-04-15
+version: 1
+authority_level: medium
+space: Eval
+tenant: Clínica Delos
+---
+
+# Política de caducidad de certificados de formación interna
+
+Coordinación oper
+
+  CHUNK EXISTENTE (existing_chunk_id=322):
+  ---
+title: Política de gasto de comida con cliente o proveedor
+author: Dra. <REDACTED>
+role: Coordinación operativa
+signed_date: 2025-04-15
+version: 1
+authority_level: medium
+space: Eval
+tenant: Clínica Delos
+---
+
+# Política de gasto de comida con cliente o proveedor
+
+Coordinación operativa · Clínic
+
+
+--- SORPRESA 4: eval_pol_caducidad_cert_b  ↔  eval_pol_descuento_a ---
+  similarity: 0.935  ·  resolution: pending
+  reason: Sin criterio claro de resolución automática (autoridad: 5 vs 5, fecha: 0 días de diferencia) — requiere revisión humana
+
+  CHUNK NUEVO (new_chunk_id=326):
+  ---
+title: Política de descuento comercial sobre tarifa privada
+author: Dra. <REDACTED>
+role: Coordinación operativa
+signed_date: 2025-04-15
+version: 1
+authority_level: medium
+space: Eval
+tenant: Clínica Delos
+---
+
+# Política de descuento comercial sobre tarifa privada
+
+Coordinación operativa · Clín
+
+  CHUNK EXISTENTE (existing_chunk_id=325):
+  ---
+title: Política de caducidad de certificados de formación interna
+author: Dra. <REDACTED>
+role: Coordinación operativa
+signed_date: 2025-04-15
+version: 1
+authority_level: medium
+space: Eval
+tenant: Clínica Delos
+---
+
+# Política de caducidad de certificados de formación interna
+
+Coordinación oper
+
+
+--- SORPRESA 5: eval_pol_descuento_b  ↔  eval_pol_horario_atencion_a ---
+  similarity: 0.945  ·  resolution: pending
+  reason: Sin criterio claro de resolución automática (autoridad: 5 vs 5, fecha: 0 días de diferencia) — requiere revisión humana
+
+  CHUNK NUEVO (new_chunk_id=328):
+  ---
+title: Política de horario de atención presencial en recepción
+author: Dra. <REDACTED>
+role: Coordinación operativa
+signed_date: 2025-04-15
+version: 1
+authority_level: medium
+space: Eval
+tenant: Clínica Delos
+---
+
+# Política de horario de atención presencial en recepción
+
+Coordinación operativa 
+
+  CHUNK EXISTENTE (existing_chunk_id=327):
+  ---
+title: Política de descuento comercial sobre tarifa privada
+author: Dra. <REDACTED>
+role: Coordinación operativa
+signed_date: 2025-04-15
+version: 1
+authority_level: medium
+space: Eval
+tenant: Clínica Delos
+---
+
+# Política de descuento comercial sobre tarifa privada
+
+Coordinación operativa · Clín
+
+

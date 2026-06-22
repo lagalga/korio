@@ -1,0 +1,102 @@
+# Ground truth para corpus eval-specific (eval-corpus/)
+# 12 documentos · 6 pares positivos (contradicción ambigua, pending-eligible)
+# + 6 pares negativos (mismo tenant/space, temas distintos)
+#
+# Diseño: misma fecha, mismo autor, misma autoridad → detector NO puede
+# auto-resolver → resolution='pending' → conflict_review persistente → métricas
+# limpias.
+
+tenants:
+  delos: "a0000000-0000-0000-0000-000000000001"
+
+# UUID inventado para el nuevo space Eval (debe crearse en Supabase antes del ingest)
+spaces:
+  eval: "a1000000-0000-0000-0000-000000000099"
+
+positives:
+
+  - id: EP1
+    tenant: delos
+    space: eval
+    doc_a: "eval_pol_teletrabajo_a"
+    doc_b: "eval_pol_teletrabajo_b"
+    contradiction: "3 días/sem vs 2 días/sem"
+
+  - id: EP2
+    tenant: delos
+    space: eval
+    doc_a: "eval_prot_primera_visita_a"
+    doc_b: "eval_prot_primera_visita_b"
+    contradiction: "15 min vs 30 min"
+
+  - id: EP3
+    tenant: delos
+    space: eval
+    doc_a: "eval_pol_gasto_comida_a"
+    doc_b: "eval_pol_gasto_comida_b"
+    contradiction: "50 € vs 80 €"
+
+  - id: EP4
+    tenant: delos
+    space: eval
+    doc_a: "eval_pol_caducidad_cert_a"
+    doc_b: "eval_pol_caducidad_cert_b"
+    contradiction: "2 años vs 3 años"
+
+  - id: EP5
+    tenant: delos
+    space: eval
+    doc_a: "eval_pol_descuento_a"
+    doc_b: "eval_pol_descuento_b"
+    contradiction: "10% vs 15%"
+
+  - id: EP6
+    tenant: delos
+    space: eval
+    doc_a: "eval_pol_horario_atencion_a"
+    doc_b: "eval_pol_horario_atencion_b"
+    contradiction: "8:00-18:00 vs 9:00-19:00"
+
+negatives:
+
+  - id: EN1
+    tenant: delos
+    space: eval
+    doc_a: "eval_pol_teletrabajo_a"
+    doc_b: "eval_prot_primera_visita_a"
+    rationale: "Mismo space, temas distintos (teletrabajo vs primera visita)"
+
+  - id: EN2
+    tenant: delos
+    space: eval
+    doc_a: "eval_pol_gasto_comida_a"
+    doc_b: "eval_pol_caducidad_cert_a"
+    rationale: "Mismo space, temas distintos (gasto vs caducidad cert)"
+
+  - id: EN3
+    tenant: delos
+    space: eval
+    doc_a: "eval_pol_descuento_a"
+    doc_b: "eval_pol_horario_atencion_a"
+    rationale: "Mismo space, temas distintos (descuento vs horario)"
+
+  - id: EN4
+    tenant: delos
+    space: eval
+    doc_a: "eval_pol_teletrabajo_a"
+    doc_b: "eval_pol_gasto_comida_a"
+    rationale: "Mismo space, temas distintos (teletrabajo vs gasto)"
+
+  - id: EN5
+    tenant: delos
+    space: eval
+    doc_a: "eval_prot_primera_visita_a"
+    doc_b: "eval_pol_descuento_a"
+    rationale: "Mismo space, temas distintos (primera visita vs descuento)"
+
+  - id: EN6
+    tenant: delos
+    space: eval
+    doc_a: "eval_pol_caducidad_cert_a"
+    doc_b: "eval_pol_horario_atencion_a"
+    rationale: "Mismo space, temas distintos (caducidad cert vs horario)"

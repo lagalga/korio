@@ -1,0 +1,153 @@
+# Ground truth para evaluación detector de contradicciones · Korio TFM
+# Construido a partir de:
+#   - data-synthetic/demo-tfm/README.md (intención autoral explícita)
+#   - Metadata de cada doc (campos `supersedes`, `note: Contradice...`)
+#
+# Niveles de detector:
+#   ingest      → arista CONTRADICTS creada en grafo durante ingesta
+#   query_time  → silent conflict detectado al hacer query (similitud zona gris)
+#                  Estos pares NO esperan arista en grafo, se evalúan aparte.
+#
+# Las filenames son basename sin extensión, matching contra Document.filename
+# en FalkorDB (después de ingesta, conserva extensión real).
+
+tenants:
+  delos:  "a0000000-0000-0000-0000-000000000001"
+  garcia: "b0000000-0000-0000-0000-000000000002"
+
+# ============================================================
+# POSITIVOS · pares con contradicción intencional
+# ============================================================
+positives:
+
+  - id: P1
+    tenant: delos
+    doc_a: "R1_politica-vacaciones-2023"
+    doc_b: "R2_politica-vacaciones-2025"
+    space: RRHH
+    detector: ingest
+    expected_resolution: auto_new_wins
+    rationale: "Versión obsoleta vs nueva · supersedes explícito"
+
+  - id: P2
+    tenant: delos
+    doc_a: "R3_protocolo-bajas-medicas"
+    doc_b: "R5_circular-bajas-2024"
+    space: RRHH
+    detector: query_time
+    expected_resolution: silent_conflict
+    rationale: "Similitud ~0.80 zona gris · silent conflict query-time, NO arista en grafo"
+
+  - id: P3
+    tenant: delos
+    doc_a: "R6_normativa-uniformes-personal-enfermeria"
+    doc_b: "R7_nota-uniformes-personal-enfermeria"
+    space: RRHH
+    detector: ingest
+    expected_resolution: hitl
+    rationale: "Nota R7 declara explícitamente 'Contradice R6 en coloración'"
+
+  - id: P3b
+    tenant: delos
+    doc_a: "R6_normativa-uniformes-personal-enfermeria"
+    doc_b: "R7b_nota-uniformes-personal-enfermeria"
+    space: RRHH
+    detector: ingest
+    expected_resolution: hitl
+    rationale: "R7b = R7 con fecha · misma contradicción intencional"
+
+  - id: P4
+    tenant: delos
+    doc_a: "M1_protocolo-atencion-urgencias"
+    doc_b: "M2_guia-clinica-urgencias-actualizada"
+    space: Medico
+    detector: ingest
+    expected_resolution: auto_authority_or_date
+    rationale: "M2 supersedes M1 explícito · autoridad alta + fecha reciente"
+
+  - id: P5
+    tenant: delos
+    doc_a: "L2_circular-lopd-datos-pacientes-v1"
+    doc_b: "L3_circular-lopd-datos-pacientes-v2"
+    space: Legal
+    detector: ingest
+    expected_resolution: hitl_or_inconclusive
+    rationale: "L3 borrador sin firma · HITL ambiguo · forzado a inconclusive vía timeout"
+
+  - id: P6
+    tenant: garcia
+    doc_a: "G3_dictamen-fiscal-deducciones-irpf-2023"
+    doc_b: "G4_dictamen-fiscal-deducciones-irpf-2025"
+    space: Fiscal
+    detector: ingest
+    expected_resolution: auto_new_wins
+    rationale: "G4 supersedes G3 explícito · misma autora · ejercicio fiscal distinto"
+
+# ============================================================
+# NEGATIVOS · pares SIN contradicción (detector NO debe marcarlos)
+# ============================================================
+negatives:
+
+  - id: N1
+    tenant: delos
+    doc_a: "R1_politica-vacaciones-2023"
+    doc_b: "R3_protocolo-bajas-medicas"
+    space: RRHH
+    detector: ingest
+    rationale: "Mismo space, temas distintos (vacaciones vs bajas)"
+
+  - id: N2
+    tenant: delos
+    doc_a: "R1_politica-vacaciones-2023"
+    doc_b: "R4_convenio-colectivo-sanitario-resumen"
+    space: RRHH
+    detector: ingest
+    rationale: "Mismo space, relacionados pero no contradicen (vacaciones vs convenio horarios)"
+
+  - id: N3
+    tenant: delos
+    doc_a: "M1_protocolo-atencion-urgencias"
+    doc_b: "M3_ficha-medicamento-ibuprofeno"
+    space: Medico
+    detector: ingest
+    rationale: "Mismo space, temas distintos (protocolo vs ficha fármaco)"
+
+  - id: N4
+    tenant: delos
+    doc_a: "L1_contrato-tipo-medico-residente"
+    doc_b: "L2_circular-lopd-datos-pacientes-v1"
+    space: Legal
+    detector: ingest
+    rationale: "Mismo space, temas distintos (contrato vs circular LOPD)"
+
+  - id: N5
+    tenant: delos
+    doc_a: "R1_politica-vacaciones-2023"
+    doc_b: "M1_protocolo-atencion-urgencias"
+    space: cross
+    detector: ingest
+    rationale: "Cross-space RRHH vs Médico · detector SAME-space NO debe comparar"
+
+  - id: N6
+    tenant: garcia
+    doc_a: "G1_caso-despido-improcedente-cliente-acme"
+    doc_b: "G2_caso-reclamacion-cantidad-cliente-zenit"
+    space: Casos
+    detector: ingest
+    rationale: "García Casos · dos clientes distintos, temas legales distintos"
+
+  - id: N7
+    tenant: garcia
+    doc_a: "G5_protocolo-onboarding-cliente-nuevo"
+    doc_b: "G1_caso-despido-improcedente-cliente-acme"
+    space: cross
+    detector: ingest
+    rationale: "Cross-space García Casos · protocolo vs caso concreto"
+
+  - id: N8
+    tenant: delos
+    doc_a: "M2_guia-clinica-urgencias-actualizada"
+    doc_b: "M3_ficha-medicamento-ibuprofeno"
+    space: Medico
+    detector: ingest
+    rationale: "Mismo space · guía vs ficha medicamento"
