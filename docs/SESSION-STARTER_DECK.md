@@ -17,8 +17,8 @@ Hola. Sesión de **contenido TFM Korio**. Producto cerrado en producción (v0.3.
 ### ✅ Slide 9 — Evaluación cuantitativa
 
 - Resultados sobre corpus eval-specific 12 docs: **Precision 1.000 · Recall 1.000 · F1 1.000**.
-- Texto + notas presentador (lenguaje narrable) en `eval/SLIDE_9_NARRABLE.md` ← **USAR ESTE para narrar**.
-- Versión técnica densa de referencia en `eval/SLIDE_9_FINAL.md`.
+- Texto + notas presentador (lenguaje narrable) en Keynote (texto efímero ya volcado) ← **USAR ESTE para narrar**.
+- Versión técnica densa de referencia en Keynote · slide 9 directa.
 - Cierre del slide: *"El TFM se defiende con un sistema que mide su propio error y lo corrige. No con uno que esconde limitaciones."*
 
 ### ✅ Bug detector FIXED (commit `62cae8f`)
@@ -66,7 +66,7 @@ Commits pendientes:
 Acción de arriba. Después `git status` debe mostrar `Your branch is up to date with 'origin/main'`.
 
 ### 2. Maquetar slide 9 v3 en Keynote (1 h)
-Texto + cuadros KPI + notas presentador desde `eval/SLIDE_9_NARRABLE.md`. Cuatro cuadros grandes:
+Texto + cuadros KPI + notas presentador desde Keynote (texto efímero ya volcado). Cuatro cuadros grandes:
 - `1.983 ms` latencia mediana
 - `12 / 12` aciertos detector
 - `27 contradicciones` en producción
@@ -96,7 +96,7 @@ Documento aparte, NO en deck. Cronometradas (30-60 s respuesta cada una):
 - 5 técnicas (escalado RLS, prompt injection MCP, ACID rollback, etc.)
 - 5 negocio (por qué pyme, plan si Mistral cierra API, AI Act riesgo nivel, etc.)
 
-Categorías ya esbozadas en `eval/SLIDE_9_FINAL.md` glosario + design doc original.
+Categorías ya esbozadas en Keynote · slide 9 directa glosario + design doc original.
 
 ### 6. Ensayos cronometrados (2 sesiones · 1.5 h cada una)
 - **Ensayo 1 — solo, cronómetro.** Detecta partes lentas, palabras donde te trabes, transiciones que no funcionan.
@@ -118,8 +118,6 @@ Categorías ya esbozadas en `eval/SLIDE_9_FINAL.md` glosario + design doc origin
 ```
 /Users/berto/Claude Code/korio/
 ├── eval/
-│   ├── SLIDE_9_NARRABLE.md         # ← USA ESTE para narrar slide 9
-│   ├── SLIDE_9_FINAL.md            # versión técnica densa (ref para memoria)
 │   ├── ground_truth_eval_corpus.yaml
 │   ├── results_eval_corpus.json
 │   ├── surprises_analysis.txt

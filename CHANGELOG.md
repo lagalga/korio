@@ -23,7 +23,7 @@ semántico [SemVer](https://semver.org/lang/es/).
   - `ground_truth_eval_corpus.yaml` — anotaciones P/N.
   - `results_eval_corpus.json` — métricas crudas.
   - `surprises_analysis.txt` — inspección manual de los 5 FP previos al fix.
-  - `SLIDE_9_FINAL.md` + `SLIDE_9_NARRABLE.md` — texto deck para defensa.
+  - Texto + notas presentador slide 9 volcados directamente a Keynote.
 - **Scripts reproducibles** en `scripts/`:
   - `evaluate_detector.py` — calcula P/R/F1 combinando aristas CONTRADICTS
     en FalkorDB + filas `conflict_reviews` en Postgres.

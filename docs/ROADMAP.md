@@ -163,7 +163,7 @@ Korio cubre **6 phases técnicas cerradas** (núcleo RAG, multi-tenancy, producc
 | **Fix `src/preprocessor.py`**: stripping frontmatter pre-chunking | 17b | `extract_frontmatter()` parsea YAML a metadata · body limpio al chunker |
 | `src/version_extractor.py` prioriza `signed_date` del frontmatter | 17b | Acepta `datetime`/`date`/string ISO · retro-compatible |
 | Verificación E2E + 28/28 tests verdes | 17b | Doc subido → `chunk_index=0` sin YAML · `version_ts` del frontmatter |
-| Slide 9 defensa con números reales | 17 | `eval/SLIDE_9_FINAL.md` técnico · `eval/SLIDE_9_NARRABLE.md` lenguaje natural |
+| Slide 9 defensa con números reales | 17 | Texto + notas presentador maquetados directamente en Keynote |
 
 ---
 
