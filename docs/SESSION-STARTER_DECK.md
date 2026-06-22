@@ -4,101 +4,188 @@
 
 ---
 
-Hola. Sesión de **contenido TFM Korio**, no de código. Estoy preparando la defensa del 9 de julio 2026. El producto está cerrado en producción (v0.3.12). Quedan: deck, vídeo opcional, memoria, banco Q&A, ensayos.
+Hola. Sesión de **contenido TFM Korio**. Producto cerrado en producción (v0.3.12 + fix s17b). Defensa **9 julio 2026**. Quedan: deck visual, vídeo nuevo (3 escenas), memoria, banco Q&A, ensayos.
 
-## Estado al cierre sesión 17 (2026-06-22)
+## Estado al cierre sesiones 17 + 17b (2026-06-22)
 
-### ✅ Deck pitch
-- **v4 generado** en arquitectura B (académica): `~/Documents/Claude/Projects/Presentación TFM/Korio_pitch_deck_v4.pptx` (15 slides, paleta Berry Ocean, notas presentador con glosarios)
-- **Anexo inversor v1**: `Korio_anexo_inversor_v1.pptx` (6 slides — NRR/LTV:CAC/ask/burn/equipo)
-- **Slide 9 v3 narrable**: `~/Claude Code/korio/eval/SLIDE_9_NARRABLE.md` (lenguaje normal, sin jergas en el slide visible)
-- v3 original conservado como referencia: `eval/SLIDE_9_FINAL.md`
-- **Visual lo retoco yo a mano en Keynote**, ya no toques el .pptx generado salvo orden expresa.
+### ✅ Deck pitch generado
 
-### ✅ Evaluación cuantitativa cerrada
-- Corpus eval-specific 12 docs sintéticos en `data-synthetic/eval-corpus/`
-- Resultados: **Precision 1.000 · Recall 1.000 · F1 1.000** (n=12)
-- 5 FP cross-tema identificados, causa: `chunk_index=0` solo captura frontmatter YAML — bug `src/preprocessor.py` localizado, fix <1h pendiente Phase 9
-- Artefactos: `eval/ground_truth_eval_corpus.yaml`, `eval/results_eval_corpus.json`, `eval/surprises_analysis.txt`
-- Scripts reusables: `scripts/{evaluate,ingest,inspect,diagnose,reingest}_*.py`
-- Commit `8c06b20` en `main` local. **🔲 Push GitHub bloqueado:** token `lagalga` sin write. Refrescar con `gh auth refresh -h github.com -s repo` y `git push -u origin main`.
-- VPS sincronizado vía rsync. Restore `pre_eval_20260622` ejecutado — producción intacta.
+- `~/Documents/Claude/Projects/Presentación TFM/Korio_pitch_deck_v4.pptx` — 15 slides, arquitectura B académica, paleta Berry Ocean, notas presentador con glosarios.
+- `~/Documents/Claude/Projects/Presentación TFM/Korio_anexo_inversor_v1.pptx` — 6 slides para Q&A si tribunal pregunta NRR / LTV:CAC / ask / burn / equipo.
+- Visual lo maqueto **yo a mano en Keynote**. No regenerar los .pptx salvo orden expresa.
 
-### ✅ Notion actualizado
-- 2 entradas en *Historial de Desarrollo* (Done + In Progress)
-- Roadmap & Tareas con bloque "Sesión 17" al final
+### ✅ Slide 9 — Evaluación cuantitativa
 
-### 🔲 Pendientes orden de prioridad
+- Resultados sobre corpus eval-specific 12 docs: **Precision 1.000 · Recall 1.000 · F1 1.000**.
+- Texto + notas presentador (lenguaje narrable) en `eval/SLIDE_9_NARRABLE.md` ← **USAR ESTE para narrar**.
+- Versión técnica densa de referencia en `eval/SLIDE_9_FINAL.md`.
+- Cierre del slide: *"El TFM se defiende con un sistema que mide su propio error y lo corrige. No con uno que esconde limitaciones."*
 
-1. **Push commits `8c06b20` + `62cae8f` a GitHub** (acción ~30 s tras `gh auth refresh -s repo`).
-2. **Maquetar slide 9 v3 en Keynote** usando texto de `eval/SLIDE_9_NARRABLE.md`. Notas presentador van en panel de Keynote.
-3. **Anexo memoria TFM — capítulo Evaluación** citando los artifacts de `eval/`. NO en Claude Code; va en Claude Projects o el editor de memoria que uses. Output esperado: 2-3 páginas con metodología + tabla resultados + análisis FP + reproducibilidad.
-4. **Banco Q&A 20 preguntas** cronometradas (30-60 s respuesta). Categorías: académicas/metodológicas (10) + técnicas (5) + negocio (5). Documento aparte, no en deck.
-5. **2 ensayos cronometrados.** Primer ensayo solo. Segundo con audiencia hostil simulada (alguien hace preguntas duras Q&A).
-6. **Vídeo demo nuevo · 3 escenas alineadas con slide 8:**
-   - Escena 1 — Silent conflict E2E: subir 2 docs contradictorios → detección automática → email HITL → click resolución → estado superseded → query antes/después con cambio visible.
-   - Escena 2 — RLS aislamiento: mismo query desde dos usuarios distintos (RRHH vs Finanzas) → respuestas distintas → log SQL mostrando `set_config` y RLS policy.
-   - Escena 3 — MCP Claude Desktop: Claude consulta Korio → respuesta con fuentes citadas + similitud → flag `has_silent_conflict: true` → aviso gobernanza.
-   - Snapshot `pre_demo_v038` listo. Estimado 3-4 h grabación + edición.
+### ✅ Bug detector FIXED (commit `62cae8f`)
 
-### ✅ Bug FIXED en sesión 17b (commit `62cae8f`)
+- Causa: `chunk_index=0` capturaba solo frontmatter YAML → embedding sin contenido → 5 FP cross-tema en eval.
+- Fix: `src/preprocessor.py` strippea frontmatter pre-chunking + parsea YAML a metadata. `src/version_extractor.py` prioriza `signed_date` estructurado. `src/ingest.py` propaga.
+- 28/28 tests verdes. E2E verificado en producción + snapshot baseline restaurado tras test.
+- **Defensa: ya no es "deuda Phase 9", es "fix aplicado y verificado".**
 
-`src/preprocessor.py` strippea ahora frontmatter YAML pre-chunking. `extract_frontmatter()` parsea con pyyaml, guarda dict en metadata, devuelve body limpio. `version_extractor` prioriza `signed_date` del frontmatter. 28/28 tests verdes. E2E verificado en producción + restore baseline. Slide 9 v3 actualizable de "limitación pendiente" a "fix aplicado". Detalle en Notion *Historial de Desarrollo* entrada actualizada.
+### ✅ Evaluación reproducible commiteada
+
+- `data-synthetic/eval-corpus/` — 12 docs sintéticos (6 pares positivos + 6 negativos), misma fecha+autoridad para forzar `pending`.
+- `eval/ground_truth_eval_corpus.yaml` — anotaciones.
+- `eval/results_eval_corpus.json` — métricas crudas.
+- `eval/surprises_analysis.txt` — inspección manual de los 5 FP previos al fix.
+- `scripts/{evaluate,ingest,inspect,diagnose,reingest}_*.py` — pipeline reproducible.
+
+### ✅ Notion sincronizado
+
+- *Historial de Desarrollo*:
+  - "Evaluación cuantitativa detector — P/R/F1 = 1.0" (Done · Éxito)
+  - "Bug detector frontmatter YAML — RESUELTO commit 62cae8f" (Done · Bug)
+- *Roadmap & Tareas*: bloques "Sesión 17" + "Sesión 17b" al final.
+
+### 🔲 Único pendiente operativo inmediato
+
+**Push 3 commits locales a GitHub** (acción ~30 s):
+
+```bash
+gh auth refresh -h github.com -s repo
+cd "/Users/berto/Claude Code/korio"
+git push -u origin main
+```
+
+Commits pendientes:
+- `8c06b20` — Eval cuantitativa
+- `62cae8f` — Fix preprocessor frontmatter
+- `4d97cc3` — Docs session-starter + slide 9
+
+---
+
+## 🔲 Pendientes orden de prioridad (17 días hasta defensa)
+
+### 1. Push GitHub (5 min)
+Acción de arriba. Después `git status` debe mostrar `Your branch is up to date with 'origin/main'`.
+
+### 2. Maquetar slide 9 v3 en Keynote (1 h)
+Texto + cuadros KPI + notas presentador desde `eval/SLIDE_9_NARRABLE.md`. Cuatro cuadros grandes:
+- `1.983 ms` latencia mediana
+- `12 / 12` aciertos detector
+- `27 contradicciones` en producción
+- `5 → 0` falsos positivos · fix aplicado commit `62cae8f`
+
+Notas presentador van en panel de Keynote, no en slide visible.
+
+### 3. Capítulo Evaluación memoria TFM (2-3 h)
+Va en Claude Projects (memoria), NO en Claude Code. 2-3 páginas:
+- Metodología (corpus controlado, ground truth autoral, fuerza pending)
+- Tabla resultados P/R/F1
+- Análisis FP cross-tema → identificación bug → fix → verificación E2E
+- Reproducibilidad: paths exactos a `eval/`, `data-synthetic/eval-corpus/`, scripts, commits.
+
+### 4. Vídeo demo nuevo · 3 escenas (3-4 h grabación + edición)
+Alineadas con slide 8 del deck. Snapshot `pre_demo_v038` ya listo.
+
+- **Escena 1 — Silent conflict E2E** (~90 s): subir 2 docs contradictorios → detección automática → email HITL al admin → click resolución → estado superseded → query antes/después con cambio visible.
+- **Escena 2 — RLS aislamiento** (~60 s): mismo query desde dos usuarios distintos (RRHH vs Finanzas) → respuestas diferentes → log SQL mostrando `set_config` + RLS policy.
+- **Escena 3 — MCP Claude Desktop** (~90 s): Claude consulta Korio → respuesta con fuentes citadas + similitud → flag `has_silent_conflict: true` → aviso gobernanza en respuesta final.
+
+Total editado: ~4 min. Reservar 1 min para reacciones tribunal.
+
+### 5. Banco Q&A 20 preguntas (2 h)
+Documento aparte, NO en deck. Cronometradas (30-60 s respuesta cada una):
+- 10 académicas/metodológicas (por qué pgvector, baseline, precision/recall, hallucinations, reproducibilidad, bias audit, etc.)
+- 5 técnicas (escalado RLS, prompt injection MCP, ACID rollback, etc.)
+- 5 negocio (por qué pyme, plan si Mistral cierra API, AI Act riesgo nivel, etc.)
+
+Categorías ya esbozadas en `eval/SLIDE_9_FINAL.md` glosario + design doc original.
+
+### 6. Ensayos cronometrados (2 sesiones · 1.5 h cada una)
+- **Ensayo 1 — solo, cronómetro.** Detecta partes lentas, palabras donde te trabes, transiciones que no funcionan.
+- **Ensayo 2 — con audiencia hostil simulada.** Alguien hace 10 preguntas duras del banco Q&A. Practica silencio, "tengo anexo dedicado", "no lo sé pero esto sí lo sé".
+
+---
 
 ## Lo que NO se va a hacer antes defensa
 
-- Re-implementar nada en código. Producto cerrado.
-- Bias audit completo (Phase 9 post-TFM).
+- Re-implementar más código. Producto + bug fix cerrados.
+- Bias audit (Phase 9 post-TFM).
 - Validación corpus real cliente piloto (Phase 8).
-- Comentar/limpiar `eval/ground_truth.yaml` original (corpus demo, no se re-evalúa salvo re-grabe).
+- Comentar `eval/ground_truth.yaml` original (corpus demo · ya no se re-evalúa con el nuevo corpus eval-specific).
+
+---
 
 ## Archivos clave
 
 ```
 /Users/berto/Claude Code/korio/
 ├── eval/
-│   ├── SLIDE_9_FINAL.md            # versión técnica densa (ref)
-│   ├── SLIDE_9_NARRABLE.md         # versión que vas a leer en voz alta ← USA ESTA
+│   ├── SLIDE_9_NARRABLE.md         # ← USA ESTE para narrar slide 9
+│   ├── SLIDE_9_FINAL.md            # versión técnica densa (ref para memoria)
 │   ├── ground_truth_eval_corpus.yaml
 │   ├── results_eval_corpus.json
 │   ├── surprises_analysis.txt
-│   └── results_final.json          # eval previa antes corpus-specific (histórica)
-├── data-synthetic/eval-corpus/     # 12 docs reproducibles
-├── scripts/{evaluate,ingest,inspect,diagnose,reingest}_*.py
+│   ├── results_final.json          # eval previa (histórica, antes corpus-specific)
+│   └── ground_truth.yaml           # eval corpus demo (histórica)
+├── data-synthetic/eval-corpus/     # 12 docs reproducibles (sintéticos)
+├── data-synthetic/demo-tfm/        # 20 docs corpus demo grabado (no tocar)
+├── scripts/
+│   ├── evaluate_detector.py        # métricas P/R/F1 doble fuente
+│   ├── ingest_eval_corpus.py       # orquestador corpus eval
+│   ├── inspect_surprises.py        # análisis FP
+│   ├── diagnose_graph.py           # diag grafo FalkorDB
+│   ├── reingest_eval_pairs.py      # utilidad histórica
+│   └── reembed_strip_frontmatter.py # útil para chunks viejos pre-fix
+├── src/
+│   ├── preprocessor.py             # MODIFICADO s17b · strippea frontmatter
+│   ├── version_extractor.py        # MODIFICADO s17b · prioriza signed_date
+│   └── ingest.py                   # MODIFICADO s17b · propaga frontmatter
 └── docs/SESSION-STARTER_DECK.md    # este archivo
 
 /Users/berto/Documents/Claude/Projects/Presentación TFM/
 ├── Korio_pitch_deck_v4.pptx        # deck principal 15 slides
 ├── Korio_anexo_inversor_v1.pptx    # anexo 6 slides para Q&A
-├── build_v4.js                     # generador deck
-└── build_annex_investor.js         # generador anexo
+├── build_v4.js                     # generador deck (referencia)
+└── build_annex_investor.js         # generador anexo (referencia)
 ```
 
-## Smoke check producción
+---
 
-Antes de discutir lo que sea, verifica que VPS sigue vivo:
+## Smoke check producción (30 s)
 
 ```bash
 ssh korio-vps "systemctl is-active korio-api && docker ps --format '{{.Names}}' | grep -E 'ollama|n8n|falkordb' && curl -s https://korio.es/health"
 ```
 
-Esperado: `active` + 3 contenedores + `{"status":"ok",...}`.
+Esperado: `active` + 3 contenedores + `{"status":"ok",...}`. Si algo falla, antes de tocar nada, dime qué ves.
 
-## Línea de tiempo restante (17 días hasta defensa)
+---
+
+## Línea de tiempo restante (17 días)
 
 | Día | Tarea |
 |---|---|
-| 22-25 jun | Maquetar slide 9 + anexo memoria capítulo evaluación |
-| 25-28 jun | Banco Q&A 20 preguntas + decisión vídeo |
-| 28 jun-1 jul | Resto memoria TFM ensamblar capítulos `docs/` |
-| 2-5 jul | Si re-grabas vídeo, esta ventana |
+| 22 jun (hoy) | ✅ Eval cerrada + bug fix aplicado + Notion + commits locales |
+| 23 jun | Push GitHub · maquetar slide 9 en Keynote |
+| 23-26 jun | Capítulo Evaluación memoria TFM + resto capítulos `docs/` |
+| 27-30 jun | Banco Q&A 20 preguntas |
+| 1-4 jul | Vídeo demo nuevo (3 escenas) + edición |
 | 5-7 jul | 2 ensayos cronometrados |
-| 8 jul | Buffer + descanso. NO toques nada. |
+| 8 jul | Buffer + descanso. **NO toques nada.** Repasa notas. Duerme. |
 | **9 jul** | **Defensa** |
+
+---
 
 ## Voz para esta sesión
 
 - Hablo claro, sin jergas si voy a decirlo en voz alta.
-- Si propongo algo técnico denso, dame también la versión narrable.
-- Honestidad sobre limitaciones siempre. El tribunal premia transparencia.
+- Si propongo algo técnico denso, dame también versión narrable.
+- Honestidad sobre limitaciones siempre. Si algo se arregló, dilo. Si no, también.
 - Caveman mode si arranco con `/caveman`, prosa normal si no.
+- Memoria TFM = Claude Projects, no Claude Code. Si te pido capítulo, dame markdown copy-pasteable.
+
+---
+
+## Frase de cierre defensa (memorizar)
+
+> *"El TFM se defiende con un sistema que mide su propio error y lo corrige. No con uno que esconde limitaciones."*
+
+Esa es la frase que gana el tribunal académico.
