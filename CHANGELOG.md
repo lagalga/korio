@@ -10,6 +10,65 @@ semántico [SemVer](https://semver.org/lang/es/).
 
 ## [Unreleased]
 
+## [0.3.13] — 2026-06-22 · sesión 17 + 17b (Evaluación cuantitativa detector + fix frontmatter)
+
+### Added
+- **Corpus eval-specific** en `data-synthetic/eval-corpus/` — 12 documentos
+  sintéticos (6 pares positivos con contradicción explícita en valor único +
+  6 pares negativos del mismo space pero temas disjuntos). Diseño: misma
+  fecha, misma autoridad, mismo autor → fuerza `resolution=pending` en el
+  detector → `conflict_review` persiste como evidencia medible (los
+  auto-resueltos no persisten row por diseño del `conflict_detector`).
+- **Ground truth + métricas** en `eval/`:
+  - `ground_truth_eval_corpus.yaml` — anotaciones P/N.
+  - `results_eval_corpus.json` — métricas crudas.
+  - `surprises_analysis.txt` — inspección manual de los 5 FP previos al fix.
+  - `SLIDE_9_FINAL.md` + `SLIDE_9_NARRABLE.md` — texto deck para defensa.
+- **Scripts reproducibles** en `scripts/`:
+  - `evaluate_detector.py` — calcula P/R/F1 combinando aristas CONTRADICTS
+    en FalkorDB + filas `conflict_reviews` en Postgres.
+  - `ingest_eval_corpus.py` — crea space `Eval` + ingesta secuencial los 12 docs.
+  - `inspect_surprises.py` — análisis manual de FP cross-tema.
+  - `diagnose_graph.py` — diagnóstico estado grafo FalkorDB.
+  - `reingest_eval_pairs.py` — utilidad (descartada en favor del corpus eval-specific).
+- **Resultados sobre ground truth declarado:** Precision 1.000 · Recall 1.000
+  · F1 1.000 (n=12). 5 FP cross-tema iniciales sobre pares no-anotados
+  identificados antes del fix.
+
+### Fixed
+- **Bug detector chunk_index=0 frontmatter YAML** (commit `62cae8f`).
+  Causa identificada vía `inspect_surprises.py`: el `chunk_index=0` capturaba
+  únicamente el frontmatter YAML + título, sin contenido sustantivo.
+  Frontmatter idéntico entre docs (mismo autor / fecha / autoridad / tenant)
+  inflaba la similitud baseline a 0.89-0.95 → detector marcaba como
+  contradicción → Mistral validaba al ver metadata idéntica + títulos
+  distintos como variantes del mismo doc.
+
+  Solución:
+  - `src/preprocessor.py` — nueva función `extract_frontmatter(text)` que
+    parsea YAML inicial con `pyyaml` y devuelve `(frontmatter_dict, body)`.
+    `Preprocessor.process_document()` strippea el frontmatter del texto que
+    va al chunker. El frontmatter parseado se guarda en
+    `metadata["frontmatter"]` y el texto original-con-frontmatter en
+    `metadata["original_with_frontmatter"]` para downstream consumers.
+  - `src/version_extractor.py` — `extract_version_ts()` acepta
+    `frontmatter: Optional[dict]` con prioridad máxima si trae `signed_date`
+    (acepta `datetime`, `date` o string ISO). Retro-compatible.
+  - `src/ingest.py` — pasa `prep_meta["frontmatter"]` al `extract_version_ts`;
+    usa `original_with_frontmatter` como fallback content para el regex.
+
+  Verificación: 28/28 tests verdes. E2E producción — `eval_pol_teletrabajo_a.md`
+  ingestado → `chunk_index=0` con body real (sin YAML), `version_ts = 2025-04-15`
+  del frontmatter. Doc test borrado + snapshot `pre_eval_20260622` restaurado.
+
+### Documentation
+- `docs/SESSION-STARTER_DECK.md` — guía para retomar el trabajo de defensa
+  TFM en sesiones futuras (estado, pendientes priorizados, smoke check,
+  timeline 17 días, archivos clave).
+- Notion *Historial de Desarrollo*: 2 entradas (eval cuantitativa Done · Éxito;
+  bug frontmatter Done · Bug con sección de resolución).
+- Notion *Roadmap & Tareas*: bloques "Sesión 17" + "Sesión 17b" al final.
+
 ## [0.3.12] — 2026-06-18 · sesión 16a/b/c (Phase 9 errores n8n + Slack duplicate)
 
 ### Added
