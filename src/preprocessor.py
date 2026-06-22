@@ -9,8 +9,49 @@ El texto que entra al vector store NUNCA contiene PII en claro.
 """
 
 import re
-from typing import Tuple, List, Dict
+from typing import Tuple, List, Dict, Optional
 from pathlib import Path
+
+try:
+    import yaml
+    YAML_AVAILABLE = True
+except ImportError:
+    YAML_AVAILABLE = False
+
+
+# Frontmatter YAML al inicio del documento (estilo Jekyll/Hugo).
+# Patrón: --- ... --- al inicio, body después.
+_FRONTMATTER_RE = re.compile(r"^---\s*\n(.*?)\n---\s*\n", re.DOTALL)
+
+
+def extract_frontmatter(text: str) -> Tuple[Dict, str]:
+    """
+    Extrae el frontmatter YAML del inicio del texto (si existe) y devuelve
+    (frontmatter_dict, body_sin_frontmatter).
+
+    El frontmatter típico de Korio incluye campos como signed_date, author,
+    authority_level, space, tenant, version, supersedes. Strippearlo del body
+    evita que el chunk_index=0 sea solo metadata YAML (causa de falsos
+    positivos en el detector de contradicciones — bug evaluación s17).
+
+    Si no hay frontmatter o pyyaml no está instalado, devuelve ({}, text).
+    """
+    match = _FRONTMATTER_RE.match(text)
+    if not match:
+        return {}, text
+    raw_yaml = match.group(1)
+    body = text[match.end():].lstrip()
+    fm: Dict = {}
+    if YAML_AVAILABLE:
+        try:
+            parsed = yaml.safe_load(raw_yaml)
+            if isinstance(parsed, dict):
+                fm = parsed
+        except yaml.YAMLError:
+            fm = {"_raw": raw_yaml}
+    else:
+        fm = {"_raw": raw_yaml}
+    return fm, body
 
 try:
     from markitdown import MarkItDown
@@ -262,11 +303,19 @@ class Preprocessor:
         # 2. Limpiar
         cleaned_text = self.clean_text(markdown_text)
 
-        # 3. Anonimizar PII
+        # 3. Extraer frontmatter YAML (si existe) — evita que chunk_index=0 sea
+        #    solo metadata, causa identificada de FP en detector de
+        #    contradicciones (eval s17: 5/54 FP cross-tema con frontmatter
+        #    uniforme inflando similitud). El frontmatter se guarda como
+        #    metadata estructurada para downstream consumers (version_extractor,
+        #    policies, etc.).
+        frontmatter, body_text = extract_frontmatter(cleaned_text)
+
+        # 4. Anonimizar PII (sobre el body sin frontmatter)
         if anonymize:
-            processed_text, pii_found = self.anonymize_pii(cleaned_text)
+            processed_text, pii_found = self.anonymize_pii(body_text)
         else:
-            processed_text = cleaned_text
+            processed_text = body_text
             pii_found = []
 
         # Metadata
@@ -276,7 +325,12 @@ class Preprocessor:
             "char_count": len(processed_text),
             "pii_found": len(pii_found),
             "pii_types": list(set(p["type"] for p in pii_found)),
-            "anonymized": anonymize
+            "anonymized": anonymize,
+            "frontmatter": frontmatter,
+            # Texto completo original (con frontmatter) preservado para
+            # consumers que necesitan el documento íntegro (p.ej. extract_version_ts
+            # cuando no hay signed_date estructurado).
+            "original_with_frontmatter": cleaned_text,
         }
 
         return processed_text, metadata

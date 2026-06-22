@@ -134,9 +134,17 @@ def ingest_document(
         preprocessor = get_preprocessor()
         content, prep_meta = preprocessor.process_document(file_path, anonymize=anonymize)
         logger.info(f"  ✓ {prep_meta['char_count']} chars; PII: {prep_meta['pii_found']} hits")
-        # Extraer fecha de versión del documento (filename + contenido)
+        # Extraer fecha de versión del documento (filename + contenido + frontmatter).
+        # El frontmatter (parseado por preprocessor) tiene prioridad si trae
+        # signed_date — más fiable que regex sobre body. Para fallback al regex
+        # de body, usamos el texto original-con-frontmatter (preservado en
+        # prep_meta) por compatibilidad histórica con docs sin signed_date.
         from version_extractor import extract_version_ts
-        extracted_ts, version_ts_source = extract_version_ts(filename, content)
+        extracted_ts, version_ts_source = extract_version_ts(
+            filename,
+            prep_meta.get("original_with_frontmatter", content),
+            frontmatter=prep_meta.get("frontmatter"),
+        )
         if extracted_ts is not None:
             version_ts = extracted_ts
             logger.info(f"  📅 version_ts={version_ts.date().isoformat()} ({version_ts_source})")

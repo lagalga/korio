@@ -52,10 +52,41 @@ _CONTENT_HEAD_CHARS = 3000
 def extract_version_ts(
     filename: str,
     content: Optional[str] = None,
+    frontmatter: Optional[dict] = None,
 ) -> Tuple[Optional[datetime], str]:
-    """Devuelve (fecha, source) o (None, 'no_match')."""
+    """Devuelve (fecha, source) o (None, 'no_match').
+
+    Si `frontmatter` se provee con un campo `signed_date` parseable como
+    fecha (ISO YYYY-MM-DD), tiene PRIORIDAD MÁXIMA — es la fuente más
+    explícita y confiable. Añadido en fix s17 tras stripear frontmatter del
+    body del documento (preprocessor) para evitar FP en detector.
+    """
     head = (content or "")[:_CONTENT_HEAD_CHARS]
     now = datetime.now(timezone.utc)
+
+    # 0) Frontmatter estructurado — prioridad máxima cuando existe
+    if frontmatter and isinstance(frontmatter, dict):
+        sd = frontmatter.get("signed_date")
+        if sd:
+            # yaml.safe_load convierte fechas YAML a datetime.date directamente
+            if isinstance(sd, datetime):
+                return sd.replace(tzinfo=timezone.utc) if sd.tzinfo is None else sd, "frontmatter:signed_date"
+            # date object (sin hora)
+            try:
+                from datetime import date as _date
+                if isinstance(sd, _date):
+                    return datetime(sd.year, sd.month, sd.day, tzinfo=timezone.utc), "frontmatter:signed_date"
+            except Exception:
+                pass
+            # string ISO
+            if isinstance(sd, str):
+                m = _RE_ISO.search(sd)
+                if m:
+                    try:
+                        return datetime(int(m.group(1)), int(m.group(2)), int(m.group(3)),
+                                        tzinfo=timezone.utc), "frontmatter:signed_date"
+                    except ValueError:
+                        pass
 
     # 1) Fecha textual día+mes+año en contenido
     for regex, label in (
