@@ -1,13 +1,13 @@
 # Korio — Roadmap
 
-> **Estado: v0.3.12 (18 jun 2026) · 🏁 Implementación cerrada · Phase 9 flecos errores n8n cerrados**
-> Demo TFM: 2 julio 2026 · Defensa: 9 julio 2026
+> **Estado: v0.3.13 (22 jun 2026) · 🏁 Implementación cerrada · Evaluación cuantitativa + fix frontmatter aplicado**
+> Defensa TFM: 9 julio 2026
 
 ---
 
 ## Resumen ejecutivo
 
-Korio cubre **6 phases técnicas cerradas** (núcleo RAG, multi-tenancy, producción + gobernanza activa, cron HITL, grafo de conocimiento, ingesta multi-canal, MCP server) más **v0.3.0 con las 6 reglas del Entregable 3 materializadas** (pipeline ACID + bus de eventos + query-time + policies + inconclusive) y **v0.3.12 con los flecos operativos de Phase 9** (throttling errores, panel admin, Slack interactivity).
+Korio cubre **6 phases técnicas cerradas** (núcleo RAG, multi-tenancy, producción + gobernanza activa, cron HITL, grafo de conocimiento, ingesta multi-canal, MCP server) más **v0.3.0 con las 6 reglas del Entregable 3 materializadas** (pipeline ACID + bus de eventos + query-time + policies + inconclusive), **v0.3.12 con los flecos operativos de Phase 9** (throttling errores, panel admin, Slack interactivity) y **v0.3.13 con evaluación cuantitativa del detector (P/R/F1 = 1.0 sobre n=12) + fix bug frontmatter en preprocessor**.
 
 **Roadmap restante hasta defensa (9 julio):**
 
@@ -152,6 +152,19 @@ Korio cubre **6 phases técnicas cerradas** (núcleo RAG, multi-tenancy, producc
 | Workflow Slack file_shared: duplicate → DM thread | 16c | IF 200 / 409 / other; 409 ya no dispara `errorWorkflow` |
 | Verificación E2E real | 16b | Click usuario → BD actualizada en 14s, `reviewed_by: slack:U…` |
 
+### v0.3.13 · Evaluación cuantitativa detector + fix frontmatter ✅ (sesión 17 + 17b)
+
+| Tarea | Sesión | Notas |
+|---|---|---|
+| Corpus eval-specific (12 docs sintéticos) | 17 | `data-synthetic/eval-corpus/` 6P + 6N · misma fecha/autoridad fuerza `pending` |
+| Métricas P/R/F1 sobre ground truth | 17 | Precision 1.000 · Recall 1.000 · F1 1.000 (n=12) |
+| Script `evaluate_detector.py` doble fuente | 17 | Reconcilia aristas CONTRADICTS FalkorDB + filas `conflict_reviews` Postgres |
+| Análisis FP cross-tema (`inspect_surprises.py`) | 17 | 5 FP / 54 pares no-anotados · causa: `chunk_index=0` solo frontmatter YAML |
+| **Fix `src/preprocessor.py`**: stripping frontmatter pre-chunking | 17b | `extract_frontmatter()` parsea YAML a metadata · body limpio al chunker |
+| `src/version_extractor.py` prioriza `signed_date` del frontmatter | 17b | Acepta `datetime`/`date`/string ISO · retro-compatible |
+| Verificación E2E + 28/28 tests verdes | 17b | Doc subido → `chunk_index=0` sin YAML · `version_ts` del frontmatter |
+| Slide 9 defensa con números reales | 17 | `eval/SLIDE_9_FINAL.md` técnico · `eval/SLIDE_9_NARRABLE.md` lenguaje natural |
+
 ---
 
 ## Backlog · Flecos pendientes post-implementación
@@ -161,7 +174,7 @@ Korio cubre **6 phases técnicas cerradas** (núcleo RAG, multi-tenancy, producc
 | Tarea | Impacto | Esfuerzo |
 |---|---|---|
 | Validación semántica LLM en detector de ingesta | Reduce falsos positivos G1↔G2 (docs estilo similar) | 3-4h |
-| Chunker excluir frontmatter YAML del embedding | Evita reembed post-hoc (deuda sesión 15b) | 2-3h |
+| ~~Chunker excluir frontmatter YAML del embedding~~ | ✅ **Cerrado v0.3.13 (commit `62cae8f`)** | — |
 | Reintroducir índice vectorial cuando >1000 chunks | HNSW o `ivfflat lists=ceil(sqrt(N))` con probes calibradas | 2-3h |
 
 ### Operativa contenido TFM
@@ -237,19 +250,20 @@ Escala y GPU:
 
 ---
 
-## Métricas y stack (sesión 16, v0.3.12)
+## Métricas y stack (sesión 17b, v0.3.13)
 
 | Categoría | Valor |
 |---|---|
-| Tests | **31/31 verdes** (~30s) |
+| Tests | **28/28 verdes** + 3 skipped (~32s) |
 | Migraciones aplicadas | 20 |
 | Workflows n8n activos | 8 |
-| Documentos en producción | 18+ (varía con ingesta automática) |
+| Documentos en producción | 22 (Delos 20 + García 5 tras restore) |
 | Aristas CONTRADICTS en grafo | 27 (13 resueltas + 14 pendientes) |
 | Benchmark p50 / p95 | **1983 ms / 3053 ms** (50/50 sin errores, sesión 10) |
-| Snapshot demo | `pre_demo_v038` (20 docs, 74 chunks, 1130 nodos, 1818 aristas) |
+| **Detector P/R/F1 (n=12 eval corpus)** | **1.000 / 1.000 / 1.000** sobre ground truth declarado |
+| Snapshots demo | `pre_demo_v038` (20 docs, 74 chunks, 1130 nodos, 1818 aristas) · `pre_eval_20260622` (baseline post-eval) |
 | Endpoints admin | `/admin/errors`, `/admin/errors/{id}/review`, `/admin/errors/slack-action` (s16b) |
-| Compliance | Privacy Policy + PII redaction Mistral + whitelist Presidio (s14b) |
+| Compliance | Privacy Policy + PII redaction Mistral + whitelist Presidio (s14b) + frontmatter strip (s17b) |
 
 ---
 
@@ -271,4 +285,4 @@ Escala y GPU:
 
 ---
 
-*Actualizado: 18 junio 2026 · v0.3.12 · sesión 16. 🏁 Implementación cerrada. Próximo: slide deck y memoria TFM (Claude Projects, fuera de Claude Code).*
+*Actualizado: 22 junio 2026 · v0.3.13 · sesiones 17 + 17b. 🏁 Implementación cerrada + evaluación cuantitativa cerrada + fix frontmatter aplicado. Próximo: maquetar slides, grabar vídeo demo (3 escenas), memoria TFM en Claude Projects, banco Q&A, ensayos cronometrados.*
