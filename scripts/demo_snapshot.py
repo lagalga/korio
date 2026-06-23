@@ -155,7 +155,7 @@ def cmd_restore(args):
             sb.client.table(table).delete().neq("id", "00000000-0000-0000-0000-000000000000").execute()
             print(f"    ✓ {table} vaciada")
         except Exception as e:
-            if "embeddings" in table or "pipeline_events" in table:
+            if "embeddings" in table or "pipeline_events" in table or "policies" in table:
                 sb.client.table(table).delete().gte("id", 0).execute()
                 print(f"    ✓ {table} vaciada (int PK)")
             else:
