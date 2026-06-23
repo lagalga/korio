@@ -603,6 +603,37 @@ async def review_conflict(
                 _sync_graph_chunk(existing_chunk_id, "superseded")
             msg_es = "✅ Documento nuevo aprobado. El contenido anterior ha sido archivado."
 
+            # Promoción a reemplazo de documento (Regla 4 a nivel doc):
+            # si admin ya ha aprobado N veces "el nuevo gana" entre el mismo
+            # par (new_doc, existing_doc), supersede los chunks restantes del
+            # existing_doc. Patrón → política implícita de reemplazo total.
+            new_document_id      = review_data.get("new_document_id")
+            existing_document_id = review_data.get("existing_document_id")
+            min_approvals = int(os.getenv("KORIO_DOC_REPLACEMENT_MIN_APPROVALS", "2"))
+            if new_document_id and existing_document_id:
+                try:
+                    promoted = db.promote_to_document_replacement(
+                        new_document_id=new_document_id,
+                        existing_document_id=existing_document_id,
+                        min_approvals=min_approvals,
+                    )
+                    if promoted:
+                        for cid in promoted:
+                            _sync_graph_chunk(cid, "superseded")
+                        logger.info(
+                            f"📄 Reemplazo de documento aplicado: "
+                            f"{len(promoted)} chunks de {existing_document_id[:8]}… "
+                            f"superseded por {new_document_id[:8]}… "
+                            f"(≥{min_approvals} approved_new)"
+                        )
+                        msg_es += (
+                            f" Además, se han archivado {len(promoted)} fragmentos "
+                            f"restantes del documento anterior porque ya hay "
+                            f"≥{min_approvals} resoluciones previas a favor del nuevo."
+                        )
+                except Exception:
+                    logger.exception("Error en promoción a reemplazo de documento (no crítico)")
+
         elif action == "approved_existing":
             # El chunk nuevo queda superseded; el existente vuelve a active
             # (durante la detección se había marcado como disputed)

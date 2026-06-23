@@ -311,6 +311,65 @@ class SupabaseClient:
         except Exception as e:
             raise RuntimeError(f"Error actualizando chunk_status {chunk_id}: {e}") from e
 
+    def promote_to_document_replacement(
+        self,
+        new_document_id: str,
+        existing_document_id: str,
+        min_approvals: int = 2,
+    ) -> List[int]:
+        """
+        Promueve un patrón de conflictos chunk-level a reemplazo a nivel documento.
+
+        Cuando el admin ha resuelto ≥ `min_approvals` conflict_reviews entre el
+        mismo par (new_document_id → existing_document_id) como 'approved_new',
+        el sistema infiere que el documento nuevo reemplaza al viejo en su
+        totalidad y supersede los chunks restantes del existing_document.
+
+        Esto respeta el diseño chunk-level del E3 (1 review = chunk concreto)
+        pero promueve a doc-level cuando la evidencia HITL es repetida —
+        coherente con la Regla 4 (aprender de las decisiones del admin).
+
+        Args:
+            new_document_id:      UUID del documento nuevo
+            existing_document_id: UUID del documento existente
+            min_approvals:        Umbral mínimo de reviews approved_new
+                                  para activar la promoción (default 2)
+
+        Returns:
+            Lista de chunk_ids superseded por la promoción (vacía si no se
+            alcanzó el umbral o si no quedaban chunks activos).
+        """
+        try:
+            count_resp = self.client.table("conflict_reviews").select(
+                "id", count="exact"
+            ).eq("new_document_id", new_document_id).eq(
+                "existing_document_id", existing_document_id
+            ).eq("resolution", "approved_new").execute()
+
+            approved_count = count_resp.count or 0
+            if approved_count < min_approvals:
+                return []
+
+            # Supersede el resto de chunks ACTIVOS del existing_document
+            active_chunks = self.client.table("embeddings").select(
+                "id"
+            ).eq("document_id", existing_document_id).eq(
+                "chunk_status", "active"
+            ).execute()
+
+            superseded_ids = []
+            for row in (active_chunks.data or []):
+                cid = int(row["id"])
+                self.update_chunk_status(cid, "superseded")
+                superseded_ids.append(cid)
+
+            return superseded_ids
+        except Exception as e:
+            raise RuntimeError(
+                f"Error promoviendo a reemplazo de documento "
+                f"({new_document_id} → {existing_document_id}): {e}"
+            ) from e
+
     def update_document_status(self, document_id: str, status: str) -> None:
         """
         Actualiza el status de un documento.
