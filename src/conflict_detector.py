@@ -7,7 +7,7 @@ cuando las diferencias de fecha o autoridad son claras; en caso contrario, crea 
 tarea de revisión humana (HITL via email).
 
 Umbrales de decisión:
-  CONFLICT_THRESHOLD      = 0.85  — similitud coseno mínima para declarar conflicto
+  CONFLICT_THRESHOLD      = 0.80  — similitud coseno mínima para declarar conflicto
   AUTO_DATE_DAYS          = 30    — diferencia en días para resolver por fecha
   AUTO_AUTHORITY_DELTA    = 3     — diferencia en authority_weight para resolver por autoridad
 """
@@ -65,7 +65,7 @@ def _graph_link_contradictions(
 
 # ─── Umbrales ────────────────────────────────────────────────────────────────
 
-CONFLICT_THRESHOLD     = 0.78  # Similitud mínima para considerar conflicto (nomic-embed-text)
+CONFLICT_THRESHOLD     = 0.80  # Similitud mínima para considerar conflicto (nomic-embed-text)
 AUTO_DATE_DAYS         = 30    # Días de diferencia para auto-resolución por fecha
 AUTO_AUTHORITY_DELTA   = 3     # Puntos de diferencia para auto-resolución por autoridad
 
