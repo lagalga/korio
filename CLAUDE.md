@@ -747,3 +747,26 @@ Pendiente sesión 7 (Phase 8 candidatos): detección query-time, estado `inconcl
 🔲 **Pendiente Phase 9 restante (S13b)**: validación semántica LLM en detector ingesta (G1↔G2 falsos positivos), reintroducir índice vectorial con volumen >1000 chunks.
 
 *Actualizado: 18 junio 2026 (sesión 16 a/b/c) — v0.3.12. Phase 9 errores n8n + Slack duplicate UX cerrados. `SLACK_SIGNING_SECRET` configurado en VPS + api.slack.com Interactivity ON. Snapshot `pre_demo_v038` consistente (L3 test borrado al cierre). Próximo: slide deck (s17).*
+
+---
+
+**Sesión 17c (23 jun 2026)** — Fixes restore demo + promoción HITL chunk→doc + nginx timeout (v0.3.14):
+
+Contexto: re-grabación del vídeo demo escena 1 (gobernanza E2E con L3 LOPD v2 reemplazando L2 LOPD v1). Tres bugs encadenados emergieron durante el ensayo y se cerraron con código + documentación + Notion.
+
+- **Fix `scripts/demo_snapshot.py` — restore no limpiaba `policies`** (commit `b4058c5` → rebased `6165ec0`). Tabla `policies` con PK `bigint`; DELETE inicial con placeholder UUID fallaba silencioso vía PGRST. Fallback solo capturaba `embeddings` y `pipeline_events`. Resultado: policies de sesiones anteriores (e.g. `policy_new_wins` con pattern `circular interna — protección de datos d`) sobrevivían al restore → al re-ingerir L3 el Detector llamaba a `find_applicable_policy()` antes de evaluar fecha/autoridad → auto-resolvía sin generar HITL (`policy_resolved:2`). Fix: añadido `"policies"` al branch de fallback `int PK` en `cmd_restore()`.
+
+- **Fix `CONFLICT_THRESHOLD` 0.78 → 0.80** en `src/conflict_detector.py` (commit `7c3b905`). sim(L1, L3) = 0.7936 disparaba conflict_review L1↔L3 (contrato médico residente con cláusula RGPD vs circular LOPD). L1 sin fecha extraíble del cuerpo → `version_extractor` cae a `datetime.now()` → `date_diff = 823 días > AUTO_DATE_DAYS` → `auto_existing_wins` → L3.c0 superseded sin HITL. Subir umbral a 0.80 deja sim(L1, L3) fuera; sim(L2, L3) = 0.8929 sigue dentro → HITL real entre L2 y L3.
+
+- **Nuevo `db.promote_to_document_replacement(new_doc, existing_doc, min_approvals=2)`** + integración en `/review/{id}` (commit `5c22b3c` → rebased `754c5e7`). Cuando admin aprueba ≥N `approved_new` entre el mismo par `(new_doc, existing_doc)`, supersede los chunks `active` restantes del `existing_doc`. Variable `KORIO_DOC_REPLACEMENT_MIN_APPROVALS` (default 2). Coherente con Regla 4 del E3 (aprender de decisiones HITL repetidas) sin romper chunk-level governance para patches parciales. Resuelve la fricción: tras aprobar L3↔L2 c0/c2 los chunks L2 c1/c3/c4 seguían `active` y leaqueaban "5 años" al RAG junto al "10 años" de L3.
+
+- **Fix nginx `proxy_read_timeout` 120s → 300s** en `/etc/nginx/sites-enabled/korio.es`. Ingesta L3 con extracción Mistral por chunk excedía 120s y nginx devolvía 504 al cliente aunque el backend completaba la operación (logs muestran `POST /upload HTTP/1.0" 200 OK` tras nginx ya había cortado). n8n reportaba "Korio /upload falló con status 504" como falso positivo. 300s alinea con timeout de n8n del workflow Slack file_shared (ya 300000ms).
+
+- **Snapshots**:
+  - `pre_demo_v039` — pre-conflicto (L2 todo `active`, L3 ausente) → punto de partida para grabar escena 1.
+  - `pre_demo_v040` — post-resolución (L2 todo `superseded`, L3 activo) → estado de referencia para re-grabar consultas finales sin repetir el flujo HITL.
+  - `pre_demo_v041` — verificación E2E completa con código nuevo (L3 ingerido desde Slack, 2 HITL aprobados, promoción doc-level ejecutada).
+
+🔲 **Pendiente Phase 9 restante**: validación semántica LLM en detector ingesta (G1↔G2 falsos positivos), reintroducir índice vectorial con volumen >1000 chunks, validar timeout del workflow Slack file_shared escala bien para ingestas de PDFs >10 chunks.
+
+*Actualizado: 23 junio 2026 (sesión 17c) — v0.3.14. Tres fixes encadenados resolvieron la fricción del flujo demo gobernanza. Snapshots v039/v040/v041 disponibles. Próximo en sesión: escena 2 del vídeo (aislamiento RLS multi-canal Slack).*

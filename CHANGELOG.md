@@ -64,6 +64,18 @@ semántico [SemVer](https://semver.org/lang/es/).
 - Snapshot `pre_demo_v040` guardado en `/root/korio/snapshots/pre_demo_v040`
   con estado canónico para demo: L2 completamente superseded, L3 activo
   como única fuente vigente sobre conservación de historias clínicas.
+- Snapshot `pre_demo_v041` guardado tras verificación E2E del flujo
+  (L3 ingerido desde Slack, 2 HITL aprobados, promoción doc-level
+  ejecutada). 19 docs, 69 chunks, 5 reviews, 5 policies, 1179 nodos
+  FalkorDB, 1951 aristas.
+- **nginx `proxy_read_timeout` 120s → 300s** en
+  `/etc/nginx/sites-enabled/korio.es`. Backup automático
+  `.bak-YYYYMMDD-HHMM`. La ingesta de L3 con extracción Mistral por
+  chunk (4 chunks × ~25s cada uno) excedía los 120s del location `/`
+  y nginx devolvía 504 al cliente aunque el backend completaba la
+  operación (logs muestran `POST /upload HTTP/1.0" 200 OK` tras 504
+  ya enviado por nginx). 300s alinea con el timeout del nodo
+  `POST /upload Korio` del workflow Slack file_shared.
 
 ## [0.3.13] — 2026-06-22 · sesión 17 + 17b (Evaluación cuantitativa detector + fix frontmatter)
 
