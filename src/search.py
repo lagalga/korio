@@ -453,10 +453,33 @@ def search(
     # marginal (por debajo de KORIO_USEFUL_SIM_THRESHOLD, default 0.55) no
     # se citan al usuario aunque hayan pasado el threshold de recuperación
     # más permisivo (0.35). Evita listar como "fuente" chunks que el LLM
-    # descartó porque eran ruido temático — confunde al usuario cuando la
-    # respuesta es "no encuentro información".
+    # descartó porque eran ruido temático.
     USEFUL_SIM_THRESHOLD = float(os.getenv("KORIO_USEFUL_SIM_THRESHOLD", "0.55"))
     sources = [s for s in sources if s.get("similarity", 0) >= USEFUL_SIM_THRESHOLD]
+
+    # Detección de refusal: si el LLM declinó responder porque los chunks
+    # recuperados no son temáticamente relevantes, no tiene sentido listar
+    # esos chunks como "fuentes" — el LLM acaba de decir que no le valieron.
+    # Vaciamos sources + disputed_chunks + has_conflict para que la UI muestre
+    # un "no encuentro" limpio sin la trazabilidad confusa.
+    refusal_patterns = (
+        "no encuentro información",
+        "no tengo información",
+        "no dispongo de información",
+        "no hay información",
+        "no se menciona",
+        "no se especifica",
+        "no se indica",
+        "los documentos disponibles no",
+        "no puedo responder",
+    )
+    answer_lower = (answer or "").strip().lower()
+    is_refusal = any(p in answer_lower for p in refusal_patterns)
+    if is_refusal:
+        sources = []
+        disputed_chunks = []
+        has_conflict = False
+        logger.info("  ↳ Respuesta detectada como refusal — sources/disputed_chunks vaciados")
 
     # Step 6: Audit log (incluye flag has_conflict si la respuesta tocó chunks disputed)
     if tenant_id:
