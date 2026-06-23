@@ -185,10 +185,12 @@ def search_knowledge_base(query: str, limit: int = 5) -> dict:
     consultados (filename + similitud + is_disputed). El RLS por departamento
     se aplica al user_id autenticado.
 
-    TRAZABILIDAD OBLIGATORIA — Cuando muestres la respuesta al usuario, cita
-    SIEMPRE los `sources` al final usando los nombres de fichero. Si alguna
-    fuente tiene `is_disputed: true`, indícalo expresamente: significa que la
-    gobernanza activa detectó una contradicción aún no resuelta en ese chunk.
+    TRAZABILIDAD OBLIGATORIA — Cita la fuente PRIMARIA (la de mayor
+    `similarity` en `sources`) INLINE al final de la frase de respuesta,
+    en formato `[<filename>, similitud <X.XX>]`. NO uses una sección
+    "Fuentes" al final. Si `graph_contributed` es `true`, añade una
+    frase breve indicándolo. Si la fuente primaria tiene
+    `is_disputed: true`, añade un párrafo ⚠️ con el aviso de gobernanza.
 
     Args:
         query: pregunta en español o inglés.
@@ -230,14 +232,18 @@ def list_pending_conflicts() -> dict:
     from db import get_supabase_client
 
     db = get_supabase_client()
+    # Los reviews HITL nacen con resolution='pending' (string, no NULL) y
+    # tras timeout pueden quedar en 'timeout_inconclusive' a la espera de
+    # decisión manual. Ambos cuentan como "pendientes" para gobernanza.
     rows = (
         db.client.table("conflict_reviews")
         .select(
             "id, similarity, resolution, created_at, "
-            "new_chunk_id, existing_chunk_id"
+            "new_chunk_id, existing_chunk_id, existing_filename, "
+            "new_document_id, existing_document_id, space_id"
         )
         .eq("tenant_id", tenant_id)
-        .is_("resolution", "null")
+        .in_("resolution", ["pending", "timeout_inconclusive"])
         .order("created_at", desc=True)
         .limit(50)
         .execute()
