@@ -115,10 +115,18 @@ const renderUserSelect = () => {
 const renderUserBadge = () => {
   const u = currentUser()
   userBadge.innerHTML = `<strong>${u.role}</strong>${u.spaces}`
-  // Sincronizar el link del grafo con el contexto actual (tenant + usuario)
+  // El grafo de conocimiento es una vista administrativa (gobernanza global).
+  // Solo el rol Admin lo ve en la barra superior; el resto de roles operativos
+  // (Doctor, Staff, Lawyer) lo tienen ocultado para reflejar el modelo de
+  // permisos del producto.
   const graphLink = $('graph-link')
   if (graphLink) {
-    graphLink.href = `graph.html?tenant=${state.tenantKey}&user=${state.userIndex}`
+    if (u.role === 'Admin') {
+      graphLink.href = `graph.html?tenant=${state.tenantKey}&user=${state.userIndex}`
+      graphLink.style.display = ''
+    } else {
+      graphLink.style.display = 'none'
+    }
   }
 }
 
@@ -207,7 +215,14 @@ const renderMessage = (query, result) => {
   // Construir URL del grafo con el tenant/usuario actuales preseleccionados
   const graphUrl = `graph.html?tenant=${state.tenantKey}&user=${state.userIndex}`
 
-  const conflictBanner = result.has_conflict ? `
+  // El banner de contradicción solo tiene sentido cuando la respuesta apoya
+  // su contenido en chunks recuperados Y el rol del usuario es Admin (la
+  // gobernanza activa es una vista administrativa; los roles operativos
+  // no resuelven HITLs). Además, si la respuesta es "no encuentro información"
+  // los chunks en disputa son ruido lexical irrelevante y no procede avisar.
+  const isAdmin = currentUser().role === 'Admin'
+  const showConflictBanner = result.has_conflict && result.has_context && isAdmin
+  const conflictBanner = showConflictBanner ? `
     <div class="conflict-banner">
       ⚠️ <strong>Contradicción detectada</strong> entre las fuentes —
       hay ${result.disputed_chunks} fragmento${result.disputed_chunks > 1 ? 's' : ''} en disputa
