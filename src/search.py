@@ -449,6 +449,15 @@ def search(
     # Formatear fuentes para la respuesta
     sources = _format_sources(raw_chunks, filename_map)
 
+    # Filtro de "utilidad para presentación": las fuentes con similitud
+    # marginal (por debajo de KORIO_USEFUL_SIM_THRESHOLD, default 0.55) no
+    # se citan al usuario aunque hayan pasado el threshold de recuperación
+    # más permisivo (0.35). Evita listar como "fuente" chunks que el LLM
+    # descartó porque eran ruido temático — confunde al usuario cuando la
+    # respuesta es "no encuentro información".
+    USEFUL_SIM_THRESHOLD = float(os.getenv("KORIO_USEFUL_SIM_THRESHOLD", "0.55"))
+    sources = [s for s in sources if s.get("similarity", 0) >= USEFUL_SIM_THRESHOLD]
+
     # Step 6: Audit log (incluye flag has_conflict si la respuesta tocó chunks disputed)
     if tenant_id:
         try:
