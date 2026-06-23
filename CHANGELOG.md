@@ -10,6 +10,61 @@ semántico [SemVer](https://semver.org/lang/es/).
 
 ## [Unreleased]
 
+## [0.3.14] — 2026-06-23 · sesión 17c (Promoción HITL chunk→doc + fixes restore demo)
+
+### Added
+- **`db.promote_to_document_replacement(new_doc_id, existing_doc_id, min_approvals=2)`**
+  en `src/db.py`. Cuando el admin ha resuelto ≥N `conflict_reviews` como
+  `approved_new` entre el mismo par `(new_doc, existing_doc)`, el sistema
+  infiere reemplazo total y supersede los chunks restantes activos del
+  `existing_doc`. Promoción coherente con la Regla 4 del E3 (aprender de
+  decisiones HITL repetidas) sin romper chunk-level governance para
+  patches parciales.
+- Integración en `api/server.py` (`/review/{id}` acción `approved_new`):
+  tras superseder el `existing_chunk_id` del review actual, intenta promoción
+  y sincroniza el grafo. Variable `KORIO_DOC_REPLACEMENT_MIN_APPROVALS`
+  (default 2). Best-effort: error no rompe la resolución del review.
+- Snapshot `pre_demo_v040` post-fix — 19 docs, 69 chunks, L2 entero
+  superseded (5/5 chunks), 5 reviews (3 `pending` R-uniformes + 2
+  `approved_new` L3→L2), 5 policies, 1179 nodos / 1951 aristas FalkorDB.
+
+### Fixed
+- **`scripts/demo_snapshot.py` — restore no limpiaba tabla `policies`**
+  (commit `b4058c5`). La tabla `policies` usa PK `bigint`, no UUID. El
+  DELETE inicial con placeholder UUID `00000000-...` fallaba silencioso
+  vía PGRST (sintaxis inválida) y la rama de fallback solo capturaba
+  `embeddings` / `pipeline_events`. Resultado: policies generadas por
+  HITLs de sesiones anteriores (e.g. `policy_new_wins` con
+  `subject_pattern="circular interna — protección de datos d"`)
+  sobrevivían al restore. Al re-ingerir L3 el `Detector` consultaba
+  `find_applicable_policy()` antes de evaluar fecha/autoridad y
+  auto-resolvía como `policy_new_wins` → 0 emails HITL → `total:2,
+  auto_resolved:0, policy_resolved:2`. **Fix**: añadido `"policies"` al
+  branch de fallback `int PK` en `cmd_restore()`.
+- **`CONFLICT_THRESHOLD` 0.78 → 0.80** en `src/conflict_detector.py`
+  (commit `7c3b905`). L1 (`contrato-medico-residente.docx`, contrato laboral
+  con cláusula RGPD) y L3 (circular protección de datos pacientes) tienen
+  similitud 0.7936 — por encima del threshold 0.78. L1 no contiene fecha
+  extraíble en cuerpo → `version_extractor` cae al fallback
+  `datetime.now()` → `version_ts ≈ 2026-06-16`. L3 con fecha real
+  `2024-03-15` → `date_diff = 823 días > AUTO_DATE_DAYS (30)` → trigger
+  `auto_existing_wins` → L3.c0 superseded sin pasar por HITL. **Fix**:
+  subir el threshold a 0.80 deja sim(L1,L3)=0.7936 fuera del scope del
+  detector. Sim(L2,L3)=0.8929 sigue dentro → HITL real entre L2 y L3.
+- **Fricción de demo "una resolución HITL no es suficiente"**: el modelo
+  chunk-level del E3 solo supersede el `existing_chunk_id` concreto del
+  review aprobado. Para una circular que reemplaza por completo a otra
+  (e.g. L3 → L2), los chunks `c1`, `c3`, `c4` del documento viejo no
+  estaban en ningún review individual y seguían `active`. El RAG
+  recuperaba "5 años" desde L2.c1 junto a "10 años" desde L3 y Mistral
+  los presentaba como versiones alternativas. **Fix**: ver Added
+  (`promote_to_document_replacement`).
+
+### Operational
+- Snapshot `pre_demo_v040` guardado en `/root/korio/snapshots/pre_demo_v040`
+  con estado canónico para demo: L2 completamente superseded, L3 activo
+  como única fuente vigente sobre conservación de historias clínicas.
+
 ## [0.3.13] — 2026-06-22 · sesión 17 + 17b (Evaluación cuantitativa detector + fix frontmatter)
 
 ### Added

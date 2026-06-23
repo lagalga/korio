@@ -152,6 +152,15 @@ Korio cubre **6 phases técnicas cerradas** (núcleo RAG, multi-tenancy, producc
 | Workflow Slack file_shared: duplicate → DM thread | 16c | IF 200 / 409 / other; 409 ya no dispara `errorWorkflow` |
 | Verificación E2E real | 16b | Click usuario → BD actualizada en 14s, `reviewed_by: slack:U…` |
 
+### v0.3.14 · Promoción HITL chunk→doc + fixes restore demo ✅ (sesión 17c)
+
+| Tarea | Notas |
+|---|---|
+| **Fix `scripts/demo_snapshot.py`**: clean `policies` table en restore | Tabla `policies` tiene PK bigint, no UUID. DELETE con placeholder UUID fallaba silencioso → policies viejas (e.g. `policy_new_wins` de sesión previa) sobrevivían al restore y auto-resolvían el conflicto L3↔L2 sin generar email HITL |
+| **`CONFLICT_THRESHOLD` 0.78 → 0.80** en `src/conflict_detector.py` | Evita falso positivo L1↔L3 (sim 0.7936) que disparaba `auto_existing_wins` porque L1.version_ts ≈ `datetime.now()` (sin fecha extraíble del cuerpo) → `date_diff = 823 días` → L3 superseded sin HITL |
+| **Nuevo `db.promote_to_document_replacement()`** + integración en `/review/{id}` | Cuando admin resuelve ≥N `approved_new` entre `(new_doc, existing_doc)`, supersede los chunks restantes del `existing_doc`. Variable `KORIO_DOC_REPLACEMENT_MIN_APPROVALS` (default 2). Promoción coherente con Regla 4 (aprender de decisiones repetidas). Resuelve fricción demo: tras aprobar HITL L3 vs L2 c0/c2, los chunks L2 c1/c3/c4 sin review propio seguían `active` y leaqueaban "5 años" al RAG junto al "10 años" de L3 |
+| Snapshot `pre_demo_v040` post-fix | 19 docs, 69 chunks, L2 entero superseded, 5 reviews (3 `pending` R-uniformes + 2 `approved_new` L3→L2), 5 policies, 1179 nodos / 1951 aristas |
+
 ### v0.3.13 · Evaluación cuantitativa detector + fix frontmatter ✅ (sesión 17 + 17b)
 
 | Tarea | Sesión | Notas |
