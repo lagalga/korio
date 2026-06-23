@@ -6,101 +6,130 @@
 
 Hola. Sesión de **contenido TFM Korio**. Producto cerrado en producción (v0.3.12 + fix s17b). Defensa **9 julio 2026**. Quedan: deck visual, vídeo nuevo (3 escenas), memoria, banco Q&A, ensayos.
 
-## Estado al cierre sesiones 17 + 17b (2026-06-22)
+## Estado al cierre sesión 18 (2026-06-23)
 
-### ✅ Deck pitch generado
+### ✅ Cerrado en sesiones anteriores (no repetir)
 
-- `~/Documents/Claude/Projects/Presentación TFM/Korio_pitch_deck_v4.pptx` — 15 slides, arquitectura B académica, paleta Berry Ocean, notas presentador con glosarios.
-- `~/Documents/Claude/Projects/Presentación TFM/Korio_anexo_inversor_v1.pptx` — 6 slides para Q&A si tribunal pregunta NRR / LTV:CAC / ask / burn / equipo.
-- Visual lo maqueto **yo a mano en Keynote**. No regenerar los .pptx salvo orden expresa.
+- **Push GitHub** — los 3 commits (8c06b20, 62cae8f, 4d97cc3) ya estaban en `origin/main` al iniciar la sesión 18.
+- **Slide 9** — maquetada a mano en Keynote. ✅
+- **Deck pitch** — `Korio_pitch_deck_v4.pptx` (15 slides) + `Korio_anexo_inversor_v1.pptx` (6 slides Q&A). No regenerar.
+- **Bug detector frontmatter** — fix commiteado `62cae8f`, en producción.
+- **Evaluación reproducible** — P/R/F1 = 1.0, corpus en `data-synthetic/eval-corpus/`.
 
-### ✅ Slide 9 — Evaluación cuantitativa
+### ✅ Hecho en sesión 18
 
-- Resultados sobre corpus eval-specific 12 docs: **Precision 1.000 · Recall 1.000 · F1 1.000**.
-- Texto + notas presentador (lenguaje narrable) en Keynote (texto efímero ya volcado) ← **USAR ESTE para narrar**.
-- Versión técnica densa de referencia en Keynote · slide 9 directa.
-- Cierre del slide: *"El TFM se defiende con un sistema que mide su propio error y lo corrige. No con uno que esconde limitaciones."*
+- **Guion de rodaje completo** (3 escenas) — en el chat de la sesión remota. Ver sección más abajo.
+- **Fix dedupe case-insensitive** (`src/ingest.py`, commit `a7386c8` en rama `claude/starter-deck-review-yyos18`):
+  - Bug: dedupe usaba `content_hash` pero PyMuPDF no es determinista → mismo PDF producía hashes distintos → se reingería y el detector lo marcaba conflicto consigo mismo.
+  - Fix: primero comprueba `ILIKE filename` dentro del mismo space; fallback a `content_hash`.
+  - **Pendiente aplicar en VPS y mergear a main.**
+- **n8n timeout** — nodo `POST /upload Korio` del workflow Slack file_shared subido a 300 000 ms (5 min). Ya activo en producción.
 
-### ✅ Bug detector FIXED (commit `62cae8f`)
+### 🔲 Pendiente INMEDIATO antes de grabar
 
-- Causa: `chunk_index=0` capturaba solo frontmatter YAML → embedding sin contenido → 5 FP cross-tema en eval.
-- Fix: `src/preprocessor.py` strippea frontmatter pre-chunking + parsea YAML a metadata. `src/version_extractor.py` prioriza `signed_date` estructurado. `src/ingest.py` propaga.
-- 28/28 tests verdes. E2E verificado en producción + snapshot baseline restaurado tras test.
-- **Defensa: ya no es "deuda Phase 9", es "fix aplicado y verificado".**
-
-### ✅ Evaluación reproducible commiteada
-
-- `data-synthetic/eval-corpus/` — 12 docs sintéticos (6 pares positivos + 6 negativos), misma fecha+autoridad para forzar `pending`.
-- `eval/ground_truth_eval_corpus.yaml` — anotaciones.
-- `eval/results_eval_corpus.json` — métricas crudas.
-- `eval/surprises_analysis.txt` — inspección manual de los 5 FP previos al fix.
-- `scripts/{evaluate,ingest,inspect,diagnose,reingest}_*.py` — pipeline reproducible.
-
-### ✅ Notion sincronizado
-
-- *Historial de Desarrollo*:
-  - "Evaluación cuantitativa detector — P/R/F1 = 1.0" (Done · Éxito)
-  - "Bug detector frontmatter YAML — RESUELTO commit 62cae8f" (Done · Bug)
-- *Roadmap & Tareas*: bloques "Sesión 17" + "Sesión 17b" al final.
-
-### 🔲 Único pendiente operativo inmediato
-
-**Push 3 commits locales a GitHub** (acción ~30 s):
-
+**1. Aplicar fix dedupe en VPS:**
 ```bash
-gh auth refresh -h github.com -s repo
-cd "/Users/berto/Claude Code/korio"
-git push -u origin main
+ssh korio-vps
+cd /root/korio
+# El VPS tiene cambios locales no commiteados — no hacer git pull directo
+# Opción A: cherry-pick
+git stash
+git fetch origin claude/starter-deck-review-yyos18
+git cherry-pick a7386c8
+systemctl restart korio-api
+
+# Si cherry-pick falla, editar manualmente src/ingest.py:
+# Sustituir el bloque de dedupe (busca ".eq("content_hash", content_hash)")
+# por la versión con ILIKE. Ver diff en GitHub rama claude/starter-deck-review-yyos18.
 ```
 
-Commits pendientes:
-- `8c06b20` — Eval cuantitativa
-- `62cae8f` — Fix preprocessor frontmatter
-- `4d97cc3` — Docs session-starter + slide 9
+**2. Mergear fix a main cuando el VPS esté verde:**
+```bash
+# En tu Mac local:
+git checkout main
+git merge claude/starter-deck-review-yyos18
+git push origin main
+```
+
+**3. Reset limpio del estado demo antes de grabar:**
+```bash
+# En el VPS:
+python3 scripts/demo_snapshot.py restore --name pre_demo_v038
+# El snapshot trae R2 y L3 — hay que borrarlos a mano:
+python3 -c "
+from src.db import get_supabase_client
+sb = get_supabase_client()
+docs = sb.client.table('documents').select('id,filename').eq('tenant_id','a0000000-0000-0000-0000-000000000001').execute()
+for d in docs.data:
+    if any(x in d['filename'].lower() for x in ['r2_', 'l3_']):
+        print(d['id'], d['filename'])
+"
+# Luego por cada ID:
+curl -X DELETE "https://korio.es/document/<ID>" -H "X-Korio-Admin-Key: $KORIO_ADMIN_API_KEY"
+```
+
+**4. Gmail:** quitar label `korio/procesado` del email con R2 adjunto en `contacto@lagalga.es` (para que el workflow lo reprocese en la escena 1).
 
 ---
 
-## 🔲 Pendientes orden de prioridad (17 días hasta defensa)
+## Guion de rodaje — 3 escenas (~4 min editados)
 
-### 1. Push GitHub (5 min)
-Acción de arriba. Después `git status` debe mostrar `Your branch is up to date with 'origin/main'`.
+**Base**: snapshot `pre_demo_v038` restaurado + R2 y L3 borrados.
 
-### 2. Maquetar slide 9 v3 en Keynote (1 h)
-Texto + cuadros KPI + notas presentador desde Keynote (texto efímero ya volcado). Cuatro cuadros grandes:
-- `1.983 ms` latencia mediana
-- `12 / 12` aciertos detector
-- `27 contradicciones` en producción
-- `5 → 0` falsos positivos · fix aplicado commit `62cae8f`
+### Escena 1 — Gobernanza activa E2E (~90 s editados)
 
-Notas presentador van en panel de Keynote, no en slide visible.
+1. Abrir `https://korio.es/ui`, user `a1000000-0000-0000-0000-000000000001` (admin Delos).
+2. Query: *"¿Cuántos años se conservan los datos de los pacientes?"* → responde desde L2 (circular LOPD v1). Anotar el dato.
+3. Cambiar a Slack, canal `#clinica-delos-legal`, subir `L3_circular-lopd-datos-pacientes-v2.pdf`.
+4. Esperar ✅ en Slack (~3-4 s de ack, procesamiento en background ~2-3 min). **Corte de edición** durante la espera.
+5. Mostrar n8n.korio.es → workflow Pipeline event bus → ejecución con `CONFLICT_DETECTED`.
+6. Mostrar email HITL en `contacto@lagalga.es`.
+7. Abrir `https://korio.es/docs` → `POST /review/{id}` → body `{"action":"approved_new","reviewer_note":"Versión v2 firmada por Dirección Legal"}` → ejecutar.
+8. Volver al chat → misma query → ahora cita L3. Badge ⚠️ en L2.
 
-### 3. Capítulo Evaluación memoria TFM (2-3 h)
-Va en Claude Projects (memoria), NO en Claude Code. 2-3 páginas:
-- Metodología (corpus controlado, ground truth autoral, fuerza pending)
-- Tabla resultados P/R/F1
-- Análisis FP cross-tema → identificación bug → fix → verificación E2E
-- Reproducibilidad: paths exactos a `eval/`, `data-synthetic/eval-corpus/`, scripts, commits.
+**Obtener el review ID antes de grabar:**
+```bash
+# En el VPS tras ingestar L3:
+python3 -c "
+from src.db import get_supabase_client
+sb = get_supabase_client()
+r = sb.client.table('conflict_reviews').select('id,created_at').eq('status','pending').order('created_at', desc=True).limit(1).execute()
+print(r.data)
+"
+```
 
-### 4. Vídeo demo nuevo · 3 escenas (3-4 h grabación + edición)
-Alineadas con slide 8 del deck. Snapshot `pre_demo_v038` ya listo.
+### Escena 2 — RLS aislamiento (~60 s editados)
 
-- **Escena 1 — Silent conflict E2E** (~90 s): subir 2 docs contradictorios → detección automática → email HITL al admin → click resolución → estado superseded → query antes/después con cambio visible.
-- **Escena 2 — RLS aislamiento** (~60 s): mismo query desde dos usuarios distintos (RRHH vs Finanzas) → respuestas diferentes → log SQL mostrando `set_config` + RLS policy.
-- **Escena 3 — MCP Claude Desktop** (~90 s): Claude consulta Korio → respuesta con fuentes citadas + similitud → flag `has_silent_conflict: true` → aviso gobernanza en respuesta final.
+1. `https://korio.es/ui`, user `a3000000-0000-0000-0000-000000000001` (staff, solo RRHH).
+2. Query: *"¿Qué dice la circular LOPD sobre conservación de datos de pacientes?"* → "No encuentro información".
+3. Cambiar user a `a1000000-0000-0000-0000-000000000001` (admin, todos los espacios). Misma query → cita L3.
+4. Mostrar JSON: `chunks_used: 0` vs `chunks_used: 2`.
 
-Total editado: ~4 min. Reservar 1 min para reacciones tribunal.
+### Escena 3 — MCP Claude Desktop (~90 s editados)
 
-### 5. Banco Q&A 20 preguntas (2 h)
-Documento aparte, NO en deck. Cronometradas (30-60 s respuesta cada una):
-- 10 académicas/metodológicas (por qué pgvector, baseline, precision/recall, hallucinations, reproducibilidad, bias audit, etc.)
-- 5 técnicas (escalado RLS, prompt injection MCP, ACID rollback, etc.)
-- 5 negocio (por qué pyme, plan si Mistral cierra API, AI Act riesgo nivel, etc.)
+1. Claude Desktop, chat nuevo.
+2. Query: *"Usando la base de conocimiento de Korio, ¿cuántas horas semanales mínimas tiene que trabajar el personal?"* → llama `search_knowledge_base` → responde con R4 + `graph_contributed: true`.
+3. Query: *"¿Cuánto tiempo máximo puede durar una baja por IT?"* → `has_silent_conflict: true` → aviso gobernanza (R3 vs R5).
+4. Query: *"¿Cuántos conflictos pendientes hay?"* → llama `list_pending_conflicts` → lista reviews.
 
-Categorías ya esbozadas en Keynote · slide 9 directa glosario + design doc original.
+---
 
-### 6. Ensayos cronometrados (2 sesiones · 1.5 h cada una)
-- **Ensayo 1 — solo, cronómetro.** Detecta partes lentas, palabras donde te trabes, transiciones que no funcionan.
-- **Ensayo 2 — con audiencia hostil simulada.** Alguien hace 10 preguntas duras del banco Q&A. Practica silencio, "tengo anexo dedicado", "no lo sé pero esto sí lo sé".
+## 🔲 Pendientes orden de prioridad (16 días hasta defensa)
+
+### 1. Grabar vídeo demo (3-4 h) ← PRÓXIMA ACCIÓN
+Guion arriba. Snapshot listo. Fix dedupe aplicar primero.
+
+### 2. Capítulo Evaluación memoria TFM (2-3 h)
+En Claude Projects (memoria), NO en Claude Code. 2-3 páginas con metodología, P/R/F1, análisis FP→fix, reproducibilidad.
+
+### 3. Banco Q&A 20 preguntas (2 h)
+- 10 académicas (pgvector, baseline, precision/recall, hallucinations, reproducibilidad, bias audit…)
+- 5 técnicas (escalado RLS, prompt injection MCP, ACID rollback…)
+- 5 negocio (por qué pyme, plan si Mistral cierra API, AI Act nivel riesgo…)
+
+### 4. Ensayos cronometrados (2 × 1.5 h)
+- Ensayo 1: solo + cronómetro.
+- Ensayo 2: audiencia hostil con 10 preguntas del banco Q&A.
 
 ---
 
@@ -157,15 +186,15 @@ Esperado: `active` + 3 contenedores + `{"status":"ok",...}`. Si algo falla, ante
 
 ---
 
-## Línea de tiempo restante (17 días)
+## Línea de tiempo restante (16 días)
 
 | Día | Tarea |
 |---|---|
-| 22 jun (hoy) | ✅ Eval cerrada + bug fix aplicado + Notion + commits locales |
-| 23 jun | Push GitHub · maquetar slide 9 en Keynote |
-| 23-26 jun | Capítulo Evaluación memoria TFM + resto capítulos `docs/` |
+| 22 jun | ✅ Eval + bug fix frontmatter + Notion + commits |
+| 23 jun | ✅ Push GitHub · ✅ Slide 9 Keynote · Fix dedupe VPS · Inicio grabación vídeo |
+| 23-26 jun | Vídeo demo (3 escenas) + edición · Capítulo Evaluación memoria TFM |
 | 27-30 jun | Banco Q&A 20 preguntas |
-| 1-4 jul | Vídeo demo nuevo (3 escenas) + edición |
+| 1-4 jul | Resto capítulos memoria TFM |
 | 5-7 jul | 2 ensayos cronometrados |
 | 8 jul | Buffer + descanso. **NO toques nada.** Repasa notas. Duerme. |
 | **9 jul** | **Defensa** |
