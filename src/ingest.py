@@ -194,9 +194,18 @@ def ingest_document(
 
     content_hash = hashlib.sha256(content.encode()).hexdigest()
     supabase = get_supabase_client()
+    # Primero por filename (case-insensitive) dentro del mismo space — cubre PDFs
+    # cuyo hash varía entre extracciones aunque sean el mismo fichero.
     existing = supabase.table("documents").select(
-        "id, filename, space_id"
-    ).eq("content_hash", content_hash).execute()
+        "id, filename, space_id, content_hash"
+    ).eq("tenant_id", tenant_id).eq("space_id", space_id).ilike(
+        "filename", filename
+    ).execute()
+    if not existing.data:
+        # Fallback: mismo content_hash en cualquier space del tenant
+        existing = supabase.table("documents").select(
+            "id, filename, space_id, content_hash"
+        ).eq("content_hash", content_hash).execute()
     if existing.data:
         dup = existing.data[0]
         logger.info(f"  ⚠️ Documento duplicado detectado (existing id={dup['id']})")
