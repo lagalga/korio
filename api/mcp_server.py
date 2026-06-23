@@ -153,22 +153,25 @@ mcp = FastMCP(
         "(departamentos) están disponibles. Todas las llamadas heredan el "
         "(user_id, tenant_id) de la API key del cliente — el aislamiento "
         "multi-tenant y por departamento (RLS) se aplica automáticamente.\n\n"
-        "IMPORTANTE — Cuando uses `search_knowledge_base`, SIEMPRE menciona "
-        "las fuentes consultadas al final de tu respuesta al usuario, citando "
-        "los `filename` que vienen en el campo `sources` del resultado. "
-        "Formato sugerido: una sección `**Fuentes:**` con bullets por "
-        "documento y, si está disponible, la similitud entre paréntesis "
-        "(ej. `delos_politica_rrhh.md (0.82)`). Si algún chunk tiene "
-        "`is_disputed: true`, avisa al usuario de que hay una contradicción "
-        "sin resolver en esa fuente. La trazabilidad es un requisito del "
-        "producto, no un extra.\n\n"
-        "Si el campo `has_silent_conflict` es `true`, la gobernanza activa "
-        "detectó que entre las fuentes hay documentos con contenido muy "
-        "similar que no fueron revisados como conflicto en ingesta. En ese "
-        "caso, añade un párrafo al final que empiece por '⚠️ Aviso de la "
-        "gobernanza:' indicando que existen documentos potencialmente "
-        "contradictorios pendientes de revisión administrativa. Lista los "
-        "pares del campo `silent_conflicts` con su similitud."
+        "FORMATO DE RESPUESTA OBLIGATORIO para `search_knowledge_base`:\n"
+        "  1. Compón UNA frase de respuesta que termine con la cita INLINE "
+        "de la fuente PRIMARIA (la de mayor `similarity` en `sources`) en "
+        "el formato exacto `[<filename>, similitud <X.XX>]`. Ejemplo: "
+        "\"Según la política de RRHH, el personal asalariado tiene una "
+        "jornada mínima de 35 horas semanales [R4_convenio.md, similitud "
+        "0.63].\"\n"
+        "  2. Si el campo `graph_contributed` es `true`, añade al final "
+        "una frase breve: \"Esta información proviene del grafo de "
+        "conocimiento estructurado (graph_contributed: true).\"\n"
+        "  3. Si la fuente primaria tiene `is_disputed: true`, añade "
+        "un párrafo `⚠️` indicando que la gobernanza activa detectó una "
+        "contradicción sin resolver en esa fuente.\n"
+        "  4. Si `has_silent_conflict` es `true`, añade un párrafo final "
+        "que empiece por `⚠️ Aviso de la gobernanza:` listando los pares "
+        "de `silent_conflicts` con su similitud.\n"
+        "La trazabilidad inline es un requisito del producto, no un extra. "
+        "NO uses una sección `**Fuentes:**` al final — la cita va inline "
+        "junto a la afirmación."
     ),
 )
 
@@ -207,6 +210,9 @@ def search_knowledge_base(query: str, limit: int = 5) -> dict:
         "has_context":        result.get("has_context", False),
         "latency_ms":         result.get("latency_ms"),
         "model_used":         result.get("model_used"),
+        # Señal explícita de RAG híbrido (vector + grafo). El cliente MCP
+        # debe mencionarlo en la respuesta cuando es true (ver instructions).
+        "graph_contributed":    result.get("graph_contributed", False),
         # Avisos de gobernanza para que el cliente MCP los muestre al usuario
         "has_conflict":         result.get("has_conflict", False),
         "has_silent_conflict":  result.get("has_silent_conflict", False),
