@@ -170,7 +170,7 @@ tenant: Clínica Delos
 
 # Política de horario de atención presencial en recepción
 
-Coordinación operativa 
+Coordinación operativa
 
   CHUNK EXISTENTE (existing_chunk_id=327):
   ---
@@ -187,5 +187,3 @@ tenant: Clínica Delos
 # Política de descuento comercial sobre tarifa privada
 
 Coordinación operativa · Clín
-
-

@@ -29,13 +29,13 @@ El mensaje TFM es directo: *Korio no es solo una app de chat — es **infraestru
 ```
 Cliente MCP                  FastAPI (api/server.py)             Korio internals
 ─────────────                ──────────────────────             ─────────────────
-                                                                 
-Claude Desktop ──HTTP+SSE──►  Middleware                          
+
+Claude Desktop ──HTTP+SSE──►  Middleware
   o ChatGPT       (X-Korio-    mcp_auth_middleware  ──resolve──►  mcp_api_keys
   o n8n           MCP-Key)     │                       (BD)       (SHA-256)
-                                ▼ set_current_principal           
-                                                                  
-                              app.mount('/mcp',                   
+                                ▼ set_current_principal
+
+                              app.mount('/mcp',
                                 mcp_sse_app)        ──delegates──►  FastMCP tool
                                                                     │
                                                                     ├─ search_knowledge_base

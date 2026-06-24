@@ -4,10 +4,10 @@
 
 **Korio** (nombre comercial) / **Company Brain** (técnico) — SaaS multi-tenant de RAG para pymes españolas. Permite ingestar documentos internos y consultarlos en lenguaje natural, con control de acceso por departamento (RLS) y multi-tenancy real.
 
-**TFM:** Máster IA Business & Innovation — Nuclio Digital School  
-**Demo funcional:** 2 julio 2026  
-**Defensa TFM:** 9 julio 2026  
-**Repo:** https://github.com/lagalga/korio  
+**TFM:** Máster IA Business & Innovation — Nuclio Digital School
+**Demo funcional:** 2 julio 2026
+**Defensa TFM:** 9 julio 2026
+**Repo:** https://github.com/lagalga/korio
 
 ---
 

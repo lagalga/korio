@@ -1,6 +1,6 @@
 # Compliance: AI Act + GDPR en Korio
 
-**Documento de cumplimiento normativo para memoria TFM**  
+**Documento de cumplimiento normativo para memoria TFM**
 *Actualizado: 16 junio 2026 · v0.3.7*
 
 ---
@@ -140,7 +140,7 @@ curl https://supabase.com/legal/dpa -H "Accept: application/pdf" > /tmp/supabase
 
 **Falta**: `korio.es/legal/privacy` estática.
 
-**Boilerplate Phase 8**: 
+**Boilerplate Phase 8**:
 ```markdown
 # Privacy Policy — Korio
 
@@ -166,7 +166,7 @@ curl https://supabase.com/legal/dpa -H "Accept: application/pdf" > /tmp/supabase
 
 ### Presidio (PII detection/redaction)
 
-**Ubicación**: `src/preprocessor.py`  
+**Ubicación**: `src/preprocessor.py`
 **Entidades redactadas**: EMAIL, PHONE, PERSON, NIF, DNI, SSN, CREDIT_CARD
 
 ```python
@@ -185,7 +185,7 @@ print(p.preprocess_text(text))
 "
 ```
 
-**Limitaciones**: 
+**Limitaciones**:
 - ❌ No detecta "DNI truncado" formato "...X" (falso negativo)
 - ❌ No detecta IBAN/BIC bancarios
 - ✅ Detecta email/phone/NIF/DNI/persona
@@ -208,7 +208,7 @@ print(p.preprocess_text(text))
 
 **Query acceso admin**:
 ```sql
-SELECT 
+SELECT
   cr.id, cr.chunk_id_1, cr.chunk_id_2, cr.decision, cr.reviewed_by, cr.reviewed_at,
   (SELECT COUNT(*) FROM policies p WHERE p.source_review_id = cr.id) as policies_created
 FROM conflict_reviews cr
@@ -278,5 +278,5 @@ ORDER BY cr.reviewed_at DESC;
 
 ---
 
-**Versión**: v1.0 — 16 junio 2026  
+**Versión**: v1.0 — 16 junio 2026
 **Próxima revisión**: post-auditoría fairness (Phase 9)

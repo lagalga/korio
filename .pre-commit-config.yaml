@@ -1,0 +1,50 @@
+# Hooks pre-commit para Korio.
+#
+# Instalación local:
+#   pip install pre-commit
+#   pre-commit install
+#
+# Ejecución manual sobre todo el repo:
+#   pre-commit run --all-files
+#
+# Detalle de los hooks:
+#   - gitleaks: bloquea commits con secretos (API keys, tokens, JWTs, etc.)
+#   - detect-secrets: análisis complementario por baseline (.secrets.baseline)
+#   - check-added-large-files: evita commits >5MB (dumps, binarios accidentales)
+#   - end-of-file-fixer + trailing-whitespace: normalización básica
+
+repos:
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.21.2
+    hooks:
+      - id: gitleaks
+        name: gitleaks · escaneo de secretos
+        description: Bloquea commits con API keys / tokens / JWTs / passwords reales
+
+  - repo: https://github.com/Yelp/detect-secrets
+    rev: v1.5.0
+    hooks:
+      - id: detect-secrets
+        name: detect-secrets · análisis por baseline
+        args:
+          - --baseline
+          - .secrets.baseline
+        exclude: |
+          (?x)^(
+              \.venv/.*|
+              snapshots/.*|
+              landing/assets/.*|
+              docs/diagrams/.*\.png
+          )$
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: check-added-large-files
+        args: ['--maxkb=5000']
+      - id: end-of-file-fixer
+        exclude: '\.svg$|\.png$|\.pdf$|snapshots/.*'
+      - id: trailing-whitespace
+        exclude: '\.svg$|\.png$|\.pdf$|snapshots/.*'
+      - id: check-merge-conflict
+      - id: detect-private-key

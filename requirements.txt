@@ -40,3 +40,9 @@ pytest-asyncio>=0.21.1
 
 # Utilidades
 pyyaml>=6.0.1
+
+# Dev tooling: pre-commit hooks (gitleaks + detect-secrets + check-large-files).
+# Tras `pip install -r requirements.txt`, ejecutar `pre-commit install` una vez
+# para activar los hooks locales. Ver `.pre-commit-config.yaml`.
+pre-commit>=4.0.0
+detect-secrets>=1.5.0
