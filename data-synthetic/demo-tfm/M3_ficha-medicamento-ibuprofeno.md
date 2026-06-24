@@ -1,3 +1,4 @@
+<!-- DATOS FICTICIOS · TFM Korio · Nombres, DNIs y direcciones NO corresponden a personas reales. -->
 ---
 title: Ficha interna de medicamento — Ibuprofeno
 author: Dr. Ignacio Salcedo Pinar

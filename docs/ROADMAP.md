@@ -146,7 +146,7 @@ Korio cubre **6 phases técnicas cerradas** (núcleo RAG, multi-tenancy, producc
 
 | Tarea | Sesión | Notas |
 |---|---|---|
-| Throttling anti-spam Slack DM errores | 16a | Code node `count===1 || count%10===0` en workflow `KeUTpIk0ycbW1f3g` |
+| Throttling anti-spam Slack DM errores | 16a | Code node `count===1 || count%10===0` en workflow `<N8N_WF_ERRORS>` |
 | Panel UI `/admin/errors` con admin key | 16b | `ui/admin-errors.html` + `GET /admin/errors` + `POST /admin/errors/{id}/review` |
 | Botón "✅ Marcar reviewed" en Slack DM | 16b | `POST /admin/errors/slack-action` con firma `v0:ts:body` + anti-replay 5 min |
 | Workflow Slack file_shared: duplicate → DM thread | 16c | IF 200 / 409 / other; 409 ya no dispara `errorWorkflow` |

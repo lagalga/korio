@@ -94,9 +94,9 @@ echo y | python3 scripts/demo_snapshot.py restore --name pre_demo_v039
 
 ```
 VPS:         Hetzner CPX32 AMD EPYC-Genoa · 4 vCPU / 8 GB / 160 GB · Frankfurt · €17.53/mes
-SSH:         ssh korio-vps   (alias en ~/.ssh/config → 167.233.72.42)
-Supabase:    https://pkurvkdmoulfqnngjsjr.supabase.co  (Pro, Frankfurt)
-Ollama:      http://167.233.72.42:11434  (nomic-embed-text 768 dims fijo)
+SSH:         ssh korio-vps   (alias en ~/.ssh/config → <VPS_IP>)
+Supabase:    https://<SUPABASE_PROJECT_REF>.supabase.co  (Pro, Frankfurt)
+Ollama:      http://<VPS_IP>:11434  (nomic-embed-text 768 dims fijo)
 FalkorDB:    127.0.0.1:6379 (Redis 8.6.3 + módulo grafo)
 
 URLs públicas:

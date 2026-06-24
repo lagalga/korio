@@ -21,6 +21,17 @@ Korio permite a una organización consultar en lenguaje natural el conocimiento 
 
 ---
 
+## ⚠️ Aviso de uso
+
+Korio es un **TFM académico** publicado como portfolio. El repositorio se libera bajo licencia MIT (ver [LICENSE](LICENSE)).
+
+- **Endpoints `/search`, `/ingest`, `/upload`, `/waitlist` NO tienen autenticación ni rate-limit** en la instancia de demo (`korio.es`). Diseño intencional para la demo del TFM; OAuth multi-tenant + rate-limit están planificados en **Phase 8** (post-defensa). NO desplegar la rama `main` tal cual en producción real sin cerrar esos endpoints.
+- Datos en `data-synthetic/` son **ficticios**. Nombres, DNIs, NIFs y direcciones NO corresponden a personas reales (se usan formatos válidos para test, e.g. DNI `12345678Z`).
+- Dependencia **`pymupdf` está bajo licencia AGPL-3.0**. Uso académico/personal sin restricción; integración en producto comercial cerrado requiere licencia comercial de Artifex o sustituir la dependencia.
+- Procesamiento de prompts vía Mistral API (`la Plateforme`) — por defecto Mistral **no entrena** con datos de clientes de pago, ver [política Mistral](https://mistral.ai/terms/). Detalles en `landing/legal/privacy.html`.
+
+---
+
 ## URLs en producción
 
 | URL | Servicio |

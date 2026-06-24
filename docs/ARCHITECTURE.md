@@ -275,7 +275,7 @@ query("¿vacaciones?", user_id="doctor-uuid", tenant_id="delos")
 | 7 | Slack file_shared → /upload | Events API (file_shared) | POST `/upload` · IF 200/409/other |
 | 8 | Gestión errores n8n | Error Trigger | Supabase + throttling + Slack DM con botón reviewed |
 
-Cada workflow productivo lleva `errorWorkflow: KeUTpIk0ycbW1f3g` para captura automática.
+Cada workflow productivo lleva `errorWorkflow: <N8N_WF_ERRORS>` para captura automática.
 
 ---
 

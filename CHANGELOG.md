@@ -140,7 +140,7 @@ semántico [SemVer](https://semver.org/lang/es/).
 
 ### Added
 - **Throttling anti-spam en workflow `Korio - Gestión de errores n8n`**
-  (`KeUTpIk0ycbW1f3g`): Code node consulta `n8n_errors?reviewed_at=is.null`
+  (`<N8N_WF_ERRORS>`): Code node consulta `n8n_errors?reviewed_at=is.null`
   con `Prefer: count=exact`, calcula `notify = count===1 || count%10===0`.
   Slack DM solo en errores 1, 10, 20…; resto silenciados (pero persistidos).
 - **Endpoints admin** en `api/server.py`:
@@ -162,7 +162,7 @@ semántico [SemVer](https://semver.org/lang/es/).
 
 ### Changed
 - **Workflow `Korio · Slack file_shared → /upload (Delos multi-space)`**
-  (`81GO5BjXj0ZNYmhO`): `POST /upload` con `fullResponse=true` + `neverError=true`.
+  (`<N8N_WF_SLACK_FILESHARED>`): `POST /upload` con `fullResponse=true` + `neverError=true`.
   IF `¿200 OK?` → Reaccion OK + Notificar uploader (lee `$json.body.document_id`).
   Si false → IF `¿409 duplicado?`:
   - 409 → nodo Slack `Avisar duplicado (thread)` publica en `thread_ts` del
@@ -181,7 +181,7 @@ semántico [SemVer](https://semver.org/lang/es/).
 - **api.slack.com → Korio-Delos → Interactivity & Shortcuts** configurado
   con Request URL `https://korio.es/admin/errors/slack-action`.
 - Verificado E2E: error real de workflow test → DM Slack con botón → click
-  usuario → BD marcada `reviewed_by: slack:U0A97H29E8J` en 14 segundos.
+  usuario → BD marcada `reviewed_by: slack:<SLACK_ADMIN_USER>` en 14 segundos.
 - Snapshot `pre_demo_v038` consistente tras borrar L3 de test duplicate.
 
 ## [0.3.11] — 2026-06-18 · sesión 15-15b (Vídeo demo + fixes)
@@ -359,7 +359,7 @@ semántico [SemVer](https://semver.org/lang/es/).
 - **Captura de errores n8n** (`supabase/migrations/014_n8n_errors.sql`).
   Tabla `n8n_errors` (workflow_id, error_message, error_node, raw_payload
   JSONB, reviewed_at) + 3 índices. Sin RLS (solo service_role).
-- **Workflow `Korio - Gestión de errores n8n`** (`KeUTpIk0ycbW1f3g`) —
+- **Workflow `Korio - Gestión de errores n8n`** (`<N8N_WF_ERRORS>`) —
   Error Trigger → Set (extrae mensaje desde stack) → \[HTTP POST Supabase
   `n8n_errors` + Slack DM al admin con Block Kit\]. `errorWorkflow`
   aplicado a los 7 workflows de producción.

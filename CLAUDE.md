@@ -30,7 +30,7 @@
 - **Fix crítico de gobernanza**: webhook HITL ahora protegido con Basic Auth (`HITL_USER_REDACTED` / `HITL_PASS_REDACTED`); `conflict_detector.py` y `escalation.py` parcheados para enviar credenciales via `HITL_WEBHOOK_USER` + `HITL_WEBHOOK_PASS` del `.env`.
 - **3 workflows nuevos** en `n8n.korio.es`:
   - **Gmail → /upload (Delos RRHH)**: vigila label `korio/ingesta` en `contacto@lagalga.es` cada 5 min, ingiere adjuntos PDF/DOCX, marca leído + aplica label `korio/procesado`.
-  - **Drive → /upload (Delos RRHH)**: vigila carpeta `Clínica Delos / input` (`1rlBEmkqLHvidWEPv64LaMpzBh9bMDGF4`) cada 5 min.
+  - **Drive → /upload (Delos RRHH)**: vigila carpeta `Clínica Delos / input` (`<DRIVE_FOLDER_ID>`) cada 5 min.
   - **Slack /korio → /search (Delos admin)**: slash command → ACK ephemeral → POST /search → reply en thread con respuesta + fuentes con %relevancia + link a korio.es.
 - **UI polish**: filenames de fuentes ya no se truncan; eliminado marcador `[grafo]` confuso de las respuestas.
 - **Documento de diseño** `docs/MULTI-TENANT-INGESTION.md` — Phase 8 post-TFM (OAuth multi-tenant, vault de tokens, ingestion_rules, onboarding UX). Sirve como capítulo de la memoria TFM "Arquitectura objetivo SaaS post-defensa".
@@ -95,16 +95,16 @@ Resultado verificado en producción y vía Claude Desktop:
 | Conversión docs | MarkItDown | PDF/DOCX/XLSX → Markdown |
 | Automatización | n8n v1.x (Docker en VPS) | **7 workflows**: HITL + Cron + Pipeline event bus + Gmail + Drive + Slack `/korio` + Slack file_shared |
 | Servidor | Hetzner **CPX32** (AMD EPYC-Genoa), Frankfurt, 4 vCPU / 8 GB / 160 GB SSD | `ssh korio-vps` · **€17.53/mes max** (€0.0281/h) |
-| Base de datos | Supabase Pro, Frankfurt | `pkurvkdmoulfqnngjsjr.supabase.co` |
+| Base de datos | Supabase Pro, Frankfurt | `<SUPABASE_PROJECT_REF>.supabase.co` |
 
 ---
 
 ## Infraestructura
 
 ```
-SSH:        ssh korio-vps   (alias en ~/.ssh/config → 167.233.72.42)
-Supabase:   https://pkurvkdmoulfqnngjsjr.supabase.co
-Ollama VPS: http://167.233.72.42:11434
+SSH:        ssh korio-vps   (alias en ~/.ssh/config → <VPS_IP>)
+Supabase:   https://<SUPABASE_PROJECT_REF>.supabase.co
+Ollama VPS: http://<VPS_IP>:11434
 Docker:     docker exec korio-ollama ollama list
 
 URLs públicas:
@@ -148,7 +148,7 @@ print(gc.get_contradictions(tenant_id='a0000000-0000-0000-0000-000000000001',
 
 ```
 # Embeddings + Vector store
-SUPABASE_URL=https://pkurvkdmoulfqnngjsjr.supabase.co
+SUPABASE_URL=https://<SUPABASE_PROJECT_REF>.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=...
 SUPABASE_ANON_KEY=...
 
@@ -495,7 +495,7 @@ Pendiente sesión 7 (Phase 8 candidatos): detección query-time, estado `inconcl
 **Sesiones 7-8-9 (11 jun · tarde-noche)** — v0.3.0 cierre del mapeo E3/E4:
 
 **Sesión 7 — observabilidad y fachada agéntica**:
-- **Workflow n8n `Korio · Pipeline event bus`** (id `ymewhJheuvUgUCyt`) en `n8n.korio.es`. `KORIO_EVENT_WEBHOOK_URL=https://n8n.korio.es/webhook/korio-events` en `/root/korio/.env`. Cada evento del backend dispara una ejecución visible con emoji + summary.
+- **Workflow n8n `Korio · Pipeline event bus`** (id `<N8N_WF_EVENT_BUS>`) en `n8n.korio.es`. `KORIO_EVENT_WEBHOOK_URL=https://n8n.korio.es/webhook/korio-events` en `/root/korio/.env`. Cada evento del backend dispara una ejecución visible con emoji + summary.
 - **`src/agents/{base, ingestor, detector, arbitrator, supervisor, curator, pipeline}.py`** — fachada que refleja 1:1 los 5 roles del E3 con documentación PEAS por agente. `Pipeline(tenant_id).run_ingest()` es el entry point de alto nivel.
 
 **Sesión 8 — detección query-time (Caso extremo del E4)**:
@@ -545,7 +545,7 @@ Pendiente sesión 7 (Phase 8 candidatos): detección query-time, estado `inconcl
 - **Modelo fallback `mistral:7b-instruct-q4_K_M`** descargado en VPS (4.4 GB).
 - **Corrección specs VPS** — Hetzner CPX32 AMD EPYC-Genoa, 4 vCPU / 8 GB / 160 GB SSD, €17.53/mes. Corregido en README, CLAUDE.md, ARCHITECTURE, DEPLOYMENT, ROADMAP y Notion.
 - **`docs/PHASE-10-MULTIMODAL-INGESTION.md`** — diseño Phase 10 post-TFM: email body, Slack/Teams threads, audio (Voxtral + Whisper). `src/adapters/` + `POST /ingest/{kind}`.
-- **Workflow n8n `Korio · Slack file_shared → /upload (Delos RRHH)`** (`81GO5BjXj0ZNYmhO`): Webhook `korio-slack-events` → switch challenge/file_shared → `files.info` → download → POST `/upload` → ✅ reaction + DM. Verificado E2E con PDF en producción.
+- **Workflow n8n `Korio · Slack file_shared → /upload (Delos RRHH)`** (`<N8N_WF_SLACK_FILESHARED>`): Webhook `korio-slack-events` → switch challenge/file_shared → `files.info` → download → POST `/upload` → ✅ reaction + DM. Verificado E2E con PDF en producción.
 
 ---
 
@@ -556,8 +556,8 @@ Pendiente sesión 7 (Phase 8 candidatos): detección query-time, estado `inconcl
 - **Hover/click en sidebar → resaltar arista CONTRADICTS** — `data-from-id` / `data-to-id` en items de la sidebar. `highlightContradictionEdge(fromId, toId)` dimea todos los nodos/aristas excepto los 2 claims endpoint y su CONTRADICTS. Click bloquea, click fuera libera.
 - **Fix scale "enganchado" post-hover** — `DataSet.update()` no puede resetear propiedades anidadas (font.bold, size). Solución definitiva: `data.nodes.clear() + data.nodes.add(canonicalGraph.nodes con posiciones preservadas)`. Clona estado canónico inmutable al renderizar.
 - **`supabase/migrations/014_n8n_errors.sql`** — tabla `n8n_errors` (workflow_id, error_message, error_node, raw_payload JSONB, reviewed_at) + 3 índices. Sin RLS (solo service_role).
-- **Workflow n8n `Korio - Gestión de errores n8n`** (`KeUTpIk0ycbW1f3g`) — Error Trigger → Set (extrae mensaje desde stack) → parallel [HTTP POST Supabase `n8n_errors` + Slack DM a admin U0A97H29E8J con Block Kit]. Verificado E2E: 2 filas en Supabase, real production error de Slack `/korio` capturado.
-- **`errorWorkflow: "KeUTpIk0ycbW1f3g"` aplicado** a los 7 workflows de producción (ya configurado en todos).
+- **Workflow n8n `Korio - Gestión de errores n8n`** (`<N8N_WF_ERRORS>`) — Error Trigger → Set (extrae mensaje desde stack) → parallel [HTTP POST Supabase `n8n_errors` + Slack DM a admin <SLACK_ADMIN_USER> con Block Kit]. Verificado E2E: 2 filas en Supabase, real production error de Slack `/korio` capturado.
+- **`errorWorkflow: "<N8N_WF_ERRORS>"` aplicado** a los 7 workflows de producción (ya configurado en todos).
 - **Pendiente Phase 9 (próxima sesión)**: throttling anti-spam (1 DM por 10 errores del mismo workflow), panel `/admin/errors` en la UI, botón "reviewed" en el propio mensaje Slack (interactivity webhook).
 
 ---
@@ -704,7 +704,7 @@ Pendiente sesión 7 (Phase 8 candidatos): detección query-time, estado `inconcl
 
 **Sesión 16a (18 jun · tarde 2026)** — Throttling anti-spam errores n8n (Phase 9 parcial):
 
-- **Workflow `Korio - Gestión de errores n8n`** (`KeUTpIk0ycbW1f3g`) actualizado vía PUT API REST. Pasa de paralelo Supabase||Slack a secuencial con throttling.
+- **Workflow `Korio - Gestión de errores n8n`** (`<N8N_WF_ERRORS>`) actualizado vía PUT API REST. Pasa de paralelo Supabase||Slack a secuencial con throttling.
 - **Nueva estructura**: `Error Trigger → Preparar datos → Guardar en Supabase → Decidir notificación (Code) → IF → Avisar Slack DM`. 6 nodos (antes 4).
 - **Nodo Code `Decidir notificación (throttle)`**: tras insertar fila, hace `GET /n8n_errors?workflow_id=eq.X&reviewed_at=is.null&select=id&limit=1` con `Prefer: count=exact`. Parsea `content-range` header. Calcula `notify = count===1 || count%10===0`.
 - **Efecto**: 1 DM en el error 1, 10, 20, 30… del mismo workflow no-reviewed. Errores 2-9, 11-19… silenciados pero igualmente guardados en Supabase. Reset implícito al marcar `reviewed_at` desde admin.
@@ -735,7 +735,7 @@ Pendiente sesión 7 (Phase 8 candidatos): detección query-time, estado `inconcl
 **Sesión 16c (18 jun · tarde 2026)** — Workflow Slack file_shared: duplicate → DM thread (no errorWorkflow):
 
 - Antes: si `/upload` devolvía 409 (DuplicateDocumentError), el nodo HTTP fallaba → `errorWorkflow` capturaba el error → DM al admin como si fuera un fallo del sistema.
-- **Workflow `Korio · Slack file_shared → /upload (Delos multi-space)`** (`81GO5BjXj0ZNYmhO`) refactorizado:
+- **Workflow `Korio · Slack file_shared → /upload (Delos multi-space)`** (`<N8N_WF_SLACK_FILESHARED>`) refactorizado:
   - `POST /upload Korio`: `options.response.response.fullResponse=true` + `neverError=true`. Ya no aborta en 4xx; devuelve `{statusCode, headers, body}`.
   - Nuevo IF `¿200 OK?` (`statusCode === 200`):
     - true → `Reaccion OK` + `Notificar al uploader` (texto ahora lee `$json.body.document_id`).

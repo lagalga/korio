@@ -146,7 +146,7 @@ curl https://supabase.com/legal/dpa -H "Accept: application/pdf" > /tmp/supabase
 
 1. **Controller & Processor**
    - Controller (you decide): Cliente (empresa usando Korio)
-   - Processor (nosotros): Korio SL, contacto@lagalga.es, 167.233.72.42
+   - Processor (nosotros): Korio SL, contacto@lagalga.es, <VPS_IP>
 
 2. **Data Types**
    - Documentos corporativos (user-uploaded)
