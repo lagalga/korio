@@ -439,7 +439,13 @@ Los docs técnicos en `docs/` son la base de los capítulos pendientes:
 
 ## Licencia
 
-TFM — Máster IA Business & Innovation (Nuclio Digital School)
+Código liberado bajo **MIT License** — ver [LICENSE](LICENSE).
+Copyright © 2026 Heriberto Noguera.
+
+Contexto académico: TFM del Máster IA Business & Innovation (Nuclio Digital School). El carácter académico no restringe el uso del código bajo MIT.
+
+**Dependencias con licencia distinta:**
+- `pymupdf` — AGPL-3.0. Uso académico/personal libre; producto comercial cerrado requiere licencia comercial de Artifex.
 
 ## Autor
 
