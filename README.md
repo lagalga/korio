@@ -12,11 +12,12 @@ Korio permite a una organización consultar en lenguaje natural el conocimiento 
 - **Grafo de conocimiento** en FalkorDB con entidades + claims atómicos extraídos por LLM. Search híbrido vector + grafo rescata datos cuando la query está semánticamente reformulada respecto al texto fuente.
 - **Ingesta automática multi-canal** vía n8n: Gmail (label vigilada), Drive (carpeta vigilada), Slack (`/korio` para consultar **+** subida automática de PDF/DOCX al canal vigilado). Cada documento lleva `source_metadata` (JSONB) con el contexto del canal de origen.
 
-**Estado:** Phases 1–7.3 + rerank semántico + hardening seguridad · **v0.3.4** · Producción en [korio.es](https://korio.es) · Demo TFM 2 julio 2026 · Defensa 9 julio 2026
+**Estado:** Phases 1–7.3 + rerank semántico + hardening seguridad + panel admin errores · **v0.3.14** · Producción en [korio.es](https://korio.es) · Demo TFM 2 julio 2026 · Defensa 9 julio 2026
 
-> **Sesión 13a · 14 jun 2026 (v0.3.4):** auditoría completa (21 hallazgos) + 7 fixes seguridad bloqueantes para demo pública: CORS whitelist, `hmac.compare_digest` en admin key, tenant check en `DELETE /document`, RLS sobre `mcp_api_keys` (migración 015), assert dim 768 en embedder, cleanup blindado tempfile, Cypher parametrizado. Anexo en `docs/AUDIT-2026-06-14.md`.
+> **Sesión 17c · 23 jun 2026 (v0.3.14):** fixes encadenados pre-grabación vídeo: restore snapshot limpiaba policies, umbral conflicto 0.78→0.80, promoción doc-level tras ≥2 aprobaciones HITL (`promote_to_document_replacement`), nginx `proxy_read_timeout` 120→300s.
+> **Sesión 16 · 18 jun 2026 (v0.3.12):** throttling anti-spam errores n8n (1 DM en error 1/10/20…), panel `/ui/admin-errors.html` + endpoints admin, botón "Marcar reviewed" en Slack con verificación de firma, workflow Slack file_shared: duplicado → DM thread (no errorWorkflow).
+> **Sesión 13a · 14 jun 2026 (v0.3.4):** auditoría completa (21 hallazgos) + 7 fixes seguridad bloqueantes: CORS whitelist, `hmac.compare_digest`, tenant check DELETE, RLS `mcp_api_keys`, assert dim 768, tempfile cleanup, Cypher parametrizado.
 > **Benchmark (sesión 10 · 12 jun 2026):** p50 global 1983 ms · p95 3053 ms · 50/50 queries sin errores · QA E2E 10/10 ✅
-> **Sesión 11 · 12 jun 2026:** rerank semántico del grafo con RRF (lexical + semantic) — 455 claims embedidos · queries rephrasadas resuelven via grafo en ~1.4 s · 3/3 tests verdes.
 
 ---
 
@@ -75,11 +76,23 @@ En el SQL Editor de Supabase, ejecutar en orden todas las migraciones:
 supabase/migrations/001_initial_schema.sql
 supabase/migrations/002_search_function.sql
 supabase/migrations/003_fix_vector_dims.sql
-supabase/migrations/004_conflict_reviews.sql       ← Gobernanza activa
-supabase/migrations/005_search_with_disputed.sql   ← Search incluye 'disputed'
-supabase/migrations/006_tenant_admin_email.sql     ← admin_email por tenant
-supabase/migrations/007_waitlist.sql               ← Landing waitlist
-supabase/migrations/008_escalation_tracking.sql    ← Cron de escalada HITL
+supabase/migrations/004_conflict_reviews.sql                  ← Gobernanza activa
+supabase/migrations/005_search_with_disputed.sql              ← Search incluye 'disputed'
+supabase/migrations/006_tenant_admin_email.sql                ← admin_email por tenant
+supabase/migrations/007_waitlist.sql                          ← Landing waitlist
+supabase/migrations/008_escalation_tracking.sql               ← Cron de escalada HITL
+supabase/migrations/009_source_metadata.sql                   ← JSONB canal de origen
+supabase/migrations/010_mcp_api_keys.sql                      ← API keys MCP (Phase 7.3)
+supabase/migrations/011_pipeline_events_atomic_ingest.sql     ← Bus de eventos + ingesta ACID
+supabase/migrations/012_silent_conflicts_query_time.sql       ← Detección query-time
+supabase/migrations/013_inconclusive_state_and_policies.sql   ← Estado inconclusive + policies
+supabase/migrations/014_n8n_errors.sql                        ← Tabla errores workflows n8n
+supabase/migrations/015_mcp_api_keys_rls.sql                  ← RLS sobre mcp_api_keys
+supabase/migrations/016_silent_conflicts_same_space.sql       ← Fix cross-space falsos positivos
+supabase/migrations/017_delos_admin_space.sql                 ← Space Administración Delos
+supabase/migrations/018_slack_service_users.sql               ← 4 service users Slack (RLS canal)
+supabase/migrations/019_drop_ivfflat_index.sql                ← Drop índice ivfflat (bug probes)
+supabase/migrations/020_search_includes_inconclusive.sql      ← Search incluye 'inconclusive'
 ```
 
 ### 3b. Grafo de conocimiento (opcional pero recomendado)
@@ -221,18 +234,18 @@ Visualización interactiva en [`korio.es/ui/graph.html`](https://korio.es/ui/gra
 |---|---|---|
 | Embeddings | `nomic-embed-text` via Ollama | **768 dims — fijo** |
 | Vector store | pgvector en Supabase | RLS nativo, Frankfurt (GDPR) |
-| **Graph store** | **FalkorDB** (Redis 8.6.3 + Cypher) | docker-compose, puerto 6379 |
+| **Graph store** | **FalkorDB** (Redis 8.6.3 + Cypher) | docker-compose, solo localhost (127.0.0.1:6379) |
 | LLM generación | Mistral API `mistral-small-latest` | ~3s latencia, temp 0.2 |
 | LLM extracción claims | Mistral API (structured JSON, temp 0.0) | en `entity_extractor.py` |
 | LLM fallback | Ollama `mistral:7b-instruct-q4_K_M` | offline en VPS |
 | Backend API | FastAPI + Uvicorn, Python 3.12 | systemd service |
-| PII detection | Presidio + spaCy `es_core_news_lg` | configurado en español |
+| PII detection | Presidio + spaCy `es_core_news_lg` | configurado en español, whitelist PII real |
 | Chunking | LangChain `RecursiveCharacterTextSplitter` | 500 tok / 50 overlap |
-| Doc parsing | MarkItDown `[pdf,docx,xlsx,pptx]` | |
-| Automatización | n8n v1.x (Docker en VPS) | 2 workflows: HITL email + Cron escalada |
+| Doc parsing | PyMuPDF + MarkItDown `[pdf,docx,xlsx,pptx]` | PyMuPDF para texto, MarkItDown para conversión |
+| Automatización | n8n **v2.27.4** (Docker en VPS) | **8 workflows**: HITL + Cron + Pipeline event bus + Gmail + Drive + Slack `/korio` + Slack file_shared + Gestión errores |
 | Visualización grafo | **vis-network 9.1.9** (CDN) | barnesHut física, canvas render |
-| Servidor | Hetzner **CPX32** (AMD), Frankfurt | 4 vCPU / 8 GB / 160 GB SSD · Ubuntu 24.04 · **€17.53/mes max** |
-| Reverse proxy | nginx + Let's Encrypt (certbot) | renovación automática |
+| Servidor | Hetzner **CPX32** (AMD EPYC-Genoa), Frankfurt | 4 vCPU / 8 GB / 160 GB SSD · Ubuntu 26.04 LTS · **€17.53/mes max** |
+| Reverse proxy | nginx + Let's Encrypt (certbot) | renovación automática, proxy_read_timeout 300s |
 
 ---
 
@@ -273,7 +286,7 @@ Usuarios:
 ## Tests
 
 ```bash
-python -m pytest tests/ -v    # 28/28 ✅ (~25s)
+python -m pytest tests/ -v    # 31/31 ✅ (~25s)
 
 # Por suite:
 # test_rls.py                        10/10 ✅  RLS multi-tenant
@@ -282,6 +295,7 @@ python -m pytest tests/ -v    # 28/28 ✅ (~25s)
 # test_pipeline_agentic.py            2/2  ✅  Fachada agéntica (5 roles del Entregable 3)
 # test_query_time_detection.py        1/1  ✅  Caso extremo E4: conflictos silenciosos query-time
 # test_inconclusive_and_policies.py   2/2  ✅  Estado inconclusive + política reutilizable
+# test_graph_semantic_rerank.py       3/3  ✅  Rerank semántico del grafo (RRF lexical + semantic)
 ```
 
 ---
@@ -295,29 +309,34 @@ python -m pytest tests/ -v    # 28/28 ✅ (~25s)
 - [`docs/MCP-SERVER.md`](docs/MCP-SERVER.md) — Phase 7.3: arquitectura MCP HTTP+SSE, Claude Desktop
 - [`docs/MULTI-TENANT-INGESTION.md`](docs/MULTI-TENANT-INGESTION.md) — Diseño Phase 8: OAuth multi-tenant configurable
 - [`docs/CHAT-PIPELINE-GUARDRAILS.md`](docs/CHAT-PIPELINE-GUARDRAILS.md) — Diseño Phase 8: guardrails n8n + Lakera/Presidio
+- [`docs/COMPLIANCE-AI-ACT-GDPR.md`](docs/COMPLIANCE-AI-ACT-GDPR.md) — AI Act + GDPR: clasificación de riesgo, medidas técnicas, Privacy Policy
+- [`docs/AUDIT-2026-06-14.md`](docs/AUDIT-2026-06-14.md) — Auditoría seguridad: 21 hallazgos, 7 cerrados, 14 diferidos
+- [`docs/PHASE-10-MULTIMODAL-INGESTION.md`](docs/PHASE-10-MULTIMODAL-INGESTION.md) — Diseño Phase 10: email body, Slack/Teams threads, audio
 - [`CLAUDE.md`](CLAUDE.md) — Memoria del proyecto para Claude Code
 
 ---
 
-## Métricas (14 junio 2026)
+## Métricas (24 junio 2026)
 
 | Métrica | Valor |
 |---|---|
-| Versión | **v0.3.4** (14 junio 2026, sesión 13a — hardening seguridad) |
-| Tests | **28/28 ✅** (20 RLS+RAG + 8 agéntica/ACID) |
+| Versión | **v0.3.14** (23 junio 2026, sesión 17c) |
+| Tests | **31/31 ✅** (20 RLS+RAG + 8 agéntica/ACID + 3 rerank semántico grafo) |
 | Benchmark formal (sesión 10) | p50 1983 ms · p95 3053 ms · 50/50 sin errores |
 | Latencia RAG vector-puro | ~1.0–3.3s |
 | Latencia RAG híbrido (vector + grafo) | ~1.0s |
 | Latencia embedding | ~0.8s |
 | Latencia detección query-time | ~0.1s adicional (RPC SQL par a par) |
 | Umbral conflicto silencioso (query-time) | 0.80 (configurable `KORIO_QUERY_TIME_CONFLICT_THRESHOLD`) |
-| Tiempo backfill grafo (9 docs → 233 claims) | 107s |
-| Phases completadas | 1 · 2 · 3 · 4 · 5 · 6 · 7.1 · 7.2 · 7.3 |
-| Migraciones SQL aplicadas | **15** (úl: `015_mcp_api_keys_rls.sql`) |
-| Workflows n8n activos | **8** |
+| Docs en producción | **20** (13 Delos + 5 García + 2 RRHH en conflicto) |
+| Chunks en producción | **74** activos |
+| Nodos grafo | **1130** · Aristas: **1818** (incl. 27 CONTRADICTS) |
+| Phases completadas | 1 · 2 · 3 · 4 · 5 · 6 · 7.1 · 7.2 · 7.3 + Phase 9 parcial (errores n8n) |
+| Migraciones SQL aplicadas | **20** (úl: `020_search_includes_inconclusive.sql`) |
+| Workflows n8n activos | **8** (v2.27.4) |
 | MCP server | korio.es/mcp/sse — Claude Desktop conectado |
-| Producción | korio.es + grafo en vivo |
-| Auditoría seguridad | 21 hallazgos · 7 cerrados (sesión 13a) · 14 diferidos a Phase 8/9 con justificación (`docs/AUDIT-2026-06-14.md`) |
+| Producción | korio.es + grafo en vivo · snapshot `pre_demo_v038` disponible |
+| Auditoría seguridad | 21 hallazgos · 7 cerrados · 14 diferidos a Phase 8/9 (`docs/AUDIT-2026-06-14.md`) |
 
 ---
 
@@ -353,11 +372,6 @@ korio/
 │       ├── curator.py        #   Rol Curador
 │       ├── pipeline.py       #   Orquestador Pipeline(tenant_id).run_ingest()
 │       └── events.py         #   emit() → pipeline_events + webhook async n8n
-├── ui/
-│   ├── index.html            # App chat
-│   ├── graph.html            # Visualización grafo (vis-network)
-│   ├── css/styles.css
-│   └── js/main.js
 ├── landing/                  # Landing teaser de korio.es
 ├── tests/
 │   ├── test_rls.py                      # 10/10 ✅ RLS multi-tenant
@@ -366,14 +380,24 @@ korio/
 │   ├── test_pipeline_agentic.py         #  2/2  ✅ Fachada agéntica
 │   ├── test_query_time_detection.py     #  1/1  ✅ Caso extremo E4
 │   └── test_inconclusive_and_policies.py #  2/2  ✅ inconclusive + policy reuse
-├── supabase/migrations/      # 13 migraciones SQL (001–013)
+├── ui/
+│   ├── index.html            # App chat
+│   ├── graph.html            # Visualización grafo (vis-network)
+│   ├── admin-errors.html     # Panel admin errores n8n (Phase 9)
+│   ├── css/styles.css
+│   └── js/main.js
+├── supabase/migrations/      # 20 migraciones SQL (001–020)
 ├── docs/                     # ARCHITECTURE, DEPLOYMENT, ROADMAP, AGENTIC-INGESTION,
-│                             # MCP-SERVER, MULTI-TENANT-INGESTION, CHAT-PIPELINE-GUARDRAILS
+│                             # MCP-SERVER, MULTI-TENANT-INGESTION, CHAT-PIPELINE-GUARDRAILS,
+│                             # COMPLIANCE-AI-ACT-GDPR, AUDIT-2026-06-14, PHASE-10-MULTIMODAL-INGESTION
 ├── deploy/                   # systemd, nginx, setup.sh, refresh-landing.sh
 ├── scripts/
-│   ├── benchmark.py          # Latencias p50/p95 por escenario
-│   ├── graph_backfill.py     # Pobla el grafo con todos los chunks existentes
-│   └── mcp_create_key.py     # CLI create/list/revoke de MCP API keys
+│   ├── benchmark.py               # Latencias p50/p95 por escenario
+│   ├── graph_backfill.py          # Pobla el grafo con todos los chunks existentes
+│   ├── graph_embed_claims.py      # Backfill embeddings en claims FalkorDB
+│   ├── mcp_create_key.py          # CLI create/list/revoke de MCP API keys
+│   ├── demo_snapshot.py           # Save/restore estado completo para grabación demo
+│   └── reembed_strip_frontmatter.py  # Re-embebido sin frontmatter YAML
 └── data-synthetic/           # Documentos de prueba (en .gitignore)
 ```
 
