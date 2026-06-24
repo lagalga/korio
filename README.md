@@ -206,7 +206,7 @@ Los conflictos sin resolver reciben recordatorios automáticos por email:
 | 3 | Recordatorio Nº 1 |
 | 7 | Recordatorio Nº 2 |
 | 14 | Recordatorio Nº 3 urgente |
-| 21 | Auto-cierre como `timeout_inconclusive` (ambos chunks excluidos del RAG hasta revisión manual) |
+| 21 | Auto-cierre como `timeout_inconclusive` (ambos chunks siguen incluidos en RAG con badge ⚠️ + aviso en respuesta, hasta revisión manual) |
 
 Disparado por workflow n8n Schedule Trigger diario a las 09:00 Madrid que llama a `POST /escalate-reviews`. Cadencia parametrizable vía `.env`.
 
@@ -354,7 +354,7 @@ korio/
 │   ├── search.py             # RAG híbrido vector + grafo + detección query-time (Step 2.5)
 │   ├── ingest.py             # Pipeline ACID: IO → dedupe → RPC atómico → grafo → conflictos
 │   ├── conflict_detector.py  # Detección + auto-resolución + policies + HITL
-│   ├── escalation.py         # Cron HITL: recordatorios + timeout → inconclusive
+│   ├── escalation.py         # Cron HITL: recordatorios + timeout → inconclusive (sigue en RAG con aviso)
 │   ├── policies.py           # Políticas reutilizables (Regla 4 del E3)
 │   ├── graph_client.py       # Wrapper FalkorDB multi-tenant (Phase 7.1)
 │   ├── entity_extractor.py   # Mistral structured JSON (Phase 7.1)
