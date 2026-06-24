@@ -3,6 +3,10 @@
 .env.local
 .env.*.local
 
+# Working notes locales (mapping placeholder → valores internos reales)
+CLAUDE.local.md
+*.local.md
+
 # Python
 __pycache__/
 *.py[cod]
