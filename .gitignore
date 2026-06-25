@@ -67,6 +67,9 @@ data-synthetic/demo-tfm/.DS_Store
 # Snapshots de demo (datos sensibles)
 snapshots/
 
+# Outputs de benchmarks (efímeros, no commitear)
+scripts/bench_*.json
+
 # Secrets & keys
 *.key
 *.pem
