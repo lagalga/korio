@@ -23,7 +23,7 @@ Korio permite a una organización consultar en lenguaje natural el conocimiento 
 
 ## ⚠️ Aviso de uso
 
-Korio es un **TFM académico** publicado como portfolio. El repositorio se libera bajo licencia MIT (ver [LICENSE](LICENSE)).
+Korio es un **TFM académico** publicado como portfolio. El código se distribuye bajo **Business Source License 1.1** (ver [LICENSE](LICENSE)) — source-available; uso interno, académico, evaluación y no comercial libres. Ofrecer Korio (o un derivado) como **SaaS multi-tenant de RAG / knowledge management a terceros** requiere licencia comercial del autor hasta el 25 de junio de 2030, fecha en la que el código convierte automáticamente a **Apache 2.0**.
 
 - **Endpoints `/search`, `/ingest`, `/upload`, `/waitlist` NO tienen autenticación ni rate-limit** en la instancia de demo (`korio.es`). Diseño intencional para la demo del TFM; OAuth multi-tenant + rate-limit están planificados en **Phase 8** (post-defensa). NO desplegar la rama `main` tal cual en producción real sin cerrar esos endpoints.
 - Datos en `data-synthetic/` son **ficticios**. Nombres, DNIs, NIFs y direcciones NO corresponden a personas reales (se usan formatos válidos para test, e.g. DNI `12345678Z`).
@@ -439,13 +439,26 @@ Los docs técnicos en `docs/` son la base de los capítulos pendientes:
 
 ## Licencia
 
-Código liberado bajo **MIT License** — ver [LICENSE](LICENSE).
+Código liberado bajo **Business Source License 1.1** — ver [LICENSE](LICENSE).
 Copyright © 2026 Heriberto Noguera.
 
-Contexto académico: TFM del Máster IA Business & Innovation (Nuclio Digital School). El carácter académico no restringe el uso del código bajo MIT.
+**Qué puedes hacer libremente:**
+- Leer, clonar, modificar, redistribuir el código.
+- Usarlo internamente en tu organización (incluidas afiliadas).
+- Uso académico, investigación, evaluación, uso personal.
+- Cualquier uso no comercial.
+
+**Qué requiere licencia comercial del autor:**
+- Ofrecer Korio (o un derivado) como **SaaS multi-tenant de RAG, knowledge management o gobernanza documental a terceros** antes del 25 de junio de 2030.
+
+**Change Date:** 25 de junio de 2030 → el código convierte automáticamente a **Apache License 2.0** sin restricciones.
+
+Contexto académico: TFM del Máster IA Business & Innovation (Nuclio Digital School). El carácter académico no afecta a los términos de la licencia.
 
 **Dependencias con licencia distinta:**
-- `pymupdf` — AGPL-3.0. Uso académico/personal libre; producto comercial cerrado requiere licencia comercial de Artifex.
+- `pymupdf` — AGPL-3.0. Uso académico/personal libre; integración en producto comercial cerrado requiere licencia comercial de Artifex o sustituir la dependencia.
+
+Para licencias comerciales: contacto@lagalga.es
 
 ## Autor
 
