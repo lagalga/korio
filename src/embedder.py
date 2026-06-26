@@ -121,7 +121,7 @@ class Embedder:
             response = requests.post(
                 f"{self.base_url}/api/embed",
                 json={"model": self.model, "input": text},
-                timeout=30
+                timeout=300
             )
             response.raise_for_status()
 
