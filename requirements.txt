@@ -38,6 +38,13 @@ mcp>=1.2.0
 # Degrada a no-op si LANGCHAIN_TRACING_V2 != true (ver src/observability.py).
 langsmith>=0.8.0
 
+# Observabilidad OTel (sesión 18) — trazas HTTP de FastAPI + requests a Jaeger.
+# Opt-in vía KORIO_OTEL_ENABLED=1; no-op si desactivado (ver api/otel.py).
+opentelemetry-sdk>=1.27.0
+opentelemetry-exporter-otlp-proto-grpc>=1.27.0
+opentelemetry-instrumentation-fastapi>=0.48b0
+opentelemetry-instrumentation-requests>=0.48b0
+
 # Testing
 pytest>=7.4.3
 pytest-asyncio>=0.21.1

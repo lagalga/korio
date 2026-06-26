@@ -72,6 +72,20 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"  # acceso a FastAPI en el host
 
+  # Jaeger - Trazas distribuidas OTLP (sesión 18, observabilidad OTel)
+  # korio-api corre en el host (systemd) y exporta a 127.0.0.1:4317 (OTLP gRPC).
+  # UI en 127.0.0.1:16686 → acceder vía túnel SSH: ssh -L 16686:localhost:16686 korio-vps
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    container_name: korio-jaeger
+    restart: unless-stopped
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true
+    ports:
+      - "127.0.0.1:16686:16686"  # UI web
+      - "127.0.0.1:4317:4317"    # OTLP gRPC (receptor de spans)
+      - "127.0.0.1:4318:4318"    # OTLP HTTP (alternativa)
+
 volumes:
   ollama_data:
   falkordb_data:

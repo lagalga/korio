@@ -60,6 +60,15 @@ app = FastAPI(
     redoc_url="/redoc"
 )
 
+# ─── Observabilidad OTel (sesión 18) ─────────────────────────────────────────
+# Instrumenta FastAPI + requests y exporta trazas OTLP a Jaeger. Opt-in vía
+# KORIO_OTEL_ENABLED=1; no-op seguro si está desactivado o faltan las deps.
+try:
+    from api.otel import setup_otel
+    setup_otel(app)
+except Exception as _otel_err:  # pragma: no cover
+    logger.warning(f"No se pudo inicializar OTel: {_otel_err}")
+
 # ─── CORS ────────────────────────────────────────────────────────────────────
 #
 # Whitelist explícita de orígenes en producción. Se permite localhost solo si
