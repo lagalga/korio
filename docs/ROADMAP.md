@@ -1,13 +1,13 @@
 # Korio — Roadmap
 
-> **Estado: v0.3.13 (22 jun 2026) · 🏁 Implementación cerrada · Evaluación cuantitativa + fix frontmatter aplicado**
+> **Estado: v0.3.15 (26 jun 2026) · 🏁 Implementación cerrada · Observabilidad y evaluación en producción**
 > Defensa TFM: 9 julio 2026
 
 ---
 
 ## Resumen ejecutivo
 
-Korio cubre **6 phases técnicas cerradas** (núcleo RAG, multi-tenancy, producción + gobernanza activa, cron HITL, grafo de conocimiento, ingesta multi-canal, MCP server) más **v0.3.0 con las 6 reglas del Entregable 3 materializadas** (pipeline ACID + bus de eventos + query-time + policies + inconclusive), **v0.3.12 con los flecos operativos de Phase 9** (throttling errores, panel admin, Slack interactivity) y **v0.3.13 con evaluación cuantitativa del detector (P/R/F1 = 1.0 sobre n=12) + fix bug frontmatter en preprocessor**.
+Korio cubre **6 phases técnicas cerradas** (núcleo RAG, multi-tenancy, producción + gobernanza activa, cron HITL, grafo de conocimiento, ingesta multi-canal, MCP server) más **v0.3.0 con las 6 reglas del Entregable 3 materializadas** (pipeline ACID + bus de eventos + query-time + policies + inconclusive), **v0.3.12 con los flecos operativos de Phase 9** (throttling errores, panel admin, Slack interactivity), **v0.3.13 con evaluación cuantitativa del detector (P/R/F1 = 1.0 sobre n=12) + fix bug frontmatter en preprocessor** y **v0.3.15 con observabilidad y evaluación en producción** (LangSmith @traceable, OTel+Jaeger, RAG eval LLM-as-judge — ver `docs/OBSERVABILITY.md`).
 
 **Roadmap restante hasta defensa (9 julio):**
 
@@ -304,4 +304,4 @@ Escala y GPU:
 
 ---
 
-*Actualizado: 22 junio 2026 · v0.3.13 · sesiones 17 + 17b. 🏁 Implementación cerrada + evaluación cuantitativa cerrada + fix frontmatter aplicado. Próximo: maquetar slides, grabar vídeo demo (3 escenas), memoria TFM en Claude Projects, banco Q&A, ensayos cronometrados.*
+*Actualizado: 26 junio 2026 · v0.3.15 · sesión 18. 🏁 Implementación cerrada + observabilidad y evaluación en producción (LangSmith UE + OTel/Jaeger + RAG eval). Próximo: model pricing LangSmith, métricas Prometheus (Phase 9), memoria TFM en Claude Projects, slides, ensayos cronometrados.*
