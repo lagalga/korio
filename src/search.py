@@ -27,7 +27,10 @@ from embedder import get_embedder
 from db import get_supabase_client
 from llm_client import get_llm_client
 from agents.events import emit, new_operation_id, EventType, Agent
-from observability import traceable
+try:
+    from observability import traceable
+except ImportError:  # import estilo paquete (from src.search import ...)
+    from src.observability import traceable
 
 # Grafo de conocimiento (opt-in)
 GRAPH_ENABLED = os.getenv("KORIO_GRAPH_ENABLED", "0") == "1"

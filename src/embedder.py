@@ -14,7 +14,10 @@ import numpy as np
 from typing import List
 from dotenv import load_dotenv
 
-from observability import traceable
+try:
+    from observability import traceable
+except ImportError:  # import estilo paquete (from src.embedder import ...)
+    from src.observability import traceable
 
 load_dotenv()
 

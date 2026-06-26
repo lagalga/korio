@@ -17,7 +17,10 @@ import requests
 from typing import Optional
 from dotenv import load_dotenv
 
-from observability import traceable, record_llm_usage
+try:
+    from observability import traceable, record_llm_usage
+except ImportError:  # import estilo paquete (from src.llm_client import ...)
+    from src.observability import traceable, record_llm_usage
 
 load_dotenv()
 
