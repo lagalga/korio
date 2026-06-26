@@ -136,12 +136,13 @@ class Embedder:
         except requests.exceptions.RequestException as e:
             raise RuntimeError(f"Error en Ollama embed: {e}") from e
 
-    def embed_batch(self, texts: List[str]) -> List[np.ndarray]:
+    def embed_batch(self, texts: List[str], chunk_size: int = 10) -> List[np.ndarray]:
         """
-        Genera embeddings para múltiples textos (batch).
+        Genera embeddings para múltiples textos en sub-lotes para evitar timeouts.
 
         Args:
             texts: Lista de textos a embedear
+            chunk_size: Tamaño del sub-lote (default 10)
 
         Returns:
             List[np.ndarray]: Lista de vectores (768 dims cada uno)
@@ -149,22 +150,26 @@ class Embedder:
         Raises:
             RuntimeError: Si Ollama falla
         """
-        try:
-            response = requests.post(
-                f"{self.base_url}/api/embed",
-                json={"model": self.model, "input": texts},
-                timeout=300
-            )
-            response.raise_for_status()
+        results: List[np.ndarray] = []
+        for i in range(0, len(texts), chunk_size):
+            sub_batch = texts[i:i + chunk_size]
+            try:
+                response = requests.post(
+                    f"{self.base_url}/api/embed",
+                    json={"model": self.model, "input": sub_batch},
+                    timeout=300
+                )
+                response.raise_for_status()
 
-            embeddings_list = response.json().get("embeddings", [])
-            if not embeddings_list:
-                raise RuntimeError("Ollama no retornó embeddings")
+                embeddings_list = response.json().get("embeddings", [])
+                if not embeddings_list:
+                    raise RuntimeError("Ollama no retornó embeddings")
 
-            return [np.array(emb, dtype=np.float32) for emb in embeddings_list]
+                results.extend([np.array(emb, dtype=np.float32) for emb in embeddings_list])
 
-        except requests.exceptions.RequestException as e:
-            raise RuntimeError(f"Error en Ollama embed batch: {e}") from e
+            except requests.exceptions.RequestException as e:
+                raise RuntimeError(f"Error en Ollama embed batch: {e}") from e
+        return results
 
     def validate_embedding(self, embedding: np.ndarray) -> bool:
         """
