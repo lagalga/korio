@@ -21,8 +21,8 @@ const TENANTS = {
     ],
     suggestions: [
       '¿Cuántos días de vacaciones tienen los empleados?',
-      '¿Cuál es el protocolo de admisión de pacientes?',
-      '¿Qué se trató en la última junta directiva?',
+      '¿Cuántas horas semanales mínimas exige el convenio?',
+      '¿Qué dice la circular de protección de datos de pacientes?',
     ],
   },
   garcia: {
