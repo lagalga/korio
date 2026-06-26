@@ -427,7 +427,14 @@ const openModal = () => {
 
 const closeModal = () => { modalOverlay.hidden = true }
 
+const MAX_FILE_MB = 10
+const MAX_FILE_BYTES = MAX_FILE_MB * 1024 * 1024
+
 const setFile = file => {
+  if (file.size > MAX_FILE_BYTES) {
+    alert(`El fichero pesa ${(file.size / 1024 / 1024).toFixed(1)} MB. Límite: ${MAX_FILE_MB} MB.\n\nPara documentos más grandes, usa la ingesta por Google Drive o contacta con el administrador.`)
+    return
+  }
   state.selectedFile = file
   ingestFilename.textContent = file.name
   ingestFileInfo.hidden = false
