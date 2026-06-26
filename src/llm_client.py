@@ -17,6 +17,8 @@ import requests
 from typing import Optional
 from dotenv import load_dotenv
 
+from observability import traceable, record_llm_usage
+
 load_dotenv()
 
 logger = logging.getLogger(__name__)
@@ -124,6 +126,7 @@ class LLMClient:
         else:
             return self._generate_ollama(prompt, system_prompt, temperature, max_tokens)
 
+    @traceable(name="mistral-generate", run_type="llm")
     def _generate_mistral(
         self,
         prompt: str,
@@ -166,6 +169,14 @@ class LLMClient:
                     continue
                 response.raise_for_status()
                 data = response.json()
+                # Registrar consumo de tokens en LangSmith (coste €/tokens).
+                # No-op si la observabilidad está desactivada.
+                usage = data.get("usage") or {}
+                record_llm_usage(
+                    prompt_tokens=usage.get("prompt_tokens", 0),
+                    completion_tokens=usage.get("completion_tokens", 0),
+                    model=self.model,
+                )
                 return data["choices"][0]["message"]["content"].strip()
             except requests.exceptions.HTTPError as e:
                 if attempt < 2:
@@ -176,6 +187,7 @@ class LLMClient:
                 raise RuntimeError(f"Error generando con Mistral API: {e}") from e
         raise RuntimeError("Mistral API: máximo de reintentos alcanzado (429 persistente)")
 
+    @traceable(name="ollama-generate", run_type="llm")
     def _generate_ollama(
         self,
         prompt: str,
@@ -205,6 +217,11 @@ class LLMClient:
             response = requests.post(url, json=payload, timeout=120)  # CPU puede ser lento
             response.raise_for_status()
             data = response.json()
+            record_llm_usage(
+                prompt_tokens=data.get("prompt_eval_count", 0),
+                completion_tokens=data.get("eval_count", 0),
+                model=self.model,
+            )
             return data["message"]["content"].strip()
         except requests.exceptions.ConnectionError:
             raise RuntimeError(
@@ -214,6 +231,7 @@ class LLMClient:
         except Exception as e:
             raise RuntimeError(f"Error generando con Ollama: {e}") from e
 
+    @traceable(name="reformulate-query", run_type="chain")
     def reformulate_query(
         self,
         query: str,

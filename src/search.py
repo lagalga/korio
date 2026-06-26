@@ -27,6 +27,7 @@ from embedder import get_embedder
 from db import get_supabase_client
 from llm_client import get_llm_client
 from agents.events import emit, new_operation_id, EventType, Agent
+from observability import traceable
 
 # Grafo de conocimiento (opt-in)
 GRAPH_ENABLED = os.getenv("KORIO_GRAPH_ENABLED", "0") == "1"
@@ -61,6 +62,7 @@ def _extract_query_keywords(query: str, max_keywords: int = 6) -> List[str]:
     return out[:max_keywords]
 
 
+@traceable(name="graph-retrieval", run_type="retriever")
 def _graph_context(
     query: str,
     tenant_id: str,
@@ -171,6 +173,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+@traceable(name="rag-search", run_type="chain")
 def search(
     query: str,
     user_id: str,

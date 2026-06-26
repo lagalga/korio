@@ -14,6 +14,8 @@ import numpy as np
 from typing import List
 from dotenv import load_dotenv
 
+from observability import traceable
+
 load_dotenv()
 
 # Configuration
@@ -98,6 +100,7 @@ class Embedder:
                 f"¿Está levantado? (docker-compose up -d)"
             ) from e
 
+    @traceable(name="ollama-embed", run_type="embedding")
     def embed_text(self, text: str) -> np.ndarray:
         """
         Genera un embedding para un texto.
