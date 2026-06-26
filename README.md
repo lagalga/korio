@@ -237,6 +237,16 @@ Schema del grafo: nodos `Document → Chunk → Entity / Claim` con aristas `CON
 
 Visualización interactiva en [`korio.es/ui/graph.html`](https://korio.es/ui/graph.html) con vis-network.
 
+### Observabilidad y evaluación (Phase 8 / sesión 18)
+
+Tres capas complementarias, todas con degradado **no-op seguro** (sin la dependencia o sin la env activa, el sistema funciona idéntico):
+
+1. **LangSmith `@traceable`** (capa semántica) — instrumenta el pipeline RAG sin LangChain (`src/observability.py`): spans `rag-search → ollama-embed / graph-retrieval / mistral-generate` con tokens y coste por llamada LLM. Región **UE** → trazas residentes en territorio europeo (GDPR).
+2. **OpenTelemetry + Jaeger** (capa de infraestructura) — `api/otel.py` instrumenta FastAPI + `requests` (Mistral/Ollama/Supabase) y exporta OTLP a Jaeger **self-hosted** en el VPS. Waterfall de latencia por endpoint.
+3. **RAG eval LLM-as-judge** — `scripts/rag_eval.py` puntúa relevance / faithfulness / correctness / retrieval-hit sobre `scripts/eval_set.json`, reutilizando `search()` + Mistral. Complementa el benchmark de latencia con una red de seguridad de **calidad**.
+
+Activación vía `.env`: `LANGCHAIN_TRACING_V2`, `LANGCHAIN_ENDPOINT` (EU), `KORIO_OTEL_ENABLED`. Detalle y decisiones en [`docs/OBSERVABILITY.md`](docs/OBSERVABILITY.md).
+
 ---
 
 ## Stack
@@ -257,6 +267,12 @@ Visualización interactiva en [`korio.es/ui/graph.html`](https://korio.es/ui/gra
 | Visualización grafo | **vis-network 9.1.9** (CDN) | barnesHut física, canvas render |
 | Servidor | Hetzner **CPX32** (AMD EPYC-Genoa), Frankfurt | 4 vCPU / 8 GB / 160 GB SSD · Ubuntu 26.04 LTS · **€17.53/mes max** |
 | Reverse proxy | nginx + Let's Encrypt (certbot) | renovación automática, proxy_read_timeout 300s |
+| Observabilidad (RAG) | **LangSmith** `@traceable` | trazas semánticas del pipeline RAG, tokens/coste, región UE (GDPR) |
+| Observabilidad (HTTP) | **OpenTelemetry + Jaeger** | trazas de infraestructura self-hosted (OTLP), waterfall de latencia por endpoint |
+| Evaluación de calidad | **RAG eval** LLM-as-judge (`scripts/rag_eval.py`) | relevance / faithfulness / correctness / retrieval-hit |
+
+> Detalle completo en [`docs/OBSERVABILITY.md`](docs/OBSERVABILITY.md). Toda la
+> instrumentación degrada a no-op si la dependencia o la env no están activas.
 
 ---
 

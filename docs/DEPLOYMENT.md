@@ -128,6 +128,18 @@ SLACK_SIGNING_SECRET=<de api.slack.com>      # Verificación firma /admin/errors
 # ─── n8n.korio.es (gestión de workflows vía API REST) ─────
 N8N_KORIO_API_KEY=<api_key>
 N8N_KORIO_BASE_URL=https://n8n.korio.es
+
+# ─── Observabilidad (sesión 18) ───────────────────────────
+# LangSmith — trazas RAG semánticas. Cuenta UE: el endpoint EU es OBLIGATORIO
+# (el US devuelve 403 en el ingest). Usar Service Key (lsv2_sk_).
+LANGCHAIN_TRACING_V2=true
+LANGCHAIN_API_KEY=<lsv2_sk_...>
+LANGCHAIN_PROJECT=korio
+LANGCHAIN_ENDPOINT=https://eu.api.smith.langchain.com
+# OTel → Jaeger (trazas HTTP self-hosted). No-op si KORIO_OTEL_ENABLED != 1.
+KORIO_OTEL_ENABLED=1
+OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317
+OTEL_SERVICE_NAME=korio-api
 ```
 
 ---
@@ -138,6 +150,7 @@ Verifica `docker-compose.yml` (en el repo):
 - **`korio-ollama`** → modelos `nomic-embed-text` (768d) + `mistral:7b-instruct-q4_K_M` (fallback)
 - **`korio-falkordb`** → Redis 8.6.3 con módulo grafo, **AOF persistence** (`appendonly yes appendfsync everysec`)
 - **`korio-n8n`** → n8n v1.x
+- **`korio-jaeger`** → Jaeger all-in-one (OTLP). UI `127.0.0.1:16686` (vía túnel SSH), receptor OTLP `127.0.0.1:4317`. Solo si usas OTel.
 
 ```bash
 docker compose up -d
