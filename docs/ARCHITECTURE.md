@@ -315,7 +315,9 @@ Cada workflow productivo lleva `errorWorkflow: <N8N_WF_ERRORS>` para captura aut
 │  │   ├─ /escalate-reviews     │  │     AOF everysec          │   │
 │  │   ├─ /graph/*              │  │  - korio-n8n :5678        │   │
 │  │   └─ /ui · /legal          │  │     8 workflows           │   │
+│  │   (OTel → Jaeger :4317)    │  │  - korio-jaeger :16686    │   │
 │  └────────────────────────────┘  └──────────────────────────┘   │
+│  Trazas RAG → LangSmith (cloud UE) · Trazas HTTP → Jaeger (local)│
 └──────────────────────────┬──────────────────────────────────────┘
                            │ Supabase REST API + pgvector
                            ▼
@@ -334,6 +336,25 @@ Cada workflow productivo lleva `errorWorkflow: <N8N_WF_ERRORS>` para captura aut
 │  (PII redaction pre-envío con whitelist Presidio)              │
 └────────────────────────────────────────────────────────────────┘
 ```
+
+---
+
+## Observabilidad y evaluación (sesión 18)
+
+Tres capas complementarias, todas **no-op safe** (sin la dependencia o sin la env
+activa, el sistema funciona idéntico). Detalle en [`OBSERVABILITY.md`](OBSERVABILITY.md).
+
+| Capa | Tecnología | Qué traza / mide | Hosting |
+|---|---|---|---|
+| Semántica | **LangSmith** `@traceable` (`src/observability.py`) | árbol `rag-search → ollama-embed / graph-retrieval / mistral-generate`, tokens y coste por llamada LLM | cloud **UE** (GDPR) |
+| Infraestructura | **OTel + Jaeger** (`api/otel.py`) | request FastAPI + llamadas `requests` salientes (Mistral/Ollama/Supabase), waterfall de latencia | **self-hosted** VPS |
+| Calidad | **RAG eval** LLM-as-judge (`scripts/rag_eval.py`) | relevance / faithfulness / correctness / retrieval-hit sobre `eval_set.json` | local (on-demand) |
+
+**Decisión clave**: LangSmith instrumenta el pipeline RAG **sin LangChain** (Korio
+no lo usa para orquestar) vía `@traceable`. OTel exporta OTLP a Jaeger en el propio
+VPS → trazas de infraestructura sin salir del servidor. La eval reutiliza `search()`
++ Mistral sin dependencias nuevas (no RAGAS). Activación vía `.env`:
+`LANGCHAIN_TRACING_V2`, `LANGCHAIN_ENDPOINT` (EU obligatorio), `KORIO_OTEL_ENABLED`.
 
 ---
 
