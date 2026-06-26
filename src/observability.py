@@ -56,13 +56,15 @@ def traceable(*decorator_args, **decorator_kwargs):
     return _identity
 
 
-def record_llm_usage(prompt_tokens: int = 0, completion_tokens: int = 0, model: str = None) -> None:
+def record_llm_usage(prompt_tokens: int = 0, completion_tokens: int = 0,
+                     model: str = None, provider: str = None) -> None:
     """
     Adjunta el consumo de tokens al run LLM actual de LangSmith.
 
     LangSmith usa `usage_metadata` en los outputs de un run `run_type="llm"`
-    para calcular coste (€) y agregados de tokens. No-op si langsmith no está
-    activo o no hay run en curso.
+    para calcular coste (€) y agregados de tokens. El cálculo de coste hace match
+    por `ls_model_name` y, si la regla de pricing lo exige, por `ls_provider`.
+    No-op si langsmith no está activo o no hay run en curso.
     """
     if not _LANGSMITH_AVAILABLE:
         return
@@ -76,7 +78,12 @@ def record_llm_usage(prompt_tokens: int = 0, completion_tokens: int = 0, model: 
             "total_tokens": int(prompt_tokens or 0) + int(completion_tokens or 0),
         }
         rt.add_outputs({"usage_metadata": usage})
+        meta = {}
         if model:
-            rt.add_metadata({"ls_model_name": model})
+            meta["ls_model_name"] = model
+        if provider:
+            meta["ls_provider"] = provider
+        if meta:
+            rt.add_metadata(meta)
     except Exception as e:
         logger.debug(f"record_llm_usage no-op ({e})")

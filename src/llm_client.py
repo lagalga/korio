@@ -176,6 +176,7 @@ class LLMClient:
                     prompt_tokens=usage.get("prompt_tokens", 0),
                     completion_tokens=usage.get("completion_tokens", 0),
                     model=self.model,
+                    provider="mistral",
                 )
                 return data["choices"][0]["message"]["content"].strip()
             except requests.exceptions.HTTPError as e:
@@ -221,6 +222,7 @@ class LLMClient:
                 prompt_tokens=data.get("prompt_eval_count", 0),
                 completion_tokens=data.get("eval_count", 0),
                 model=self.model,
+                provider="ollama",
             )
             return data["message"]["content"].strip()
         except requests.exceptions.ConnectionError:
