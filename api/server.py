@@ -55,7 +55,7 @@ logger = logging.getLogger(__name__)
 app = FastAPI(
     title="Korio API",
     description="Company Brain — RAG multi-tenant para pymes",
-    version="0.3.7",
+    version="0.3.15",
     docs_url="/docs",
     redoc_url="/redoc"
 )

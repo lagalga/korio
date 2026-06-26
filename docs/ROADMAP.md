@@ -161,6 +161,16 @@ Korio cubre **6 phases técnicas cerradas** (núcleo RAG, multi-tenancy, producc
 | **Nuevo `db.promote_to_document_replacement()`** + integración en `/review/{id}` | Cuando admin resuelve ≥N `approved_new` entre `(new_doc, existing_doc)`, supersede los chunks restantes del `existing_doc`. Variable `KORIO_DOC_REPLACEMENT_MIN_APPROVALS` (default 2). Promoción coherente con Regla 4 (aprender de decisiones repetidas). Resuelve fricción demo: tras aprobar HITL L3 vs L2 c0/c2, los chunks L2 c1/c3/c4 sin review propio seguían `active` y leaqueaban "5 años" al RAG junto al "10 años" de L3 |
 | Snapshot `pre_demo_v040` post-fix | 19 docs, 69 chunks, L2 entero superseded, 5 reviews (3 `pending` R-uniformes + 2 `approved_new` L3→L2), 5 policies, 1179 nodos / 1951 aristas |
 
+### v0.3.15 · Observabilidad y Evaluación ✅ (sesión 18)
+
+| Tarea | Notas |
+|---|---|
+| **LangSmith `@traceable`** (capa semántica) | `src/observability.py` no-op-safe + `record_llm_usage()` (tokens→coste). Spans: rag-search, reformulate-query, ollama-embed, graph-retrieval, mistral/ollama-generate. Región UE obligatoria (403 en US). GDPR: trazas residentes UE |
+| **OTel + Jaeger** (capa infraestructura) | `api/otel.py` opt-in instrumenta FastAPI + requests, OTLP→Jaeger. Servicio `jaeger` en docker-compose (16686/4317, solo localhost). Self-hosted = GDPR total |
+| **RAG eval LLM-as-judge** (capa calidad) | `scripts/rag_eval.py` + `eval_set.json`. Métricas relevance/faithfulness/correctness/retrieval-hit/latency. Casos NO_ANSWER anti-alucinación. Cero deps nuevas |
+| Capítulo memoria TFM | `docs/OBSERVABILITY.md`: arquitectura 3 capas + decisiones + comparativa + troubleshooting real |
+| 3 commits a `main` | `639958c` LangSmith · `92db0b3` OTel/Jaeger · `67c99ba` RAG eval |
+
 ### v0.3.13 · Evaluación cuantitativa detector + fix frontmatter ✅ (sesión 17 + 17b)
 
 | Tarea | Sesión | Notas |

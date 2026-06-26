@@ -769,4 +769,38 @@ Contexto: re-grabación del vídeo demo escena 1 (gobernanza E2E con L3 LOPD v2 
 
 🔲 **Pendiente Phase 9 restante**: validación semántica LLM en detector ingesta (G1↔G2 falsos positivos), reintroducir índice vectorial con volumen >1000 chunks, validar timeout del workflow Slack file_shared escala bien para ingestas de PDFs >10 chunks.
 
-*Actualizado: 23 junio 2026 (sesión 17c) — v0.3.14. Tres fixes encadenados resolvieron la fricción del flujo demo gobernanza. Snapshots v039/v040/v041 disponibles. Próximo en sesión: escena 2 del vídeo (aislamiento RLS multi-canal Slack).*
+---
+
+**Sesión 18 (26 jun 2026)** — Observabilidad y Evaluación (v0.3.15):
+
+Tres capas de observabilidad complementarias, todas con degradado no-op seguro
+(sin dependencia o sin la env activa → el sistema funciona idéntico). Capítulo
+memoria TFM en `docs/OBSERVABILITY.md`.
+
+- **LangSmith `@traceable`** (capa semántica) — `src/observability.py`: wrapper
+  no-op-safe + `record_llm_usage()` (tokens→coste). Decoradores en `search.py`
+  (`rag-search` chain raíz + `graph-retrieval` retriever), `llm_client.py`
+  (`mistral-generate`/`ollama-generate` llm + `reformulate-query` chain),
+  `embedder.py` (`ollama-embed` embedding). Tokens de ambos backends.
+  **Región UE obligatoria** (`LANGCHAIN_ENDPOINT=https://eu.api.smith.langchain.com`)
+  o el ingest da 403. Argumento GDPR: trazas residentes en UE.
+- **OTel + Jaeger** (capa infraestructura) — `api/otel.py`: `setup_otel(app)`
+  opt-in, instrumenta FastAPI + `requests` (Mistral/Ollama/Supabase), exporta
+  OTLP gRPC. Servicio `jaeger` all-in-one en `docker-compose.yml` (16686 UI +
+  4317 OTLP, solo 127.0.0.1; UI vía túnel SSH). Self-hosted = GDPR total.
+- **RAG eval** (capa calidad) — `scripts/rag_eval.py` LLM-as-judge reutilizando
+  `search()` + Mistral (temp 0). Métricas: answer_relevance, faithfulness,
+  correctness, retrieval_hit, latency. Casos `NO_ANSWER` validan anti-alucinación.
+  Set editable `scripts/eval_set.json`. Cero deps nuevas (no RAGAS).
+- **3 commits a `main`**: `639958c` (LangSmith), `92db0b3` (OTel/Jaeger),
+  `67c99ba` (RAG eval). Verificado en producción: trazas LangSmith UE con árbol
+  completo + tokens, Jaeger con waterfall de `/search`.
+- **Envs nuevas** en `/root/korio/.env`: `LANGCHAIN_TRACING_V2`,
+  `LANGCHAIN_API_KEY` (Service Key), `LANGCHAIN_PROJECT`, `LANGCHAIN_ENDPOINT`,
+  `KORIO_OTEL_ENABLED`, `OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_SERVICE_NAME`.
+
+🔲 **Pendiente Phase 9**: Model Pricing `mistral-small-latest` en LangSmith
+(poblar columna Cost), Jaeger persistente (Tempo/ES), métricas Prometheus,
+eval continua en CI como gate de regresión de calidad.
+
+*Actualizado: 26 junio 2026 (sesión 18) — v0.3.15. Observabilidad y evaluación en producción: LangSmith @traceable (RAG semántico, tokens/coste, UE), OTel+Jaeger (HTTP self-hosted), RAG eval LLM-judge. Capítulo `docs/OBSERVABILITY.md`. Próximo: model pricing, Prometheus (Phase 9), memoria TFM.*

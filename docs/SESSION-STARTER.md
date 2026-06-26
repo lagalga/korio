@@ -6,9 +6,9 @@
 
 ## Estado actual
 
-**Versión**: v0.3.14
-**Última sesión**: 17c (23 jun 2026) — promoción HITL chunk→doc + fixes restore demo + UI RLS-aware + MCP cita inline
-**Estado global**: 🏁 **Implementación cerrada · Vídeo demo grabado**
+**Versión**: v0.3.15
+**Última sesión**: 18 (26 jun 2026) — Observabilidad y Evaluación: LangSmith @traceable + OTel/Jaeger + RAG eval LLM-judge
+**Estado global**: 🏁 **Implementación cerrada · Vídeo demo grabado · Observabilidad en producción**
 **Defensa TFM**: 9 julio 2026 (Nuclio Digital School)
 
 ---
@@ -35,7 +35,8 @@
 | v0.3.10-11 | sesiones 15-15b | Vídeo demo grabación inicial + reembed sin frontmatter |
 | v0.3.12 | sesión 16 | **Phase 9 errores n8n cerrada**: throttling, panel `/admin/errors`, Slack interactivity HMAC, duplicate→thread |
 | v0.3.13 | sesión 17-17b | Evaluación cuantitativa P/R/F1=1.0 (n=12) + fix detector frontmatter YAML |
-| v0.3.14 | **sesión 17c (hoy)** | Promoción HITL chunk→doc + fix restore policies + nginx 300s + UI RLS-aware + MCP cita inline + refusal detection |
+| v0.3.14 | sesión 17c | Promoción HITL chunk→doc + fix restore policies + nginx 300s + UI RLS-aware + MCP cita inline + refusal detection |
+| v0.3.15 | **sesión 18 (hoy)** | **Observabilidad y Evaluación**: LangSmith @traceable (pipeline RAG, tokens/coste, UE), OTel+Jaeger (HTTP self-hosted), RAG eval LLM-judge (`scripts/rag_eval.py`). Capítulo `docs/OBSERVABILITY.md` |
 
 ### Vídeo demo (3 escenas, ≈4 min)
 
@@ -264,4 +265,4 @@ Orden: GitHub → CLAUDE.md → SESSION-STARTER → CHANGELOG → Notion (4 pág
 
 ---
 
-*Actualizado: 23 junio 2026 (sesión 17c) — v0.3.14. Implementación cerrada. Vídeo demo grabado. Próximo: contenido TFM en Claude Projects.*
+*Actualizado: 26 junio 2026 (sesión 18) — v0.3.15. Observabilidad en producción (LangSmith UE + OTel/Jaeger + RAG eval). Ver `docs/OBSERVABILITY.md`. Próximo: model pricing LangSmith, métricas Prometheus (Phase 9), contenido TFM en Claude Projects.*

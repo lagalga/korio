@@ -10,6 +10,39 @@ semántico [SemVer](https://semver.org/lang/es/).
 
 ## [Unreleased]
 
+## [0.3.15] — 2026-06-26 · sesión 18 (Observabilidad y Evaluación)
+
+### Added
+- **LangSmith `@traceable`** — instrumentación del pipeline RAG (capa semántica).
+  Nuevo `src/observability.py`: wrapper no-op-safe sobre `@traceable` (degrada a
+  decorador identidad si langsmith ausente o `LANGCHAIN_TRACING_V2 != true`) +
+  `record_llm_usage()` que adjunta tokens al run LLM para cálculo de coste €.
+  Spans: `rag-search` (chain raíz), `reformulate-query`, `ollama-embed`,
+  `graph-retrieval`, `mistral-generate`/`ollama-generate` (con tokens). Captura
+  tokens de ambos backends (Mistral `usage`, Ollama `*_eval_count`).
+- **OpenTelemetry + Jaeger** — trazas HTTP de la API (capa infraestructura).
+  Nuevo `api/otel.py`: `setup_otel(app)` opt-in que instrumenta
+  `FastAPIInstrumentor` + `RequestsInstrumentor` y exporta OTLP gRPC. Servicio
+  `jaeger` (all-in-one, `COLLECTOR_OTLP_ENABLED`) en `docker-compose.yml`,
+  puertos 16686/4317/4318 en `127.0.0.1`. No-op si `KORIO_OTEL_ENABLED != 1`.
+- **RAG eval (LLM-as-judge)** — `scripts/rag_eval.py` mide calidad (no solo
+  latencia): `answer_relevance`, `faithfulness`, `correctness`, `retrieval_hit`,
+  `latency_ms`. Reutiliza `search()` + `llm_client` (Mistral temp 0.0), cero
+  deps nuevas (no RAGAS). Casos `NO_ANSWER` validan rechazo fuera de dominio.
+  Set editable `scripts/eval_set.json`.
+- **`docs/OBSERVABILITY.md`** — capítulo memoria TFM con arquitectura de las tres
+  capas, decisiones justificadas, comparativa, residencia GDPR (LangSmith UE +
+  Jaeger self-hosted), troubleshooting real y trabajo futuro.
+
+### Operational
+- Envs nuevas en `/root/korio/.env`: `LANGCHAIN_TRACING_V2`, `LANGCHAIN_API_KEY`
+  (Service Key), `LANGCHAIN_PROJECT`, `LANGCHAIN_ENDPOINT` (EU obligatorio),
+  `KORIO_OTEL_ENABLED`, `OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_SERVICE_NAME`.
+- `requirements.txt`: `langsmith`, `opentelemetry-sdk` + exporter OTLP gRPC +
+  instrumentación fastapi/requests.
+- LangSmith UE: el endpoint US devuelve `403` con cuentas UE — fijar
+  `LANGCHAIN_ENDPOINT=https://eu.api.smith.langchain.com`.
+
 ## [0.3.14] — 2026-06-23 · sesión 17c (Promoción HITL chunk→doc + fixes restore demo)
 
 ### Added
