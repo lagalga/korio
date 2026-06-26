@@ -1,0 +1,25 @@
+{
+  "description": "Set de evaluación RAG de Korio (sesión 18). Cada caso se ejecuta contra search() y se puntúa con LLM-as-judge. Editar/ampliar con casos representativos del corpus en producción. expected_doc y expected_fact son opcionales: si están, habilitan métricas de retrieval-hit y correctness.",
+  "default_user_id": "a1000000-0000-0000-0000-000000000001",
+  "default_tenant_id": "a0000000-0000-0000-0000-000000000001",
+  "cases": [
+    {
+      "id": "rrhh_jornada_minima",
+      "query": "¿cuántas horas semanales mínimas exige la política de RRHH?",
+      "expected_fact": "35 horas semanales para el personal asalariado",
+      "expected_doc": "R4_convenio-colectivo-sanitario-resumen.md"
+    },
+    {
+      "id": "rrhh_vacaciones",
+      "query": "¿cuántos días de vacaciones tienen los empleados?",
+      "expected_fact": null,
+      "expected_doc": null
+    },
+    {
+      "id": "fuera_de_dominio",
+      "query": "¿cuál es la capital de Australia?",
+      "expected_fact": "NO_ANSWER",
+      "expected_doc": null
+    }
+  ]
+}
