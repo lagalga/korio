@@ -278,5 +278,12 @@ ORDER BY cr.reviewed_at DESC;
 
 ---
 
-**Versión**: v1.0 — 16 junio 2026
+**Versión**: v1.1 — 29 junio 2026 (sesión 19)
 **Próxima revisión**: post-auditoría fairness (Phase 9)
+
+### Actualizaciones v1.1 (sesiones 15b–19)
+
+- **PII whitelist en Presidio** (v0.3.11): `_PII_ENTITY_TYPES` explícita tanto en preprocessor (ingesta) como en `llm_client` (redaction pre-Mistral). ORG/LOC/MISC NO son PII — redactarlos garbleaba texto de negocio y filenames. Ahora solo se redactan: PERSON, EMAIL_ADDRESS, PHONE_NUMBER, NRP, CREDIT_CARD, IBAN_CODE, MEDICAL_LICENSE, ES_NIF, ES_NIE.
+- **Observabilidad y GDPR** (v0.3.15): LangSmith con endpoint UE obligatorio (`eu.api.smith.langchain.com`); trazas residentes en UE. OTel+Jaeger self-hosted en VPS (0 datos a terceros). Ver `docs/OBSERVABILITY.md`.
+- **Validación semántica LLM en detector** (v0.3.16): `is_chunk_contradiction()` usa Mistral temp=0 para confirmar que chunks son realmente contradictorios antes de declarar conflict. Reduce falsos positivos sin comprometer la gobernanza. El texto enviado a Mistral pasa por redaction PII previa (GDPR Art. 5 minimización).
+- **Privacy Policy** desplegada en `korio.es/legal/privacy.html` desde v0.3.8.

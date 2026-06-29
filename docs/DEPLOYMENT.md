@@ -1,7 +1,7 @@
 # Korio — Guía de despliegue en producción
 
 > Setup completo desde cero en Hetzner **CPX32** (AMD EPYC-Genoa) · Frankfurt
-> Estado: v0.3.12 · 20 migraciones · FalkorDB + n8n + Ollama dockerizados
+> Estado: v0.3.16 · 20 migraciones · FalkorDB + n8n + Ollama + Jaeger dockerizados
 
 ---
 
@@ -80,7 +80,7 @@ cp .env.example .env
 nano .env
 ```
 
-`.env` completo (v0.3.12):
+`.env` completo (v0.3.16):
 
 ```env
 # ─── Supabase ─────────────────────────────────────────────
@@ -140,6 +140,9 @@ LANGCHAIN_ENDPOINT=https://eu.api.smith.langchain.com
 KORIO_OTEL_ENABLED=1
 OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317
 OTEL_SERVICE_NAME=korio-api
+
+# ─── Detector de conflictos (sesión 19) ──────────────────
+KORIO_CONFLICT_SEMANTIC_VALIDATION=1             # Validación semántica LLM antes de declarar conflict
 ```
 
 ---
@@ -151,6 +154,20 @@ Verifica `docker-compose.yml` (en el repo):
 - **`korio-falkordb`** → Redis 8.6.3 con módulo grafo, **AOF persistence** (`appendonly yes appendfsync everysec`)
 - **`korio-n8n`** → n8n v1.x
 - **`korio-jaeger`** → Jaeger all-in-one (OTLP). UI `127.0.0.1:16686` (vía túnel SSH), receptor OTLP `127.0.0.1:4317`. Solo si usas OTel.
+
+Si el `docker-compose.yml` del repo no incluye Jaeger, añade:
+
+```yaml
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    container_name: korio-jaeger
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true
+    ports:
+      - "127.0.0.1:16686:16686"   # UI (solo localhost, túnel SSH)
+      - "127.0.0.1:4317:4317"     # OTLP gRPC
+    restart: unless-stopped
+```
 
 ```bash
 docker compose up -d
@@ -466,4 +483,4 @@ Llamar primero `POST /workflows/{id}/unarchive`.
 
 ---
 
-*Actualizado: 18 junio 2026 · v0.3.12 · sesión 16. 20 migraciones · 8 workflows · 31/31 tests.*
+*Actualizado: 29 junio 2026 · v0.3.16 · sesión 19. 20 migraciones · 8 workflows · observabilidad en producción.*

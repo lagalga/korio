@@ -185,5 +185,7 @@ El sub-app `/mcp` montado con `MCPAuthASGI` convive sin conflicto con endpoints 
 
 - **Sesión 13a (v0.3.4)** — `RLS sobre mcp_api_keys` (migración 015). Policies `self_read` / `self_update` (auth.uid) + `service_role_all`. Endurece el modelo de auth contra accesos cruzados a la tabla de keys.
 - **Sesión 16b (v0.3.12)** — endpoints admin paralelos (`GET /admin/errors`, `POST /admin/errors/{id}/review`, `POST /admin/errors/slack-action`) muestran que la API REST y el sub-app MCP comparten el mismo backend de seguridad (`require_admin` con `hmac.compare_digest`) y el mismo middleware ASGI para SSE. Lección operativa: cada vez que se añade un sub-app que use SSE o long-polling, hay que envolverlo con un middleware ASGI puro como `MCPAuthASGI` (nunca con `@app.middleware("http")` ni `BaseHTTPMiddleware`).
+- **Sesión 17c (v0.3.14)** — `instructions` del MCP server obligan a Claude Desktop a citar fuentes inline `[filename, similitud X.XX]` y avisar de `is_disputed` / `has_silent_conflict`. Refusal detection en `search.py` para no listar fuentes ruido.
+- **Sesión 18 (v0.3.15)** — observabilidad: las llamadas MCP quedan trazadas en LangSmith (@traceable `rag-search`) y en Jaeger (span HTTP `/mcp/sse`). El MCP no necesita instrumentación propia — hereda del pipeline subyacente.
 
-*Actualizado: 18 junio 2026 · v0.3.12 · sesión 16. Continuidad con seguridad ASGI documentada.*
+*Actualizado: 29 junio 2026 · v0.3.16 · sesión 19. Observabilidad heredada + citación inline.*

@@ -1,7 +1,7 @@
 # Korio — Flujo completo del sistema (Ingesta · Retrieval · Eventos)
 
 > Documento de referencia para la memoria TFM y el Pitch Deck.
-> Estado: v0.3.12 (18 jun 2026) · Phases 1–7.3 cerradas + Phase 9 flecos.
+> Estado: v0.3.16 (29 jun 2026) · Phases 1–7.3 cerradas + Phase 9 flecos + Observabilidad + Corpus saneado.
 > **Versión exhaustiva** (sin simplificaciones) + **versión reducida** al final (para diagramas).
 
 ---
@@ -71,7 +71,7 @@
 **Módulo:** `src/preprocessor.py`
 
 **Notas importantes:**
-- Whisper / Voxtral / VLM **no están implementados** en v0.3.12 — Phase 10 post-TFM.
+- Whisper / Voxtral / VLM **no están implementados** en v0.3.16 — Phase 10 post-TFM.
 - El frontmatter YAML generado automáticamente en algunos formatos se excluye del embedding desde v0.3.11 (`scripts/reembed_strip_frontmatter.py`).
 
 ---
@@ -288,6 +288,11 @@ FASE 4 (post-commit ACID):
 #### Cadena de resolución (Arbitrator — orden fijo)
 
 ```
+0. is_chunk_contradiction()          ← Validación semántica LLM (v0.3.16)
+   │ Mistral (temp=0) confirma que los chunks son realmente contradictorios.
+   │ Filtra falsos positivos por similitud lexical alta sin contradicción real.
+   │ NO → descartar par. SÍ → siguiente paso.
+   │
 1. find_applicable_policy()          ← Regla 4 del E3 (prevalencia de políticas)
    │ ¿Existe policy con subject_pattern que match al contenido?
    │ SÍ → aplicar decisión policy directa. Incrementar times_applied.
@@ -670,7 +675,15 @@ n8n_errors (id, workflow_id, workflow_name, error_msg, node_name,
 
 ---
 
-### 3.4 Observabilidad y métricas operativas
+### 3.4 Observabilidad (sesión 18, v0.3.15)
+
+Tres capas complementarias, todas con degradado no-op seguro:
+
+1. **LangSmith @traceable** (semántica) — spans: `rag-search`, `reformulate-query`, `ollama-embed`, `graph-retrieval`, `mistral-generate`/`ollama-generate`. Tokens + coste. Región UE obligatoria (GDPR).
+2. **OTel + Jaeger** (infraestructura) — instrumenta FastAPI + requests. OTLP gRPC → Jaeger all-in-one. Self-hosted = GDPR total.
+3. **RAG eval LLM-as-judge** (calidad) — `scripts/rag_eval.py`. Métricas: relevance, faithfulness, correctness, retrieval_hit, latency. Casos NO_ANSWER validan anti-alucinación.
+
+### 3.5 Métricas operativas
 
 #### Métricas actuales (sin sistema de métricas formal — consultadas via Supabase SQL)
 
@@ -691,7 +704,7 @@ Output: p50/p95/p99 por operación (embedding, vector, graph, LLM, total).
 
 ---
 
-### 3.5 Health y despliegue
+### 3.6 Health y despliegue
 
 **Endpoints:**
 ```
@@ -735,7 +748,7 @@ Mistral AI (cloud · EU)
 
 ## ESTADO DE PHASES Y ROADMAP
 
-### Cerrado (v0.3.12 · 18 jun 2026)
+### Cerrado (v0.3.16 · 29 jun 2026)
 
 | Phase | Contenido |
 |---|---|
@@ -750,6 +763,8 @@ Mistral AI (cloud · EU)
 | v0.3.4 | Hardening seguridad (21 hallazgos auditados) |
 | v0.3.8 | Compliance AI Act + GDPR (PII redaction Mistral + Privacy Policy) |
 | v0.3.12 | Phase 9: panel admin errores n8n + Slack interactivity + throttling |
+| v0.3.15 | Observabilidad: LangSmith @traceable (UE) + OTel/Jaeger + RAG eval LLM-judge |
+| v0.3.16 | Corpus saneado + validación semántica LLM en detector de conflictos |
 
 ### Planificado post-TFM
 
@@ -837,4 +852,4 @@ Benchmark (p50=1983ms / p95=3053ms)
 
 ---
 
-*Generado: 22 junio 2026 · basado en v0.3.12 (sesión 16) · corrige incongruencias del esquema preliminar (LLM=Mistral, embeddings=Ollama local, agentes=roles lógicos en proceso, sin Whisper/Voxtral hasta Phase 10, RRF no cross-encoder, pipeline_events no Kafka).*
+*Generado: 29 junio 2026 · basado en v0.3.16 (sesión 19) · incluye observabilidad (LangSmith+OTel+Jaeger) y validación semántica del detector de conflictos.*

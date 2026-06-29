@@ -290,4 +290,25 @@ prototipo están anclados a números verificables (31 tests, 20 docs, Bottom-up)
 *    **The Ask Realista:** No hay rondas vagas; se especifica objetivo
 (300-500k) condicionado a tracción previa [29, 30].
 *    **Separación Producto vs. Prototipo:** Queda claro qué es el objetivo SaaS
-SaaS y qué está ya implementado como evidencia de TFM.
+y qué está ya implementado como evidencia de TFM.
+
+---
+
+### Datos actualizados v0.3.16 (29 jun 2026) — para incorporar en slides
+
+**Slide 6 (Arquitectura)** — añadir: "Observabilidad en 3 capas: LangSmith (semántica RAG, tokens/coste, UE), OTel+Jaeger (infraestructura HTTP self-hosted), RAG eval LLM-as-judge. Toda la telemetría reside en UE (GDPR)."
+
+**Slide 7 (Evidencia Técnica)** — datos verificados vigentes:
+- Latencia p50=1983ms, p95=3053ms (benchmark 50/50 queries)
+- 31/31 tests verdes
+- 8 workflows n8n en producción
+- 27 aristas CONTRADICTS en grafo
+- 20 docs en producción, 74 chunks, 1130+ nodos grafo
+- Detector P/R/F1 = 1.000 (n=12 eval corpus)
+- Validación semántica LLM pre-conflict (v0.3.16): 0 falsos positivos
+- Observabilidad: trazas completas en LangSmith UE + Jaeger self-hosted
+- Compliance: Privacy Policy desplegada, PII redaction Presidio, AI Act Art. 6/15
+
+**Slide 9 (Evaluación detector)** — ya incorporada en sesión 17 con datos reales.
+
+**Vídeo demo** — 3 escenas grabadas (gobernanza E2E, RLS multi-canal, MCP Claude Desktop). Posible escena 4: observabilidad (LangSmith trace tree + Jaeger waterfall) para reforzar slide 6.

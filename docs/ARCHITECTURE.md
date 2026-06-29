@@ -1,7 +1,7 @@
 # Korio — Arquitectura del Sistema
 
 > Company Brain · RAG híbrido vector + grafo, multi-tenant, para pymes españolas
-> Estado: **Phases 1–7.3 + las 6 reglas del Entregable 3 cumplidas + Phase 9 flecos errores** · v0.3.12 (18 jun 2026)
+> Estado: **Phases 1–7.3 + las 6 reglas del Entregable 3 cumplidas + Phase 9 flecos errores + Observabilidad + Corpus saneado** · v0.3.16 (29 jun 2026)
 
 ---
 
@@ -21,6 +21,7 @@ Korio es un sistema RAG (*Retrieval-Augmented Generation*) **multi-tenant** que 
 3. **Gobernanza activa** — detección semántica (ingesta + query-time), auto-resolución por fecha/autoridad/policy reutilizable, HITL email, cron de escalada con timeout 21 días → `inconclusive`.
 4. **Búsqueda RAG híbrida** — vector + grafo en paralelo con Reciprocal Rank Fusion (k=60), memoria de chat multi-turn con reformulación de query, RLS en 3 capas.
 5. **Endpoints de consulta y operación** — chat web (`/ui`), grafo (`/ui/graph.html`), Swagger (`/docs`), MCP server (`/mcp/sse`), Slack `/korio`, panel admin errores n8n (`/ui/admin-errors.html`).
+6. **Observabilidad en 3 capas** — LangSmith @traceable (semántica RAG, tokens/coste, UE), OTel+Jaeger (infraestructura HTTP), RAG eval LLM-as-judge (`scripts/rag_eval.py`).
 
 > **Cobertura de este documento:** vista global y diagramas de núcleo. Para detalle por área:
 >
@@ -42,7 +43,7 @@ USUARIO (web chat · Slack /korio · Claude Desktop vía MCP · n8n)
   │  SSE  /mcp/sse  (Model Context Protocol)
   ▼
 ┌──────────────────────────────────────────────────────────────────┐
-│            FastAPI (api/server.py · v0.3.12)                     │
+│            FastAPI (api/server.py · v0.3.16)                     │
 │  ┌────────────────────────────────────────────────────────────┐  │
 │  │ Sub-apps montados:                                         │  │
 │  │   /ui            → chat web                                │  │
@@ -64,7 +65,7 @@ USUARIO (web chat · Slack /korio · Claude Desktop vía MCP · n8n)
 ## Pipeline de búsqueda (RAG híbrido)
 
 ```
-search.py · v0.3.12
+search.py · v0.3.16
   │
   │ 1. Reformulación query (LLM) si hay historial multi-turn
   │    src/llm_client.reformulate_query()
@@ -132,6 +133,7 @@ ingest_document(file_path, tenant_id, space_id, source_metadata)
 │  FASE 5 — Post-commit: detección de conflictos              │
 │    conflict_detector.detect_and_resolve(...)                 │
 │    Orden de aplicación:                                     │
+│      0) is_chunk_contradiction() LLM  ← filtra falsos pos.  │
 │      1) find_applicable_policy()      ← Regla 4 del E3      │
 │      2) _decide_by_authority()                              │
 │      3) _decide_by_date()                                   │
@@ -408,4 +410,4 @@ VPS → trazas de infraestructura sin salir del servidor. La eval reutiliza `sea
 
 ---
 
-*Actualizado: 18 junio 2026 · v0.3.12 · sesión 16. Phases 1–7.3 + Phase 9 flecos errores n8n cerrados. 20 migraciones · 8 workflows · 31/31 tests · p50=1983ms.*
+*Actualizado: 29 junio 2026 · v0.3.16 · sesión 19. Phases 1–7.3 + Phase 9 flecos + observabilidad + corpus saneado. 20 migraciones · 8 workflows · 31/31 tests · p50=1983ms.*
