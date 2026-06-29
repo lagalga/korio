@@ -70,6 +70,8 @@ AUTO_DATE_DAYS         = 30    # Días de diferencia para auto-resolución por f
 AUTO_AUTHORITY_DELTA   = 3     # Puntos de diferencia para auto-resolución por autoridad
 
 # URL del webhook n8n para disparar emails HITL (opcional)
+SEMANTIC_VALIDATION_ENABLED = os.getenv("KORIO_CONFLICT_SEMANTIC_VALIDATION", "1") == "1"
+
 HITL_WEBHOOK_URL  = os.getenv("HITL_WEBHOOK_URL", "")
 HITL_WEBHOOK_USER = os.getenv("HITL_WEBHOOK_USER", "")
 HITL_WEBHOOK_PASS = os.getenv("HITL_WEBHOOK_PASS", "")
@@ -323,6 +325,21 @@ def detect_conflicts(
                 existing_version_ts = existing_version_ts_raw
             else:
                 existing_version_ts = datetime.now(timezone.utc)
+
+            # 0) Validación semántica LLM — filtra falsos positivos por similitud
+            # lexical alta sin contradicción real (ej: G1↔G2 mismo estilo, distinto cliente).
+            if SEMANTIC_VALIDATION_ENABLED:
+                try:
+                    from llm_client import get_llm_client
+                    llm = get_llm_client()
+                    if not llm.is_chunk_contradiction(chunk_text, existing_chunk_text):
+                        logger.info(
+                            f"  ✅ Falso positivo filtrado: chunk {chunk_id} vs {existing_chunk_id} "
+                            f"(sim={similarity:.2f}) — LLM dice NO contradicción"
+                        )
+                        continue
+                except Exception as e:
+                    logger.warning(f"Validación semántica falló: {e} — continuando con detección")
 
             # 1) Regla 4 del E3 — prevalencia de políticas sobre reglas base.
             # Consultar `policies` activas antes de razonar fecha/autoridad.

@@ -384,6 +384,40 @@ class LLMClient:
             "api_configured": bool(MISTRAL_API_KEY and MISTRAL_API_KEY not in ("optional", ""))
         }
 
+    def is_chunk_contradiction(self, text_a: str, text_b: str) -> bool:
+        """
+        Devuelve True si dos fragmentos de texto contienen información contradictoria.
+
+        Usa temp=0. Si falla, devuelve True (conservador: no filtrar un conflicto
+        real por error de red).
+        """
+        system_prompt = (
+            "Eres un verificador de contradicciones en documentos corporativos. "
+            "Tu tarea es decidir si dos fragmentos contienen información REALMENTE "
+            "contradictoria o incompatible (no pueden ser verdad a la vez). "
+            "Fragmentos que tratan el mismo tema con datos diferentes SÍ son contradictorios. "
+            "Fragmentos que tratan temas distintos pero comparten vocabulario NO son contradictorios. "
+            "Responde SOLO con 'SÍ' o 'NO'. Sin explicaciones."
+        )
+        user_prompt = (
+            f"Fragmento A:\n{text_a[:800]}\n\n"
+            f"Fragmento B:\n{text_b[:800]}\n\n"
+            "¿Contienen información contradictoria o incompatible? (SÍ/NO)"
+        )
+        try:
+            answer = self.generate(
+                prompt=user_prompt,
+                system_prompt=system_prompt,
+                temperature=0.0,
+                max_tokens=5,
+            ).strip().upper()
+            result = answer.startswith("SÍ") or answer.startswith("SI") or answer == "YES"
+            logger.info(f"  🔍 Validación semántica chunk: {'SÍ contradicción' if result else 'NO contradicción'}")
+            return result
+        except Exception as e:
+            logger.warning(f"is_chunk_contradiction falló: {e} — asumiendo SÍ (conservador)")
+            return True
+
     def is_semantic_contradiction(
         self,
         subject_a: str, predicate_a: str, value_a: str,
