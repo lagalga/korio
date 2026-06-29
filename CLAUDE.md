@@ -799,8 +799,21 @@ memoria TFM en `docs/OBSERVABILITY.md`.
   `LANGCHAIN_API_KEY` (Service Key), `LANGCHAIN_PROJECT`, `LANGCHAIN_ENDPOINT`,
   `KORIO_OTEL_ENABLED`, `OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_SERVICE_NAME`.
 
-🔲 **Pendiente Phase 9**: Model Pricing `mistral-small-latest` en LangSmith
-(poblar columna Cost), Jaeger persistente (Tempo/ES), métricas Prometheus,
+🔲 **Pendiente Phase 9**: Jaeger persistente (Tempo/ES), métricas Prometheus,
 eval continua en CI como gate de regresión de calidad.
 
-*Actualizado: 26 junio 2026 (sesión 18) — v0.3.15. Observabilidad y evaluación en producción: LangSmith @traceable (RAG semántico, tokens/coste, UE), OTel+Jaeger (HTTP self-hosted), RAG eval LLM-judge. Capítulo `docs/OBSERVABILITY.md`. Próximo: model pricing, Prometheus (Phase 9), memoria TFM.*
+---
+
+**Sesión 19 (29 jun 2026)** — Saneo corpus y validación semántica detector (v0.3.16):
+
+- **Validación semántica LLM en detector de conflictos** — nuevo método `is_chunk_contradiction(text_a, text_b)` en `src/llm_client.py` (temp=0, trunca 800 chars, conservador: si falla asume SÍ). `src/conflict_detector.py` paso 0 antes de policies/fecha/autoridad: si LLM dice NO contradicción → skip con log `✅ Falso positivo filtrado`. Env `KORIO_CONFLICT_SEMANTIC_VALIDATION=1` (default activado, opt-out con `=0`).
+- **Verificación saneo frontmatter**: confirmado que `preprocessor.py` ya stripea frontmatter YAML antes del chunking (fix sesión 17b). Sub-tarea ya resuelta desde v0.3.13.
+- **Test E2E en producción**: G2 (caso-reclamacion-cliente-zenit) borrado y re-ingestado en space Casos de García. Resultado: `✓ Sin conflictos detectados`. G1↔G2 ya no disparan falsos positivos — la combinación de strip frontmatter (baja similitud por debajo de 0.80) + validación semántica LLM (filtro de respaldo) cierra el problema.
+- **Model Pricing LangSmith**: confirmado que `record_llm_usage()` ya emite tokens → columna Cost poblada en runs. Tachado de pendientes.
+- **1 commit a `main`**: `fd52462`.
+
+🔲 **Pendiente pre-demo (2 jul)**: vídeo demo, slide deck.
+🔲 **Pendiente pre-defensa (9 jul)**: memoria TFM (negocio + research), ensayo.
+🔲 **Pendiente Phase 9 (post-TFM)**: Jaeger persistente, Prometheus, eval CI, reintroducir índice vectorial >1000 chunks.
+
+*Actualizado: 29 junio 2026 (sesión 19) — v0.3.16. Saneo corpus cerrado: validación semántica LLM en detector + frontmatter ya stripeado. G1↔G2 García sin falsos positivos. Model Pricing LangSmith confirmado OK. Próximo: vídeo demo, slide deck, memoria TFM.*

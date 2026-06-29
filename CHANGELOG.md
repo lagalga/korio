@@ -10,6 +10,32 @@ semántico [SemVer](https://semver.org/lang/es/).
 
 ## [Unreleased]
 
+## [0.3.16] — 2026-06-29 · sesión 19 (Saneo corpus + validación semántica detector)
+
+### Added
+- **`LLMClient.is_chunk_contradiction(text_a, text_b)`** en `src/llm_client.py` —
+  validación semántica a nivel de chunk (no claims). Trunca a 800 chars por
+  fragmento, temp=0, respuesta SÍ/NO. Conservador: si falla, asume SÍ (no filtra
+  un conflicto real por error de red).
+- **Paso 0 en `src/conflict_detector.py`** — pre-filtro LLM antes de
+  policies/fecha/autoridad. Si `KORIO_CONFLICT_SEMANTIC_VALIDATION=1` (default
+  activado), llama a `is_chunk_contradiction()` para cada par con similitud ≥0.80.
+  Si el LLM dice NO contradicción → skip con log `✅ Falso positivo filtrado`.
+  Resuelve falsos positivos entre docs con alta similitud lexical pero sin
+  contradicción real (ej: G1↔G2 García, mismo estilo jurídico, distinto cliente).
+
+### Verified
+- **Test E2E en producción**: G2 (caso-reclamacion-cliente-zenit) borrado y
+  re-ingestado en space Casos de García. Resultado: `✓ Sin conflictos detectados`.
+  La combinación strip frontmatter (v0.3.13) + validación semántica cierra el
+  problema de falsos positivos García.
+- **Model Pricing LangSmith**: confirmado que `record_llm_usage()` emite
+  tokens y la columna Cost se puebla en runs. Tachado de pendientes.
+
+### Operational
+- Env nueva: `KORIO_CONFLICT_SEMANTIC_VALIDATION` (default `1`). Desactivar
+  con `=0` para comportamiento pre-v0.3.16.
+
 ## [0.3.15] — 2026-06-26 · sesión 18 (Observabilidad y Evaluación)
 
 ### Added

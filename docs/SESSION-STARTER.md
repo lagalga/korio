@@ -6,9 +6,9 @@
 
 ## Estado actual
 
-**Versión**: v0.3.15
-**Última sesión**: 18 (26 jun 2026) — Observabilidad y Evaluación: LangSmith @traceable + OTel/Jaeger + RAG eval LLM-judge
-**Estado global**: 🏁 **Implementación cerrada · Vídeo demo grabado · Observabilidad en producción**
+**Versión**: v0.3.16
+**Última sesión**: 19 (29 jun 2026) — Saneo corpus: validación semántica LLM en detector + confirmación frontmatter strip + Model Pricing OK
+**Estado global**: 🏁 **Implementación cerrada · Vídeo demo grabado · Observabilidad en producción · Corpus saneado**
 **Defensa TFM**: 9 julio 2026 (Nuclio Digital School)
 
 ---
@@ -36,7 +36,8 @@
 | v0.3.12 | sesión 16 | **Phase 9 errores n8n cerrada**: throttling, panel `/admin/errors`, Slack interactivity HMAC, duplicate→thread |
 | v0.3.13 | sesión 17-17b | Evaluación cuantitativa P/R/F1=1.0 (n=12) + fix detector frontmatter YAML |
 | v0.3.14 | sesión 17c | Promoción HITL chunk→doc + fix restore policies + nginx 300s + UI RLS-aware + MCP cita inline + refusal detection |
-| v0.3.15 | **sesión 18 (hoy)** | **Observabilidad y Evaluación**: LangSmith @traceable (pipeline RAG, tokens/coste, UE), OTel+Jaeger (HTTP self-hosted), RAG eval LLM-judge (`scripts/rag_eval.py`). Capítulo `docs/OBSERVABILITY.md` |
+| v0.3.15 | sesión 18 | **Observabilidad y Evaluación**: LangSmith @traceable (pipeline RAG, tokens/coste, UE), OTel+Jaeger (HTTP self-hosted), RAG eval LLM-judge (`scripts/rag_eval.py`). Capítulo `docs/OBSERVABILITY.md` |
+| v0.3.16 | **sesión 19 (hoy)** | **Saneo corpus**: validación semántica LLM en detector conflictos (`is_chunk_contradiction`), confirmación frontmatter strip OK, Model Pricing LangSmith confirmado. G1↔G2 García sin falsos positivos |
 
 ### Vídeo demo (3 escenas, ≈4 min)
 
@@ -81,9 +82,9 @@ echo y | python3 scripts/demo_snapshot.py restore --name pre_demo_v039
 
 ## Deuda técnica reconocida (Phase 9 post-TFM)
 
-- Validación semántica LLM en detector ingesta (reducir FP entre docs estilo similar)
+- ~~Validación semántica LLM en detector ingesta~~ ✅ **Cerrado v0.3.16** (`is_chunk_contradiction`)
 - Reintroducir índice vectorial cuando >1000 chunks (HNSW o `ivfflat lists=ceil(sqrt(N))`)
-- Chunker excluir frontmatter YAML pre-embedding (parcial v0.3.13)
+- ~~Chunker excluir frontmatter YAML pre-embedding~~ ✅ **Cerrado v0.3.13** (commit `62cae8f`)
 - OAuth multi-tenant + vault de tokens (diseño en `docs/MULTI-TENANT-INGESTION.md`)
 - Guardrails chat: Presidio egress + Lakera/Rebuff ingress + rate limit (`docs/CHAT-PIPELINE-GUARDRAILS.md`)
 - Bias audit + DPA formal Mistral + endpoints export/subject-access GDPR
@@ -265,4 +266,4 @@ Orden: GitHub → CLAUDE.md → SESSION-STARTER → CHANGELOG → Notion (4 pág
 
 ---
 
-*Actualizado: 26 junio 2026 (sesión 18) — v0.3.15. Observabilidad en producción (LangSmith UE + OTel/Jaeger + RAG eval). Ver `docs/OBSERVABILITY.md`. Próximo: model pricing LangSmith, métricas Prometheus (Phase 9), contenido TFM en Claude Projects.*
+*Actualizado: 29 junio 2026 (sesión 19) — v0.3.16. Saneo corpus cerrado: validación semántica LLM + frontmatter strip. Model Pricing LangSmith OK. Próximo: vídeo demo, slide deck, memoria TFM en Claude Projects.*

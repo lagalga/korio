@@ -1,6 +1,6 @@
 # Korio — Roadmap
 
-> **Estado: v0.3.15 (26 jun 2026) · 🏁 Implementación cerrada · Observabilidad y evaluación en producción**
+> **Estado: v0.3.16 (29 jun 2026) · 🏁 Implementación cerrada · Corpus saneado · Observabilidad en producción**
 > Defensa TFM: 9 julio 2026
 
 ---
@@ -171,6 +171,17 @@ Korio cubre **6 phases técnicas cerradas** (núcleo RAG, multi-tenancy, producc
 | Capítulo memoria TFM | `docs/OBSERVABILITY.md`: arquitectura 3 capas + decisiones + comparativa + troubleshooting real |
 | 3 commits a `main` | `639958c` LangSmith · `92db0b3` OTel/Jaeger · `67c99ba` RAG eval |
 
+### v0.3.16 · Saneo corpus + validación semántica detector ✅ (sesión 19)
+
+| Tarea | Notas |
+|---|---|
+| **`is_chunk_contradiction()`** en `llm_client.py` | Validación semántica a nivel de chunk (temp=0, trunca 800 chars, conservador si falla) |
+| **Paso 0 en `conflict_detector.py`** | Pre-filtro LLM antes de policies/fecha/autoridad. Env `KORIO_CONFLICT_SEMANTIC_VALIDATION=1` (default) |
+| Confirmación frontmatter strip OK | `preprocessor.py` ya stripea YAML desde v0.3.13 |
+| Model Pricing LangSmith | `record_llm_usage()` ya emite tokens → columna Cost poblada. Tachado de pendientes |
+| Test E2E G1↔G2 García | Re-ingesta G2 → 0 conflictos (sim <0.80 sin frontmatter). Validación semántica como respaldo |
+| 1 commit a `main` | `fd52462` |
+
 ### v0.3.13 · Evaluación cuantitativa detector + fix frontmatter ✅ (sesión 17 + 17b)
 
 | Tarea | Sesión | Notas |
@@ -192,7 +203,7 @@ Korio cubre **6 phases técnicas cerradas** (núcleo RAG, multi-tenancy, producc
 
 | Tarea | Impacto | Esfuerzo |
 |---|---|---|
-| Validación semántica LLM en detector de ingesta | Reduce falsos positivos G1↔G2 (docs estilo similar) | 3-4h |
+| ~~Validación semántica LLM en detector de ingesta~~ | ✅ **Cerrado v0.3.16** (`is_chunk_contradiction` en `llm_client.py`) | — |
 | ~~Chunker excluir frontmatter YAML del embedding~~ | ✅ **Cerrado v0.3.13 (commit `62cae8f`)** | — |
 | Reintroducir índice vectorial cuando >1000 chunks | HNSW o `ivfflat lists=ceil(sqrt(N))` con probes calibradas | 2-3h |
 
@@ -280,6 +291,7 @@ Escala y GPU:
 | Aristas CONTRADICTS en grafo | 27 (13 resueltas + 14 pendientes) |
 | Benchmark p50 / p95 | **1983 ms / 3053 ms** (50/50 sin errores, sesión 10) |
 | **Detector P/R/F1 (n=12 eval corpus)** | **1.000 / 1.000 / 1.000** sobre ground truth declarado |
+| **Validación semántica detector** | `is_chunk_contradiction` LLM pre-conflict (v0.3.16) |
 | Snapshots demo | `pre_demo_v038` (20 docs, 74 chunks, 1130 nodos, 1818 aristas) · `pre_eval_20260622` (baseline post-eval) |
 | Endpoints admin | `/admin/errors`, `/admin/errors/{id}/review`, `/admin/errors/slack-action` (s16b) |
 | Compliance | Privacy Policy + PII redaction Mistral + whitelist Presidio (s14b) + frontmatter strip (s17b) |
@@ -304,4 +316,4 @@ Escala y GPU:
 
 ---
 
-*Actualizado: 26 junio 2026 · v0.3.15 · sesión 18. 🏁 Implementación cerrada + observabilidad y evaluación en producción (LangSmith UE + OTel/Jaeger + RAG eval). Próximo: model pricing LangSmith, métricas Prometheus (Phase 9), memoria TFM en Claude Projects, slides, ensayos cronometrados.*
+*Actualizado: 29 junio 2026 · v0.3.16 · sesión 19. Saneo corpus cerrado (validación semántica + frontmatter strip). Model Pricing OK. Próximo: vídeo demo, slide deck, memoria TFM en Claude Projects.*
