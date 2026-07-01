@@ -137,20 +137,27 @@ def test_policy_reutilizable_evita_hitl_segundo_conflicto():
     """
     1) Insertamos directamente una policy activa con subject_pattern.
     2) Insertamos un doc base que servirá de 'existing' en el conflicto.
-    3) Ingestamos un doc nuevo con contenido similar cuyo chunk contiene el
-       subject_pattern de la policy.
+    3) Ingestamos un doc nuevo con **contradicción semántica real** (mismo
+       sujeto, valor distinto). El detector v0.3.16 aplica validación
+       semántica LLM como paso 0 antes de policies, por lo que necesitamos
+       un par con contradicción real (no solo similitud léxica).
     4) `detect_conflicts` debe aplicar la policy en lugar de crear HITL pending.
        El report debe contar el conflicto como `policy_resolved`.
     """
     from ingest import ingest_document
     db = get_supabase_client()
 
-    nucleo = (
+    # Núcleos con contradicción semántica real: 5 vs 10 días hábiles.
+    nucleo_existing = (
         "El plazo de aprobación interno será de cinco días hábiles para todas "
         "las solicitudes formales del comité de cumplimiento normativo."
     )
-    # 1) Policy directa: cuando aparezca este pattern, prefer_existing
-    policy_pattern = "el plazo de aprobación interno será de cinco días hábiles"
+    nucleo_new = (
+        "El plazo de aprobación interno será de diez días hábiles para todas "
+        "las solicitudes formales del comité de cumplimiento normativo."
+    )
+    # 1) Policy con pattern genérico que matchea ambos núcleos (5 y 10 días).
+    policy_pattern = "el plazo de aprobación interno"
     pol = db.client.table("policies").insert({
         "tenant_id":       TENANT_ID,
         "space_id":        SPACE_ID,
@@ -163,13 +170,13 @@ def test_policy_reutilizable_evita_hitl_segundo_conflicto():
 
     # 2) Doc existente (vía RPC atómico para que no dispare detector)
     doc_existing_id, _ = _atomic_insert(
-        db, f"# Política base\n\n{nucleo}\n\nVigente desde enero.\n", "pol_existing.md"
+        db, f"# Política base\n\n{nucleo_existing}\n\nVigente desde enero.\n", "pol_existing.md"
     )
 
     # 3) Doc nuevo ingestado vía pipeline completo (DISPARA detector)
     import tempfile, pathlib
     tmp = tempfile.NamedTemporaryFile(suffix=".md", delete=False)
-    tmp.write(f"# Política revisada\n\n{nucleo}\n\nActualizada en marzo.\n".encode())
+    tmp.write(f"# Política revisada\n\n{nucleo_new}\n\nActualizada en marzo.\n".encode())
     tmp.flush()
     tmp.close()
 
