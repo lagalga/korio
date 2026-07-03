@@ -70,6 +70,10 @@ snapshots/
 # Outputs de benchmarks (efímeros, no commitear)
 scripts/bench_*.json
 
+# Docs solo locales (contenido operativo/comercial no público)
+docs/PITCH_DECK_BRIEF_v3.md
+docs/SESSION-STARTER.md
+
 # Secrets & keys
 *.key
 *.pem
