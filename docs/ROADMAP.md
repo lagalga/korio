@@ -219,82 +219,198 @@ Korio cubre **6 phases técnicas cerradas** (núcleo RAG, multi-tenancy, producc
 
 ## Phases post-TFM
 
-### Phase 8 · Mitigaciones a limitaciones detectadas
+Alineado con el capítulo 5.5 "Futuras líneas de investigación o desarrollo" de
+la memoria TFM: 4 phases secuenciales (8/9/10/11) + 3 bloques transversales +
+3 líneas de investigación abiertas.
 
-Diseños completos en `docs/`:
+### Phase 8 · SaaS — conectores + worker pool + guardrails + reranker
 
-| Bloque | Esfuerzo | Doc fuente |
+Primera y más urgente. Convierte el prototipo en producto multi-tenant real.
+
+| Bloque | Descripción | Doc fuente |
 |---|---|---|
-| **Ingesta multi-tenant configurable** (OAuth + vault tokens + onboarding UI) | ~6 semanas + verificación Google CASA | `docs/MULTI-TENANT-INGESTION.md` |
-| **Chat pipeline con guardrails** (n8n + Lakera/Rebuff + Presidio egress + rate limit) | ~2 semanas | `docs/CHAT-PIPELINE-GUARDRAILS.md` |
-| Reranker cross-encoder | +20-30% calidad en queries rephrasadas | 6-8h |
-| Query expansion con LLM antes del embed | Más cobertura | 4-6h |
-| MCP Server OAuth 2.1 + rate limit + `mcp_audit_log` con PII-redaction | Producto-real | ~2 semanas |
-| MCP Streamable HTTP stateless o sticky sessions nginx (multi-worker) | Escala MCP | 3-5 días |
-| Bias audit embeddings RRHH/Legal (AI Act Art. 15) | Compliance | 1 semana — ver `docs/COMPLIANCE-AI-ACT-GDPR.md` |
-| DPA formal con Mistral | Compliance | bloqueado por proveedor |
-| Endpoints `/export/{tenant_id}` (RGPD Art. 20) y `/subject-access/{user_id}` (Art. 15) | Compliance | 3-4 días |
+| **Conectores OAuth multi-tenant** | Gmail, Drive, Slack, Outlook, SharePoint, Dropbox, Teams. Modelo 3 tablas: `tenant_connections`, `tenant_connection_secrets`, `ingestion_rules` (§4.2 memoria + Anexo B.5) | `docs/MULTI-TENANT-INGESTION.md` |
+| **Worker pool propio** (Celery o RQ) | Sustituye los 8 workflows n8n hardcodeados. Retries + backoff exponencial + observabilidad fina por `connection_id` | — |
+| **Guardrails chat** (Lakera / Rebuff + Presidio egress + rate limit) | Ingress + egress + PII outbound | `docs/CHAT-PIPELINE-GUARDRAILS.md` (Anexo B.9) |
+| **Reranker cross-encoder** | Tras fusión RRF, reordena top-10 con modelo especializado. Eleva precisión top-3 en corpus densos | — |
+| MCP Server OAuth 2.1 + `mcp_audit_log` + rate limit + Streamable HTTP stateless / sticky sessions | Producción-real MCP multi-worker | — |
+| Hallazgos diferidos auditoría 13a (14 issues) | Deuda técnica reconocida | `docs/AUDIT-2026-06-14.md` |
 
-Hallazgos diferidos de la auditoría 13a (14 issues) — ver `docs/AUDIT-2026-06-14.md`.
+### Phase 9 · Producto SaaS completo — auth + billing + admin + GDPR
 
-### Phase 9 · Producto SaaS
+Cierra el paso a SaaS con lo que el prototipo aún no expone.
 
 | Feature | Descripción |
 |---|---|
+| Autenticación real | Supabase Auth (email/password, Google OAuth) |
+| Billing por tenant | Stripe |
+| Panel administrativo de conflictos para cliente final | Alternativa visual al email HITL (`/ui/admin/conflicts`) |
+| Endpoints RGPD Art. 20 + Art. 15 | `/export/{tenant_id}` + `/subject-access/{user_id}` |
 | Matriz de autoridad configurable en onboarding | UI para `authority_weight` por space y source_type |
-| Panel admin de conflictos en `/ui/admin/conflicts` | Alternativa visual al email |
-| Auth real | Supabase Auth (email/password, Google OAuth) |
-| Billing | Stripe por tenant/mes |
-| Conectores nativos configurables | Drive, Slack, Notion, Gmail con OAuth multi-tenant (ver Phase 8) |
-| API keys por tenant | Para integrar Korio desde otras apps |
-| Límites de plan | Chunks máximos, queries/mes, usuarios |
-| Persistencia de chat por usuario | Conversaciones multi-sesión cross-device |
-| Reflejo de chat Slack ↔ chat web | Identidad compartida, conversaciones cross-canal |
-| ROPA + admin dashboard audit-log | Compliance (`docs/COMPLIANCE-AI-ACT-GDPR.md`) |
+| API keys por tenant | Integrar Korio desde otras apps |
+| Límites de plan | Chunks / queries-mes / usuarios |
+| Persistencia chat por usuario + reflejo Slack ↔ web | Cross-device y cross-canal |
+| ROPA + admin dashboard audit-log | `docs/COMPLIANCE-AI-ACT-GDPR.md` |
 
-Ya cerrados de Phase 9 dentro del TFM (flecos operativos):
+Ya cerrados dentro del TFM (flecos operativos Phase 9):
 
 - ✅ Throttling Slack DM errores n8n (s16a)
 - ✅ Panel `/admin/errors` UI + endpoints (s16b)
 - ✅ Botón Slack "Marcar reviewed" (s16b · firma HMAC + anti-replay)
 - ✅ Slack file_shared duplicate → DM thread (s16c)
 
-### Phase 10 · Ingesta multimodal + escala
+### Phase 10 · Ingesta multimodal (email body + Slack/Teams threads + audio)
 
-Diseño completo en `docs/PHASE-10-MULTIMODAL-INGESTION.md`:
+Diseño completo en `docs/PHASE-10-MULTIMODAL-INGESTION.md` (Anexo B.8):
 
-- Email body adapter (parsing local, sin LLM)
+- Email body adapter (parsing local, sin LLM) — hilos completos
 - Slack/Teams thread adapter (reaction `📥 korio` ingiere thread completa)
-- Audio adapter ASR (Voxtral API → Whisper local cuando volumen >100 min/mes)
-- `src/adapters/` con interfaz común + 4 nuevos workflows n8n + 3 botones upload UI
+- Audio adapter — **Voxtral** para transcripción de reuniones + **Whisper** local como fallback
+- `src/adapters/` con interfaz común + 4 workflows n8n + 3 botones upload UI
 
-Escala y GPU:
+Los claims extraídos de un acta de reunión pasan por la misma cadena de
+gobernanza activa que los de un PDF — infraestructura E3 se reutiliza sin
+cambios.
+
+Escala y GPU (asociado al salto Phase 11):
 
 | Mejora | Impacto | Coste |
 |---|---|---|
-| GPU en Hetzner (GEX44) | Embed ~0.1s · LLM ~1s | ~€65/mes |
+| GPU dedicada Hetzner (GEX44, RTX 4000 Ada 20GB) | Embed ~0.1s · LLM ~1s | ~€185/mes |
 | Caché de embeddings (Redis) | Queries repetidas ~0s | ~€5/mes |
 | Postgres dedicado vs Supabase | Más control, menor coste a escala | Variable |
 
 **Objetivo latencia p50 con GPU:** <1s end-to-end.
 
+### Phase 11 · Migración del motor de embeddings
+
+Doc de referencia: **`docs/EMBEDDINGS-DEFENSA-TFM.md`** (dossier defensa +
+roadmap detallado §6).
+
+`nomic-embed-text` fue declarado inmutable durante el TFM por gestión de
+riesgo: cada cambio obliga a re-embebir corpus completo + recalibrar umbrales
+(búsqueda 0.35, conflict 0.80, banner disputed 0.60, CONTRADICTS 0.85,
+silent_conflict 0.80). Post-defensa se planifica en dos pasos:
+
+| Paso | Modelo | Ventana temporal | Cambio | Coste extra |
+|---|---|---|---|---|
+| Corto plazo | `multilingual-e5-large-instruct` (MIT) | ~3 meses post-MVP | Trivial: prefijos `"query: "` / `"passage: "` en `src/embedder.py` + `ALTER TABLE` a 1024d + re-embed | ~0 (mismo CPU / GPU modesta) |
+| Medio plazo | `BGE-M3` (MIT, dense + sparse + ColBERT nativo, 8k ctx) | 6–12 meses (con clientes de pago) | Refactor retrieval: retira parte del RRF léxico manual (sparse output de BGE-M3 cubre ese rol) | GPU dedicada ~€185/mes — amortizable con 5-6 clientes a €40/mes |
+
+Descartados por soberanía + RGPD: **OpenAI text-embedding-3, Voyage AI,
+Cohere embed-v3**. Contradicen el discurso comercial ("tu conocimiento no
+sale de tu VPS") y exigen DPA + transferencia internacional.
+
 ---
 
-## Métricas y stack (sesión 17b, v0.3.13)
+## Bloques transversales al roadmap
+
+Acompañan a las 4 phases sin bloquear su secuencia.
+
+| Bloque | Descripción | Ventana |
+|---|---|---|
+| **Bias audit AI Act Art. 15** | Corpus RRHH con métricas de disparidad demográfica. Script esbozado en `docs/COMPLIANCE-AI-ACT-GDPR.md` | 2 semanas post-defensa |
+| **DPA formal con Mistral** | Imprescindible antes del lanzamiento comercial | Bloqueado por proveedor |
+| **Documentación técnica AI Act Art. 11 + Anexo IV** | Consolidar los 9 docs del Anexo B según el índice concreto del Anexo IV | Pre-lanzamiento comercial |
+
+---
+
+## Líneas de investigación abiertas
+
+Preguntas empíricas que el prototipo deja para trabajos futuros.
+
+1. **Evaluación cuantitativa aportación del grafo sobre corpus reales grandes.**
+   El caso `jornada mínima → 35h` es contundente en el prototipo. La ganancia
+   agregada del RAG híbrido vs RAG vainilla sobre decenas de miles de chunks y
+   miles de consultas reales no se ha medido — pregunta empírica más
+   interesante que Korio deja abierta.
+2. **Aprendizaje activo del clasificador de conflictos.**
+   `times_applied` mide reutilización de policies, no mejora del detector.
+   Explorar si las decisiones humanas registradas en `audit_log` pueden
+   alimentar un fine-tuning incremental del paso 0 semántico
+   (`is_chunk_contradiction`) — vía natural para llevar el detector de
+   laboratorio a producción real.
+3. **Medición de deriva semántica del corpus.**
+   Monitorizar cómo evoluciona la distribución de embeddings a medida que se
+   ingieren nuevos documentos: detectar cuándo el conocimiento almacenado se
+   aleja del vigente o cuándo los umbrales calibrados (búsqueda 0.35 /
+   conflict 0.80) dejan de ser válidos. Encaja en la capa de métricas
+   agregadas prevista (Prometheus + Grafana) como indicador de salud del
+   corpus complementario a la gobernanza activa.
+
+---
+
+## Métricas y stack (1 jul 2026 · v0.3.16 · snapshot `pre_saneo_s19`)
+
+Fuente: anexo J memoria TFM ("Métricas y evaluación"). Ejecución **secuencial**
+en VPS Hetzner CPX32 (4 vCPU / 8 GB) contra `https://korio.es`.
+
+### Tests
+
+| Suite | Passed | Total | Notas |
+|---|---|---|---|
+| `pytest tests/ -v` | **31** | **31** | 30.97 s (rediseñado `test_policy_reutilizable_evita_hitl_segundo_conflicto` tras v0.3.16 para reflejar validación semántica LLM como paso 0) |
+
+### Benchmark de latencia (50 iter × 5 escenarios = 250 queries, 248 efectivas)
+
+| Métrica | p50 | p95 | p99 |
+|---|---|---|---|
+| Wall-clock HTTP | **1 715 ms** | **4 413 ms** | **4 906 ms** |
+| API server-side | **1 664 ms** | **4 354 ms** | **4 836 ms** |
+
+Comando: `python scripts/benchmark.py -n 50 -d 1.0 --api https://korio.es`
+
+Desglose por escenario (API server-side, p50):
+Delos/admin 1 657 ms · Delos/doctor 2 054 ms · Delos/staff 1 562 ms ·
+García/admin **3 956 ms** (dos spaces simultáneos, LLM más largo) ·
+García/lawyer 1 028 ms.
+
+Evolución vs sesión 10 (v0.3.1, corpus 9 docs / 29 chunks):
+
+| Métrica | s10 (12 jun) | Actual (1 jul) | Δ |
+|---|---|---|---|
+| p50 API | 1 983 ms | **1 664 ms** | **-16 %** ✅ |
+| p95 API | 3 053 ms | **4 354 ms** | **+43 %** ⚠️ |
+| Corpus | 9 docs · 29 chunks | 20 docs · 74 chunks | +122 % docs |
+
+p95 +43 % es coste asumido a cambio de 2,5× corpus, gobernanza query-time
+(RPC O(N²/2)) y rerank RRF grafo. Deuda: reintroducir índice vectorial (HNSW
+o `ivfflat lists=ceil(sqrt(N))`) cuando el volumen supere ~1000 chunks.
+
+### Calidad — LLM-as-judge (`scripts/rag_eval.py` sobre `scripts/eval_set.json`)
+
+| Métrica | Valor |
+|---|---|
+| Answer relevance (1–5) | **5.0** |
+| Faithfulness (1–5) | **5.0** |
+| Correctness (1–5) | **5.0** |
+| Retrieval hit rate | **1.0** |
+| Latencia media | **2 138 ms** |
+
+Casos: `rrhh_jornada_minima` (hit ✓, grafo activo), `rrhh_vacaciones` (3 casos
+citados en R2), `fuera_de_dominio` (declina correctamente).
+
+### Stack e infraestructura
 
 | Categoría | Valor |
 |---|---|
-| Tests | **28/28 verdes** + 3 skipped (~32s) |
 | Migraciones aplicadas | 20 |
 | Workflows n8n activos | 8 |
-| Documentos en producción | 22 (Delos 20 + García 5 tras restore) |
-| Aristas CONTRADICTS en grafo | 27 (13 resueltas + 14 pendientes) |
-| Benchmark p50 / p95 | **1983 ms / 3053 ms** (50/50 sin errores, sesión 10) |
-| **Detector P/R/F1 (n=12 eval corpus)** | **1.000 / 1.000 / 1.000** sobre ground truth declarado |
-| **Validación semántica detector** | `is_chunk_contradiction` LLM pre-conflict (v0.3.16) |
-| Snapshots demo | `pre_demo_v038` (20 docs, 74 chunks, 1130 nodos, 1818 aristas) · `pre_eval_20260622` (baseline post-eval) |
-| Endpoints admin | `/admin/errors`, `/admin/errors/{id}/review`, `/admin/errors/slack-action` (s16b) |
-| Compliance | Privacy Policy + PII redaction Mistral + whitelist Presidio (s14b) + frontmatter strip (s17b) |
+| Documentos en producción | 20 (Delos 15 + García 5) |
+| Chunks en producción | 74 |
+| Nodos grafo FalkorDB | 1 130 |
+| Aristas grafo FalkorDB | 1 818 |
+| Aristas CONTRADICTS | 27 (13 resueltas + 14 pendientes) |
+| Policies reutilizables | 4 |
+| Conflict reviews activos | 3 |
+| **Detector P/R/F1 (n=12)** | **1.000 / 1.000 / 1.000** sobre ground truth |
+| Validación semántica detector | `is_chunk_contradiction` LLM (paso 0, v0.3.16) |
+| Snapshots demo | `pre_saneo_s19` (baseline anexo J) · `pre_demo_v038` (vídeo demo) |
+| Endpoints admin | `/admin/errors`, `/admin/errors/{id}/review`, `/admin/errors/slack-action` |
+| Observabilidad | LangSmith @traceable (UE) + OTel/Jaeger + `scripts/rag_eval.py` |
+| Compliance | Privacy Policy + PII redaction Mistral + whitelist Presidio + frontmatter strip |
+| Modelo embeddings | Ollama `nomic-embed-text` 768 dims (CPU) |
+| Modelo LLM | Mistral API `mistral-small-latest` (temp 0.2 generación · 0.0 juez · 0.0 detector semántico) |
 
 ---
 
@@ -310,10 +426,11 @@ Escala y GPU:
 | `docs/MULTI-TENANT-INGESTION.md` | Anexo roadmap Phase 8 — OAuth multi-tenant |
 | `docs/CHAT-PIPELINE-GUARDRAILS.md` | Anexo roadmap Phase 8 — guardrails chat |
 | `docs/PHASE-10-MULTIMODAL-INGESTION.md` | Anexo roadmap Phase 10 — multimodal + escala |
+| `docs/EMBEDDINGS-DEFENSA-TFM.md` | Dossier defensa embeddings + roadmap Phase 11 (nomic → e5-large → BGE-M3) |
 | `docs/DEPLOYMENT.md` | Operativo: cómo redeployar desde cero |
 | `docs/SESSION-STARTER.md` | Operativo: estado de cierre por sesión + plan siguiente |
 | `docs/ROADMAP.md` (este fichero) | Operativo: visión global + backlog |
 
 ---
 
-*Actualizado: 29 junio 2026 · v0.3.16 · sesión 19. Saneo corpus cerrado (validación semántica + frontmatter strip). Model Pricing OK. Próximo: vídeo demo, slide deck, memoria TFM en Claude Projects.*
+*Actualizado: 3 julio 2026 · v0.3.16 · sesión 19. Roadmap post-TFM alineado con capítulo 5.5 memoria (Phase 8 SaaS conectores+worker+guardrails+reranker · Phase 9 auth+billing+admin+GDPR endpoints · Phase 10 multimodal · Phase 11 embedder e5→BGE-M3 + 3 transversales + 3 líneas investigación). Doc `EMBEDDINGS-DEFENSA-TFM.md` promovido a fuente Phase 11.*
