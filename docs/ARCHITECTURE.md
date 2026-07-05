@@ -304,7 +304,7 @@ Cada workflow productivo lleva `errorWorkflow: <N8N_WF_ERRORS>` para captura aut
 └──────────────────────────┬──────────────────────────────────────┘
                            │ HTTPS
                            ▼
-┌─── Hetzner CPX32 AMD (Frankfurt) ──────────────────────────────┐
+┌─── Hetzner CPX32 AMD (Falkenstein/Nuremberg) ──────────────────┐
 │                                                                  │
 │  nginx (TLS Let's Encrypt) ──► korio.es · n8n.korio.es          │
 │                                                                  │
