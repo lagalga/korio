@@ -262,7 +262,7 @@ query("¿vacaciones?", user_id="doctor-uuid", tenant_id="delos")
 | Chunking | LangChain `RecursiveCharacterTextSplitter` | 500 tok / 50 overlap |
 | Conversión docs | MarkItDown + PyMuPDF | PDF/DOCX/XLSX/HTML → Markdown |
 | Automatización | **n8n** v1.x en Docker (`korio-n8n`) | 8 workflows en producción |
-| Servidor VPS | Hetzner **CPX32** AMD EPYC-Genoa, Frankfurt | 4 vCPU / 8 GB / 160 GB SSD · **€17.53/mes max** |
+| Servidor VPS | Hetzner **CPX32** AMD EPYC-Genoa, Falkenstein/Nuremberg | 4 vCPU / 8 GB / 160 GB SSD · **€17.53/mes max** |
 
 ### 8 workflows n8n.korio.es
 
