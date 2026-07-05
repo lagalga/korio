@@ -12,11 +12,12 @@ Korio permite a una organización consultar en lenguaje natural el conocimiento 
 - **Grafo de conocimiento** en FalkorDB con entidades + claims atómicos extraídos por LLM. Search híbrido vector + grafo rescata datos cuando la query está semánticamente reformulada respecto al texto fuente.
 - **Ingesta automática multi-canal** vía n8n: Gmail (label vigilada), Drive (carpeta vigilada), Slack (`/korio` para consultar **+** subida automática de PDF/DOCX al canal vigilado). Cada documento lleva `source_metadata` (JSONB) con el contexto del canal de origen.
 
-**Estado:** Phases 1–7.3 + rerank semántico + hardening seguridad + panel admin errores · **v0.3.14** · Producción en [korio.es](https://korio.es) · Demo TFM 2 julio 2026 · Defensa 9 julio 2026
+**Estado:** Phases 1–9 completas (RAG híbrido + gobernanza activa + grafo + MCP + hardening + observabilidad + saneo semántico) · **v0.3.16** · Producción en [korio.es](https://korio.es) · Demo TFM 2 julio 2026 · Defensa 9 julio 2026
 
+> **Sesión 19 · 29 jun 2026 (v0.3.16):** validación semántica LLM en detector de conflictos (`is_chunk_contradiction`, temp=0) — filtra falsos positivos G1↔G2 antes de evaluar fecha/autoridad. Model Pricing LangSmith verificado (columna Cost poblada). Saneo corpus cerrado.
+> **Sesión 18 · 26 jun 2026 (v0.3.15):** observabilidad en 3 capas — LangSmith `@traceable` (semántica, región UE), OTel + Jaeger self-hosted (infraestructura), `scripts/rag_eval.py` LLM-as-judge (calidad). Todas con degradado no-op seguro. Detalle en [`docs/OBSERVABILITY.md`](docs/OBSERVABILITY.md).
 > **Sesión 17c · 23 jun 2026 (v0.3.14):** fixes encadenados pre-grabación vídeo: restore snapshot limpiaba policies, umbral conflicto 0.78→0.80, promoción doc-level tras ≥2 aprobaciones HITL (`promote_to_document_replacement`), nginx `proxy_read_timeout` 120→300s.
 > **Sesión 16 · 18 jun 2026 (v0.3.12):** throttling anti-spam errores n8n (1 DM en error 1/10/20…), panel `/ui/admin-errors.html` + endpoints admin, botón "Marcar reviewed" en Slack con verificación de firma, workflow Slack file_shared: duplicado → DM thread (no errorWorkflow).
-> **Sesión 13a · 14 jun 2026 (v0.3.4):** auditoría completa (21 hallazgos) + 7 fixes seguridad bloqueantes: CORS whitelist, `hmac.compare_digest`, tenant check DELETE, RLS `mcp_api_keys`, assert dim 768, tempfile cleanup, Cypher parametrizado.
 > **Benchmark (sesión 10 · 12 jun 2026):** p50 global 1983 ms · p95 3053 ms · 50/50 queries sin errores · QA E2E 10/10 ✅
 
 ---
@@ -123,7 +124,7 @@ python scripts/graph_backfill.py
 
 ```bash
 python -m pytest tests/ -v
-# Esperado: 20/20 ✅
+# Esperado: 31/31 ✅
 ```
 
 ### 5. Levantar API
@@ -168,7 +169,8 @@ INGESTA DE DOCUMENTO
     ├── 3. Chunking ───────────► RecursiveCharacterTextSplitter (500 tok/50 overlap)
     ├── 4. Embeddings ─────────► nomic-embed-text (768 dims, Ollama)
     ├── 5. Persist ────────────► Supabase pgvector + content_hash dedup
-    └── 6. ⚖️ Conflict detect ─► busca chunks similares (>0.78) en el mismo space
+    └── 6. ⚖️ Conflict detect ─► busca chunks similares (>0.80) en el mismo space
+                                  ├── validación semántica LLM (temp=0) filtra falsos positivos
                                   ├── auto_new_wins:      existente → superseded
                                   ├── auto_existing_wins: nuevo → superseded
                                   └── pending:            crea conflict_review + email HITL
@@ -188,12 +190,13 @@ CONSULTA DEL USUARIO
 RESPUESTA + CITAS (filename real) + BANNER ⚠️ si hay chunks disputed
 ```
 
-### RLS en dos capas
+### RLS en tres capas
 
 - **Aplicación** (`db.py`): early binding obtiene `space_ids` del usuario y filtra `document_ids` ANTES del vector search.
-- **PostgreSQL** (`migrations/001`): políticas RLS de Supabase enforces el mismo aislamiento a nivel de BD.
+- **PostgreSQL** (`migrations/001`): políticas RLS de Supabase enforce el mismo aislamiento a nivel de BD.
+- **FalkorDB / Cypher** (`graph_client.py`): todas las queries del grafo llevan `WHERE n.tenant_id = $tid AND n.space_id IN $allowed_spaces` — réplica del aislamiento sobre entidades y claims.
 
-Un usuario de Despacho García nunca puede ver datos de Clínica Delos. Un médico no puede ver documentos del departamento Legal.
+Un usuario de Despacho García nunca puede ver datos de Clínica Delos. Un médico no puede ver documentos del departamento Legal. El grafo respeta el mismo modelo.
 
 ### Gobernanza activa (Phase 5)
 
@@ -343,26 +346,28 @@ python -m pytest tests/ -v    # 31/31 ✅ (~25s)
 
 ---
 
-## Métricas (24 junio 2026)
+## Métricas (5 julio 2026)
 
 | Métrica | Valor |
 |---|---|
-| Versión | **v0.3.14** (23 junio 2026, sesión 17c) |
+| Versión | **v0.3.16** (29 junio 2026, sesión 19) |
 | Tests | **31/31 ✅** (20 RLS+RAG + 8 agéntica/ACID + 3 rerank semántico grafo) |
 | Benchmark formal (sesión 10) | p50 1983 ms · p95 3053 ms · 50/50 sin errores |
 | Latencia RAG vector-puro | ~1.0–3.3s |
 | Latencia RAG híbrido (vector + grafo) | ~1.0s |
 | Latencia embedding | ~0.8s |
 | Latencia detección query-time | ~0.1s adicional (RPC SQL par a par) |
-| Umbral conflicto silencioso (query-time) | 0.80 (configurable `KORIO_QUERY_TIME_CONFLICT_THRESHOLD`) |
-| Docs en producción | **20** (13 Delos + 5 García + 2 RRHH en conflicto) |
-| Chunks en producción | **74** activos |
-| Nodos grafo | **1130** · Aristas: **1818** (incl. 27 CONTRADICTS) |
-| Phases completadas | 1 · 2 · 3 · 4 · 5 · 6 · 7.1 · 7.2 · 7.3 + Phase 9 parcial (errores n8n) |
+| Umbral conflicto ingesta | 0.80 (configurable `KORIO_CONFLICT_THRESHOLD`) + validación semántica LLM |
+| Umbral conflicto silencioso (query-time) | 0.80 (`KORIO_QUERY_TIME_CONFLICT_THRESHOLD`) |
+| Docs en producción | **19** (14 Delos + 5 García) — snapshot `pre_demo_v040` |
+| Chunks en producción | **69** activos (+ superseded/inconclusive según estado gobernanza) |
+| Nodos grafo (snapshot pre_demo_v040) | **1179** · Aristas: **1951** (incl. CONTRADICTS multi-par) |
+| Phases completadas | 1 · 2 · 3 · 4 · 5 · 6 · 7.1 · 7.2 · 7.3 · 8 (observabilidad) · 9 (errores n8n + saneo semántico) |
 | Migraciones SQL aplicadas | **20** (úl: `020_search_includes_inconclusive.sql`) |
 | Workflows n8n activos | **8** (v2.27.4) |
 | MCP server | korio.es/mcp/sse — Claude Desktop conectado |
-| Producción | korio.es + grafo en vivo · snapshot `pre_demo_v038` disponible |
+| Observabilidad | LangSmith UE (semántica) + OTel/Jaeger self-hosted (infra) + `rag_eval.py` (calidad) |
+| Producción | korio.es + grafo en vivo · snapshot `pre_demo_v040` restaurable |
 | Auditoría seguridad | 21 hallazgos · 7 cerrados · 14 diferidos a Phase 8/9 (`docs/AUDIT-2026-06-14.md`) |
 
 ---
@@ -432,24 +437,13 @@ korio/
 
 ## Memoria TFM
 
-La memoria se redacta en un **Claude Chat Project separado** (para no mezclar el contexto de implementación con el de escritura académica). Este README es el punto de referencia técnica para ese proyecto.
+La memoria del TFM se entrega al tribunal como documento independiente (Nuclio Digital School — 7 capítulos + anexos). Este README y los docs técnicos en `docs/` son el **material de referencia técnica**; el **Anexo A** de la memoria enlaza aquí para la evaluación del tribunal.
 
-- **Google Doc:** https://docs.google.com/document/d/1RN53jKdePExVhgR2AHE8sGQCbwSSJ1rnH57giQtKhok/edit
-- **Plantilla:** Nuclio Digital School — 7 capítulos + anexos
-- **Estado a 11 junio 2026:** Capítulos 1–3 completos, 4–7 pendientes
+Capítulos técnicos apoyados por los docs de este repo:
 
-| Capítulo | Contenido | Estado |
-|---|---|---|
-| 1. Introducción | Caso de negocio + objetivos + KPIs | ✅ Completo |
-| 2. Contexto | Sector, benchmarking (Glean, Guru, Hyper, Monora…) | ✅ Completo |
-| 3. Metodología | Enfoque, stack, proyecciones ROI | ✅ Completo |
-| 4. Desarrollo y resultados | Prototipo funcional + casos de uso | 🔲 Pendiente |
-| 5. Conclusiones | Hallazgos, limitaciones, líneas futuras | 🔲 Pendiente |
-| 6. Bibliografía | 24 referencias [F01–F24b] | ✅ Base completa |
-| 7. Anexos | Materiales complementarios | 🔲 Pendiente |
-
-Los docs técnicos en `docs/` son la base de los capítulos pendientes:
-`AGENTIC-INGESTION.md` → cap. 4.1 · `MCP-SERVER.md` → cap. 4.2 · `MULTI-TENANT-INGESTION.md` + `CHAT-PIPELINE-GUARDRAILS.md` → cap. 5.5
+- `docs/ARCHITECTURE.md`, `docs/AGENTIC-INGESTION.md`, `docs/MCP-SERVER.md` → cap. 4 (desarrollo)
+- `docs/OBSERVABILITY.md`, `docs/COMPLIANCE-AI-ACT-GDPR.md`, `docs/AUDIT-2026-06-14.md` → cap. 5 (conclusiones y cumplimiento)
+- `docs/MULTI-TENANT-INGESTION.md`, `docs/CHAT-PIPELINE-GUARDRAILS.md`, `docs/PHASE-10-MULTIMODAL-INGESTION.md` → cap. 5.5 (líneas futuras)
 
 ---
 
