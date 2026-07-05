@@ -268,7 +268,7 @@ Activación vía `.env`: `LANGCHAIN_TRACING_V2`, `LANGCHAIN_ENDPOINT` (EU), `KOR
 | Doc parsing | PyMuPDF + MarkItDown `[pdf,docx,xlsx,pptx]` | PyMuPDF para texto, MarkItDown para conversión |
 | Automatización | n8n **v2.27.4** (Docker en VPS) | **8 workflows**: HITL + Cron + Pipeline event bus + Gmail + Drive + Slack `/korio` + Slack file_shared + Gestión errores |
 | Visualización grafo | **vis-network 9.1.9** (CDN) | barnesHut física, canvas render |
-| Servidor | Hetzner **CPX32** (AMD EPYC-Genoa), Frankfurt | 4 vCPU / 8 GB / 160 GB SSD · Ubuntu 26.04 LTS · **€17.53/mes max** |
+| Servidor | Hetzner **CPX32** (AMD EPYC-Genoa), Falkenstein/Nuremberg | 4 vCPU / 8 GB / 160 GB SSD · Ubuntu 26.04 LTS · **€17.53/mes max** |
 | Reverse proxy | nginx + Let's Encrypt (certbot) | renovación automática, proxy_read_timeout 300s |
 | Observabilidad (RAG) | **LangSmith** `@traceable` | trazas semánticas del pipeline RAG, tokens/coste, región UE (GDPR) |
 | Observabilidad (HTTP) | **OpenTelemetry + Jaeger** | trazas de infraestructura self-hosted (OTLP), waterfall de latencia por endpoint |
