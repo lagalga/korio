@@ -31,7 +31,7 @@ Korio es un SaaS multi-tenant de RAG que procesa documentos corporativos privado
 
 #### ✅ Cumplidos hoy
 
-1. **Transparencia** (`Art. 13`)
+1. **Transparencia** (`Art. 50` — sistemas de IA de riesgo limitado)
    - UI: banner "Búsqueda potenciada por IA" en `/ui`
    - Grafo: etiqueta `[grafo de conocimiento]` → explica fuentes
    - Conflictos: badge ⚠️ + explicación en cada chunk disputed
@@ -234,7 +234,7 @@ ORDER BY cr.reviewed_at DESC;
 
 | Norma | Link | Sección relevante |
 |-------|------|-------------------|
-| **AI Act 2024/1689** | https://eur-lex.europa.eu/eli/reg/2024/1689 | Art. 13 (transparencia), Art. 36 (auditoría), Art. 15 (bias) |
+| **AI Act 2024/1689** | https://eur-lex.europa.eu/eli/reg/2024/1689 | Art. 50 (transparencia — riesgo limitado), Art. 36 (auditoría), Art. 15 (bias) |
 | **GDPR** | https://gdpr-info.eu | Art. 5 (principios), Art. 32 (seguridad), Art. 33-34 (breach), Art. 6 (lawfulness) |
 | **Directiva STS** | https://eur-lex.europa.eu/eli/dir/2024/680 | Acceso datos para ciberseguridad (no aplica) |
 | **LSSI-CE (ES)** | https://www.boe.es/buscar/act.php?id=BOE-A-2002-13897 | Art. 11 (cookies, consentimiento — aplica a UI) |
@@ -266,7 +266,7 @@ ORDER BY cr.reviewed_at DESC;
    - Gráfico: pipeline de ingesta con puntos HITL/auto
 
 2. **§ 6.2 Cumplimiento AI Act**: clasificación riesgo bajo, requisitos aplicables, audit trail
-   - Matriz: requisitos Art. 13/36 → implementación en Korio
+   - Matriz: requisitos Art. 50/36 → implementación en Korio
 
 3. **§ 6.3 GDPR & datos personales**: Presidio, RLS, derecho a olvido
    - Diagrama: flujo de datos con redaction points
