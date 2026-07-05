@@ -581,9 +581,9 @@ CONTEXTO:
 }
 ```
 
-**Latencias reales (benchmark 50 iter, sesión 10):**
-- p50: **1983 ms**
-- p95: **3053 ms**
+**Latencias reales (benchmark 50 iter, eval final jul 2026):**
+- p50: **1664 ms**
+- p95: **4354 ms**
 
 ---
 
@@ -827,7 +827,7 @@ pipeline_events (Supabase append-only)
 
 audit_log (queries de usuario)
 n8n_errors (panel admin + Slack DM + reviewed)
-Benchmark (p50=1983ms / p95=3053ms)
+Benchmark (p50=1664ms / p95=4354ms)
 ```
 
 ---

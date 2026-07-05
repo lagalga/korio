@@ -18,7 +18,7 @@ Korio permite a una organización consultar en lenguaje natural el conocimiento 
 > **Sesión 18 · 26 jun 2026 (v0.3.15):** observabilidad en 3 capas — LangSmith `@traceable` (semántica, región UE), OTel + Jaeger self-hosted (infraestructura), `scripts/rag_eval.py` LLM-as-judge (calidad). Todas con degradado no-op seguro. Detalle en [`docs/OBSERVABILITY.md`](docs/OBSERVABILITY.md).
 > **Sesión 17c · 23 jun 2026 (v0.3.14):** fixes encadenados pre-grabación vídeo: restore snapshot limpiaba policies, umbral conflicto 0.78→0.80, promoción doc-level tras ≥2 aprobaciones HITL (`promote_to_document_replacement`), nginx `proxy_read_timeout` 120→300s.
 > **Sesión 16 · 18 jun 2026 (v0.3.12):** throttling anti-spam errores n8n (1 DM en error 1/10/20…), panel `/ui/admin-errors.html` + endpoints admin, botón "Marcar reviewed" en Slack con verificación de firma, workflow Slack file_shared: duplicado → DM thread (no errorWorkflow).
-> **Benchmark (sesión 10 · 12 jun 2026):** p50 global 1983 ms · p95 3053 ms · 50/50 queries sin errores · QA E2E 10/10 ✅
+> **Benchmark (eval final · jul 2026):** p50 global 1664 ms · p95 4354 ms · 50/50 queries sin errores · QA E2E 10/10 ✅
 
 ---
 
@@ -352,7 +352,7 @@ python -m pytest tests/ -v    # 31/31 ✅ (~25s)
 |---|---|
 | Versión | **v0.3.16** (29 junio 2026, sesión 19) |
 | Tests | **31/31 ✅** (20 RLS+RAG + 8 agéntica/ACID + 3 rerank semántico grafo) |
-| Benchmark formal (sesión 10) | p50 1983 ms · p95 3053 ms · 50/50 sin errores |
+| Benchmark formal (eval final) | p50 1664 ms · p95 4354 ms · 50/50 sin errores |
 | Latencia RAG vector-puro | ~1.0–3.3s |
 | Latencia RAG híbrido (vector + grafo) | ~1.0s |
 | Latencia embedding | ~0.8s |

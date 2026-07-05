@@ -96,7 +96,7 @@ search.py · v0.3.16
 SearchResponse {answer, sources, has_silent_conflict, graph_contributed, …}
 ```
 
-**Latencia p50 actual**: 1983 ms / p95 3053 ms (benchmark.py 50 iter, sesión 10).
+**Latencia p50 actual**: 1664 ms / p95 4354 ms (benchmark.py 50 iter, eval final jul 2026).
 
 ---
 
@@ -289,8 +289,8 @@ Cada workflow productivo lleva `errorWorkflow: <N8N_WF_ERRORS>` para captura aut
 | Vector search pgvector | <0.1s | sin índice ivfflat tras migración 019 (>1000 chunks → reintroducir HNSW) |
 | Graph rerank semántico | ~0.05s | RRF k=60 sobre 455 claims embebidos |
 | LLM generation Mistral API | ~2.5s | `mistral-small-latest`, retry 429 con backoff |
-| **Total RAG end-to-end p50** | **1983 ms** | benchmark formal 50/50 sin errores |
-| **Total RAG end-to-end p95** | **3053 ms** | |
+| **Total RAG end-to-end p50** | **1664 ms** | benchmark formal 50/50 sin errores (eval final jul 2026) |
+| **Total RAG end-to-end p95** | **4354 ms** | |
 | HITL email E2E | ~1s | Workflow n8n |
 | Ingesta documento (~6 chunks) | ~6s | embed + ACID INSERT + grafo |
 
@@ -410,4 +410,4 @@ VPS → trazas de infraestructura sin salir del servidor. La eval reutiliza `sea
 
 ---
 
-*Actualizado: 29 junio 2026 · v0.3.16 · sesión 19. Phases 1–7.3 + Phase 9 flecos + observabilidad + corpus saneado. 20 migraciones · 8 workflows · 31/31 tests · p50=1983ms.*
+*Actualizado: 5 julio 2026 · v0.3.16 · sesión 19+. Phases 1–7.3 + Phase 9 flecos + observabilidad + corpus saneado. 20 migraciones · 8 workflows · 31/31 tests · p50=1664ms / p95=4354ms (eval final).*
