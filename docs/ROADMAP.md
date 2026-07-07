@@ -398,8 +398,8 @@ citados en R2), `fuera_de_dominio` (declina correctamente).
 | Workflows n8n activos | 8 |
 | Documentos en producción | 20 (Delos 15 + García 5) |
 | Chunks en producción | 74 |
-| Nodos grafo FalkorDB | 1 130 |
-| Aristas grafo FalkorDB | 1 818 |
+| Nodos grafo FalkorDB | 1179 |
+| Aristas grafo FalkorDB | 1951 |
 | Aristas CONTRADICTS | 27 (13 resueltas + 14 pendientes) |
 | Policies reutilizables | 4 |
 | Conflict reviews activos | 3 |

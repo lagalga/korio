@@ -83,3 +83,6 @@ id_ed25519
 /secrets/
 *.keystore
 *.jks
+
+# Notas internas del proyecto (memoria Claude Code, no público)
+CLAUDE.md

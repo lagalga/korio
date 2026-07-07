@@ -342,7 +342,6 @@ python -m pytest tests/ -v    # 31/31 ✅ (~25s)
 - [`docs/COMPLIANCE-AI-ACT-GDPR.md`](docs/COMPLIANCE-AI-ACT-GDPR.md) — AI Act + GDPR: clasificación de riesgo, medidas técnicas, Privacy Policy
 - [`docs/AUDIT-2026-06-14.md`](docs/AUDIT-2026-06-14.md) — Auditoría seguridad: 21 hallazgos, 7 cerrados, 14 diferidos
 - [`docs/PHASE-10-MULTIMODAL-INGESTION.md`](docs/PHASE-10-MULTIMODAL-INGESTION.md) — Diseño Phase 10: email body, Slack/Teams threads, audio
-- [`CLAUDE.md`](CLAUDE.md) — Memoria del proyecto para Claude Code
 
 ---
 

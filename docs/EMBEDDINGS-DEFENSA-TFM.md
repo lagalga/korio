@@ -196,8 +196,9 @@ Punto de equilibrio: **5-6 clientes a €40/mes** cubren el upgrade. Asumible.
 La elección del embedder es una decisión con **alto coste de reversión**: cada
 cambio obliga a re-embebir el corpus completo y a validar de nuevo los
 umbrales de similitud (búsqueda 0.35, conflict 0.80, banner disputed 0.60,
-CONTRADICTS 0.85, silent_conflict query-time 0.80). Por eso el CLAUDE.md
-declara nomic-embed-text como **inmutable durante el TFM** — no por convicción
+CONTRADICTS 0.85, silent_conflict query-time 0.80). Por eso las notas
+internas del proyecto declaran nomic-embed-text como **inmutable durante el
+TFM** — no por convicción
 técnica de que sea el mejor, sino por gestión de riesgo del alcance del
 proyecto. La migración se planifica como Phase 11 explícita, con presupuesto
 y calendario dedicados.
